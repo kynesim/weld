@@ -15,6 +15,8 @@ def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = Fals
 
     @return (rv, out, err) .
     """
+    if (verbose):
+        print "> %s"%(" ".join(cmd))
     if env is None:
         env = os.environ
     a_process = subprocess.Popen(cmd, stdout=subprocess.PIPE,

@@ -20,6 +20,7 @@ import utils
 import db
 import parser
 import init
+import pull
 import layout
 
 main_parser = OptionParser(usage = __doc__)
@@ -149,9 +150,8 @@ class Pull(Command):
         to_pull = self.repo_set_from_args(args)
         if (opts.verbose):
             print("Pulling repos: %s"%(to_pull))
-                                         
-                
-
+        for p in to_pull:
+            pull.sync_and_rebase(self.current, self.spec, p)
         
         
 @command('help')

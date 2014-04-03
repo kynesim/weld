@@ -23,8 +23,12 @@ def init_weld(weld, where):
     os.mkdir(layout.weld_dir(weld.base_dir))
     # Create a spec file (the current file can be empty)
     weld.write(layout.spec_file(weld.base_dir))
-    # Add this to the repo
-    git.add(where, [ layout.spec_file(weld.base_dir) ])
+    # Create a .gitignore
+    f = open(os.path.join(where, ".gitignore"), "wb+")
+    f.write(".welded/pending\n")
+    f.close()
+    # Add these to the repo
+    git.add(where, [ layout.spec_file(weld.base_dir), ".gitignore" ])
     # Commit.
     git.commit(where, "Weld initialisation", [ layout.header_init() ])
     print("Weld initialised OK.\n")

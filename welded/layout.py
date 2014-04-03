@@ -18,4 +18,10 @@ def spec_file(base_dir):
 def header_init():
     return ("X-Weld-State", "Init")
 
+def header_grep_merge(repo):
+    return "^X-Weld-State: Merged %s/"%repo
+
+def header_grep_init():
+    return "^X-Weld-State: Init"
+
 # End file.
