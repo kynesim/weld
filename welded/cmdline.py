@@ -18,6 +18,7 @@ from optparse import OptionParser
 import welded.utils as utils
 import utils
 import db
+import parser
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("--verbose", action="store_true", 
@@ -99,7 +100,8 @@ class Init(Command):
         if (len(args) != 1):
             raise utils.GiveUp("Missing weld.xml")
         
-        weld = db.Weld()
+        p = parser.Parser()
+        weld = p.parse(args[0])
         print "%s\n"%(weld.__repr__())
 
     def needs_weld(self):

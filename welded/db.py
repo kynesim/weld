@@ -10,7 +10,7 @@ class Base:
     Represents a base
     """
     
-    # Name
+    # Name.
     name = None
     # URI
     uri = None
@@ -19,11 +19,13 @@ class Base:
     repos = { }
 
     def __init__(self):
-        pass
+        self.name = None
+        self.uri = None
+        self.repos = { }
 
     def __repr__(self):
         res = "<base name=%s uri=%s />\n"%(quoteattr(self.name), quoteattr(self.uri))
-        for r in self.repos:
+        for r in self.repos.itervalues():
             res += "  " + r.__repr__() + "\n"
         return res
 
@@ -54,13 +56,20 @@ class Repo:
     current = None
     
     def __init__(self):
-        pass
+        self.name = None
+        self.base = None
+        self.branch = None
+        self.tag = None
+        self.rev = None
+        self.rel = None
+        self.current = None
+
     
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        res = "<repo name=%s base=%s"%(quoteattr(self.name), quoteattr(self.base))
+        res = "<repo name=%s base=%s"%(quoteattr(self.name), quoteattr(self.base.name))
         if (self.branch is not None):
             res = res + " branch=%s"%(quoteattr(self.branch))
         if (self.tag is not None):
@@ -98,7 +107,7 @@ class Weld:
         res = "<weld name=%s>\n"%(quoteattr(self.name))
         if (self.origin is not None):
             res += "<origin uri=%s />\n"%(quoteattr(self.origin))
-        for b in self.bases:
+        for b in self.bases.itervalues():
             res += b.__repr__()
         res += "</weld>"
         return res
