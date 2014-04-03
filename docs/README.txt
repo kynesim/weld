@@ -44,20 +44,24 @@ bases, repos and upstreams
  A repo is a git repository. It is located relative to a base and checked out
   to some subdirectory in the weld.
 
+ There are some design limitations here:
+
+  - You can't rename directories from an upstream weld.
+  - No repo can have more than one base.
+
 weld.xml
 ========
 
  A typical weld.xml:
 
  <?xml version="1.0" ?>
- <weld>
-   <name>frank</name>
+ <weld name="frank">
    <origin uri="ssh://git@home.example.com/ribbit/fromble" />
 
    <base name="project124" uri="ssh://git@foo.example.com/my/base" />
    <base name="igniting_duck" uri="ssh://git@bar.example.com/wobble" />
 
-   <repo name="muddle" base="project124" branch="herring" rel="muddle" />
+   <repo name="muddle" base="project124" branch="herring" tag="frooble_1.0" rev="cd23824.." rel="muddle" />
    <repo name="foo" base="igniting_duck" checkout="frobble/woobit" />
 
  </weld>

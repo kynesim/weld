@@ -36,6 +36,7 @@ class Bug(GiveUp):
     pass
 
 
+
 # End file.
 
         

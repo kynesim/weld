@@ -36,13 +36,13 @@ if __name__ == "__main__":
         print("")
         print("%s"%e)
         traceback.print_exc()
-        sys.exit(e.retcode)
+        sys.exit(e.retval)
     except GiveUp as e:
         print("")
         text = str(e)
         if text:
             print(text)
-        sys.exit(e.retcode)
+        sys.exit(e.retval)
 
 # End file.
 
