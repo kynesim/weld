@@ -19,6 +19,7 @@ import welded.utils as utils
 import utils
 import db
 import parser
+import init
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("--verbose", action="store_true", 
@@ -102,7 +103,7 @@ class Init(Command):
         
         p = parser.Parser()
         weld = p.parse(args[0])
-        print "%s\n"%(weld.__repr__())
+        init.init_weld(weld, os.getcwd())
 
     def needs_weld(self):
         # init doesn't need a weld.

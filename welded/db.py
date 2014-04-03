@@ -96,10 +96,18 @@ class Weld:
 
     # Bases - maps a name to a Base
     bases = { }
-    
+
     def __init__(self):
         self.name = "[anonymous]"
     
+    def set_base(self, where):
+        self.base_dir = where
+
+    def write(self, where_to):
+        f = open(where_to, "wb+")
+        f.write(self.__repr__())
+        f.close()
+
     def __str__(self):
         return self.__repr__()
 

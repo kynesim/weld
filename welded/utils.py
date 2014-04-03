@@ -2,6 +2,43 @@
 Weld utilities
 """
 
+import os
+import sys
+import subprocess
+import tempfile
+
+def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True):
+    """
+    Runs a command via the shell
+
+    cmd is an array in the usual way. 
+
+    @return (rv, out, err) .
+    """
+    if env is None:
+        env = os.environ
+    a_process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                 stderr = subprocess.PIPE,
+                                 shell = useShell)
+    (out, err) = a_process.communicate()
+    rv = a_process.wait()
+    if (rv and (not allowFailure)):
+        raise GiveUp("Command '%s' failed - %d\n%s"%(" ".join(cmd), rv, err))
+    return (a_process.wait(), out, err)
+
+def with_env(lst):
+    """
+    Return a copy of the current environment augmented with the bindings in lst - which
+    is an array of pairs
+    """
+    ret = os.environ.copy()
+    for l in lst:
+        (n,v) = l
+        ret[n] = v
+    return ret
+
+
+
 class GiveUp(Exception):
     """
     Something has gone wrong - tell the user
