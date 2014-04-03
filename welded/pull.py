@@ -22,7 +22,7 @@ def sync_and_rebase(current, spec, repo):
     Now remove the repo's subdirectory and replace it with the source repo's <merge-with-commit-id>. Commit this
      with X-Weld-State: Merged <Repo>/<merge-with-commit-id>
 
-    Leave .welded/pending as 'git merge weld-merge-<repo>-<merge-with-commit-id>'
+    Leave .welded/pending as 'git merge --squash weld-merge-<repo>-<merge-with-commit-id>'
 
     Now we want to apply <commit-id> .. <current-branch> .
 
