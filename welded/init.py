@@ -20,11 +20,11 @@ def init_weld(weld, where):
     git.init(where)
     weld.set_base(where)
     # Write the weld directory.
-    os.mkdir(layout.weld_dir(weld))
+    os.mkdir(layout.weld_dir(weld.base_dir))
     # Create a spec file (the current file can be empty)
-    weld.write(layout.current_file(weld))
+    weld.write(layout.spec_file(weld.base_dir))
     # Add this to the repo
-    git.add(where, [ layout.current_file(weld) ])
+    git.add(where, [ layout.spec_file(weld.base_dir) ])
     # Commit.
     git.commit(where, "Weld initialisation", [ layout.header_init() ])
     print("Weld initialised OK.\n")

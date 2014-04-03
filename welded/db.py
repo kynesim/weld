@@ -100,6 +100,16 @@ class Weld:
     def __init__(self):
         self.name = "[anonymous]"
     
+    def repo_names(self):
+        """
+        Returns a hash table of repo name -> (something)
+        """
+        rv = { }
+        for b in self.bases.values():
+            for r in b.repos.keys():
+                rv[r] = True
+        return rv
+
     def set_base(self, where):
         self.base_dir = where
 

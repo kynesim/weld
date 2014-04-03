@@ -38,6 +38,29 @@ def with_env(lst):
     return ret
 
 
+def find_weld_dir(d):
+    """
+    Goes up d until it finds a weld. Fails if it finds .git without .weld or vice versa.
+    """
+    orig_d = d
+    while True:
+        w = os.path.exists(os.path.join(d, ".weld"))
+        g = os.path.exists(os.path.join(d, ".git"))
+        if ((not w) and (not g)):
+            # Rats. up a level ..
+            p = os.path.split(d)
+            if (len(p.head) > 0): 
+                d = p.head
+            else:
+                raise GiveUp("Cannot find a weld in '%s'"%orig_d)
+        elif (w and g):
+            # Found it!
+            return d
+        else:
+            raise GiveUp("There is something in %s (up from %s) , but it is not a valid weld - \n" + 
+                         " it does not have both .git and .weld"%(d, orig_d))
+
+
 
 class GiveUp(Exception):
     """
