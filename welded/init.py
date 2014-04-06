@@ -26,6 +26,7 @@ def init_weld(weld, where):
     # Create a .gitignore
     f = open(os.path.join(where, ".gitignore"), "wb+")
     f.write(".welded/pending\n")
+    f.write(".welded/bases/**\n")
     f.close()
     # Add these to the repo
     git.add(where, [ layout.spec_file(weld.base_dir), ".gitignore" ])

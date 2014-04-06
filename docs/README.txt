@@ -26,28 +26,22 @@ Files in .welded
  .welded/weld.xml 
    This is a top-level file that describes this weld.
 
- .welded/status.xml
-   This is a file that describes what weld thinks the state
-    of the world is, because it needs something to compare
-    weld.xml to.
+ .welded/completion
+   A set of instructions for weld finish to perform once you have
+    completed your merge.
+
+ .welded/bases/ ..
+   Copies of all your bases.
 
 
-bases, repos and upstreams
-==========================
+bases and seams
+===============
 
- The origin is where this weld should pull from and push to. It is the 
-  origin remote in the corresponding git directory.
+ A base is a git repository (and branch) from which one pulls seams and to which
+   they are pushed.
 
- A base is a collection of repositories in weld. bases are rooted at a single URI
-   (for the moment).
-
- A repo is a git repository. It is located relative to a base and checked out
-  to some subdirectory in the weld.
-
- There are some design limitations here:
-
-  - You can't rename directories from an upstream weld.
-  - No repo can have more than one base.
+ A seam is a mapping from a directory in a git repository to a directory in the 
+   weld in which it will appear.
 
 weld.xml
 ========
@@ -58,11 +52,11 @@ weld.xml
  <weld name="frank">
    <origin uri="ssh://git@home.example.com/ribbit/fromble" />
 
-   <base name="project124" uri="ssh://git@foo.example.com/my/base" />
+   <base name="project124" uri="ssh://git@foo.example.com/my/base" branch="b" rev=".." tag=".."/>
    <base name="igniting_duck" uri="ssh://git@bar.example.com/wobble" />
 
-   <repo name="muddle" base="project124" branch="herring" tag="frooble_1.0" rev="cd23824.." rel="muddle" />
-   <repo name="foo" base="igniting_duck" checkout="frobble/woobit" />
+   <seam base="project124" dest="flibble" />
+   <seam base="igniting_duck" src="foo" dest="bar" />
 
  </weld>
  
@@ -72,20 +66,19 @@ weld.xml
    * This weld is called frank - this name is used when upstreaming.
    * The origin for this weld is at ssh://git@home.example.com/ribbit/fromble.
    * This weld draws from two bases: project124 and igniting_duck
-   * Check out the git repo at project124 into the local directory muddle, branch herring.
-   * Check out the git repo at igniting_duck/frobble/woobit into the local directory.
+   * project124 turns up in a directory in the weld called flibble.
+   * igniting_duck/foo turns up in <weld>/bar
 
 Going behind weld's back
 ========================
 
- As with muddle, weld attempts to support you going behind its back. In 
-particular, 
+ As with muddle, weld attempts to support you going behind its back.
 
 
 Using weld   
 ==========
 
- weld create weld.xml
+ weld init weld.xml
   
    This command takes a weld.xml that you have written and creates a git 
     repository for it, including writing you a .git/info/sparse-checkout file.
@@ -98,7 +91,7 @@ Using weld
  weld upstream <base>
 
    Here is where the magic happens. Weld collects all the diffs that might affect
-  <base> and ports them (individually) upstream to that base. Weld adds a
+  <base> and ports them (individually) upstream to that base. Weld axdds a
   Welded-From: <name>/<commit-id> to each comment.
 
  weld sync <URI>
@@ -108,6 +101,24 @@ this is largely a clone, but because weld will write a sparse-checkout file
 you do not need to check out any parts of the repository which are not 
 currently in the weld.
 
+Headers that weld introduces
+============================
+
+ Weld will occasionally leave commits containing messages to itself.
+It is important that you do not start any legitimate commit messages
+with
+
+X-Weld-State:
+
+ The messages it leaves are:
+
+X-Weld-State: Merged/[base]:[commit-id]  [src]:[dest] ...
+
+ Indicates that it merged [base]:[commit-id] with the following seams.
+
+X-Weld-State: Init
+
+ Indicates that the weld started here (with nothing merged)
 
 End file.
 

@@ -30,11 +30,11 @@ class Parser:
         if (len(origins) > 0):
             weld.origin = origins[0].attributes["uri"]
         bases = dom.getElementsByTagName("base")
-        repos = dom.getElementsByTagName("repo")
+        seams = dom.getElementsByTagName("seam")
         for b in bases:
             base_obj = self.handle_base(weld, b)
-        for r in repos:
-            repo_obj = self.handle_repo(weld, r)
+        for s in seams:
+            seam_obj = self.handle_seam(weld, s)
         return weld
 
     def handle_base(self, weld, node):
@@ -43,30 +43,31 @@ class Parser:
             raise utils.GiveUp("Base without a name")
         b.name = node.getAttribute("name")
         b.uri = node.getAttribute("uri")
+        if (node.hasAttribute("branch")):
+            b.branch = node.getAttribute("branch")
+        if (node.hasAttribute("tag")):
+            b.tag = node.getAttribute("tag")
+        if (node.hasAttribute("rev")):
+            b.rev = node.getAttribute("rev")
+
         weld.bases[b.name] = b
 
-    def handle_repo(self, weld, node):
-        r = db.Repo()
+    def handle_seam(self, weld, node):
+        s = db.Seam()
         if (not node.hasAttribute("name")):
-            raise utils.GiveUp("Repo without a name")
-        r.name = node.getAttribute("name")
+            raise utils.GiveUp("Seam without a name")
+        s.name = node.getAttribute("name")
         if (not node.hasAttribute("base")):
-            raise utils.GiveUp("Repo %s has no base."%r.name)
+            raise utils.GiveUp("Seam %s has no base."%s.name)
         base_name = node.getAttribute("base")
         if (not (base_name in weld.bases)):
-            raise utils.GiveUp("Repo %s has base %s, which is not defined."%(r.name, base_name))
-        r.base =  weld.bases[base_name];
-        if (node.hasAttribute("branch")):
-            r.branch = node.getAttribute("branch")
-        if (node.hasAttribute("tag")):
-            r.tag = node.getAttribute("tag")
-        if (node.hasAttribute("rev")):
-            r.rev = node.getAttribute("rev")
-        if (node.hasAttribute("rel")):
-            r.rel = node.getAttribute("rel")
+            raise utils.GiveUp("Seam %s has base %s, which is not defined."%(r.name, base_name))
+        s.base =  weld.bases[base_name];
+        if (node.hasAttribute("source")): 
+            s.rel = node.getAttribute("rel")
         if (node.hasAttribute("current")):
-            r.current = node.getAttribute("current")
-        r.base.repos[r.name] = r
+            s.current = node.getAttribute("current")
+        s.base.seams[s.name] = s
 
 
 

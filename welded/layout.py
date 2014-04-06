@@ -15,11 +15,14 @@ def current_file(base_dir):
 def spec_file(base_dir):
     return os.path.join(base_dir, ".weld", "welded.xml")
 
+def base_repo(base_dir, base):
+    return os.path.join(base_dir, ".weld", "bases", base)
+
 def header_init():
     return ("X-Weld-State", "Init")
 
-def header_grep_merge(repo):
-    return "^X-Weld-State: Merged %s/"%repo
+def header_grep_merge(base):
+    return "^X-Weld-State: Merged %s/"%base
 
 def header_grep_init():
     return "^X-Weld-State: Init"

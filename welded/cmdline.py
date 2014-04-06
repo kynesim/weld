@@ -76,12 +76,8 @@ class Command(object):
         self.weld_dir = w
         p = parser.Parser()
         spec_name = layout.spec_file(w)
-        current_name = layout.current_file(w)
         self.spec = p.parse(spec_name)
-        if (os.path.exists(current_name)):            
-            self.current = p.parse(current_name)
-        else:
-            self.current = db.Weld()
+        self.spec.set_dir(self.weld_dir)
 
     def syntax(self):
         """ 
@@ -99,25 +95,18 @@ class Command(object):
         # Most commands need a weld.
         return True
 
-
-    def repo_set_from_args(self, args):
-        repos = {  }
-        spec_repos = self.spec.repo_names()
-        current_repos = self.current.repo_names()
+    def base_set_from_args(self, args):
+        bases = { } 
         for a in args:
             if (a=="_all"):
-                for x in spec_repos.keys():
-                    repos[x] = True
-                for x in current_repos.keys():
-                    repos[x] = True
-            elif (a in spec_repos):
-                repos[a] = True
-            elif (self.current.has_base(a)):
-                repos[a] = True;
+                for x in self.spec.base_names():
+                    bases[x] = True
+            elif (a in self.spec.bases):
+                bases[a] = True
             else:
-                raise GiveUp("Repo '%s' is unknown in both spec and current"%(a))
-        return repos.keys()
-            
+                raise GiveUp("Base '%s' is unknown"%(a))
+        return bases.keys()
+    
 
 @command('init')
 class Init(Command):
@@ -147,11 +136,11 @@ class Pull(Command):
     Pull bases. If _all is given, pulls all bases.
     """
     def go(self,opts,args):
-        to_pull = self.repo_set_from_args(args)
+        to_pull = self.base_set_from_args(args)
         if (opts.verbose):
             print("Pulling repos: %s"%(to_pull))
         for p in to_pull:
-            pull.sync_and_rebase(self.current, self.spec, p)
+            pull.sync_and_rebase(self.spec, p)
         
         
 @command('help')

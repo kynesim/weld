@@ -7,7 +7,8 @@ import sys
 import subprocess
 import tempfile
 
-def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True):
+def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
+        cwd = None):
     """
     Runs a command via the shell
 
@@ -21,7 +22,8 @@ def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = Fals
         env = os.environ
     a_process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                  stderr = subprocess.PIPE,
-                                 shell = useShell)
+                                 shell = useShell,
+                                 cwd = cwd)
     (out, err) = a_process.communicate()
     rv = a_process.wait()
     if (rv and (not allowFailure)):
@@ -51,8 +53,8 @@ def find_weld_dir(d):
         if ((not w) and (not g)):
             # Rats. up a level ..
             p = os.path.split(d)
-            if (len(p.head) > 0): 
-                d = p.head
+            if (len(p[0]) > 0): 
+                d = p[0]
             else:
                 raise GiveUp("Cannot find a weld in '%s'"%orig_d)
         elif (w and g):
@@ -63,6 +65,37 @@ def find_weld_dir(d):
                          " it does not have both .git and .weld"%(d, orig_d))
 
 
+
+def classify_seams(old_seams, new_seams):
+    """
+    Returns (seams_deleted_in_new, seams_changed_in_new, seams_created_in_new)
+    All the seams are db.Seam objects.
+    """
+    deleted_in_new = [ ]
+    changed = [ ]
+    created_in_new = [ ]
+    # Build a hash representation
+    old_h = { }
+    new_h = { }
+    for x in old_seams:
+        old_h[ x.__repr__() ] = x
+    for y in new_seams:
+        new_h[ y.__repr__() ] = y
+    # Everything in old but not new is deleted
+    for x in old_seams:
+        r = x.__repr__()
+        if (r in new_h):
+            # Changed
+            changes.append(x)
+        else:
+            # Deleted
+            deleted_in_new.append(x)
+    for y in new_seams:
+        r = y.__repr__()
+        if (not (r in old_h)):
+            # Added
+            created_in_new.append(y)
+            
 
 class GiveUp(Exception):
     """

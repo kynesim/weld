@@ -15,31 +15,6 @@ class Base:
     # URI
     uri = None
 
-    # repos using this base: maps name -> Repo
-    repos = { }
-
-    def __init__(self):
-        self.name = None
-        self.uri = None
-        self.repos = { }
-
-    def __repr__(self):
-        res = "<base name=%s uri=%s />\n"%(quoteattr(self.name), quoteattr(self.uri))
-        for r in self.repos.itervalues():
-            res += "  " + r.__repr__() + "\n"
-        return res
-
-class Repo:
-    """
-    Represents a repository
-    """
-
-    # Name
-    name = None
-
-    # Base - this is a Base object
-    base = None
-
     # Branch
     branch = None
 
@@ -48,38 +23,63 @@ class Repo:
     
     # rev
     rev = None
-    
-    # Where to check out into.
-    rel = None
 
-    # The current revision in the weld.
-    current = None
-    
+    # seams using this base. name -> seam
+    seams = { }
+
     def __init__(self):
         self.name = None
-        self.base = None
+        self.uri = None
         self.branch = None
         self.tag = None
         self.rev = None
-        self.rel = None
-        self.current = None
-
-    
-    def __str__(self):
-        return self.__repr__()
+        self.seams = { }
 
     def __repr__(self):
-        res = "<repo name=%s base=%s"%(quoteattr(self.name), quoteattr(self.base.name))
+        res = "<base name=%s uri=%s"%(quoteattr(self.name), quoteattr(self.uri))
         if (self.branch is not None):
             res = res + " branch=%s"%(quoteattr(self.branch))
         if (self.tag is not None):
             res = res + " tag=%s"%(quoteattr(self.tag))
         if (self.rev is not None):
             res = res + " rev=%s"%(quoteattr(self.rev))
-        if (self.rel is not None):
-            res =res + " rel=%s"%(quoteattr(self.rel))
-        if (self.current is not None):
-            res = res + " current=%s"%(quoteattr(self.current))
+        res = res + " />\n"
+        for s in self.seams.itervalues():
+            res += "  " + s.__repr__() + "\n"
+        return res
+
+class Seam:
+    """
+    Represents a seam
+    """
+
+    # Name
+    name = None
+
+    # Base - this is a Base object
+    base = None
+
+    # Source directory
+    source = None
+
+    # Destination
+    dest = None
+
+    def __init__(self):
+        self.name = None
+        self.base = None
+        self.source = None
+        self.dest = None
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        res = "<seam name=%s base=%s"%(quoteattr(self.name), quoteattr(self.base.name))
+        if (self.source is not None):
+            res += " source=%s"%(quoteattr(self.source))
+        if (self.dest is not None):
+            res += " dest=%s"%(quoteattr(self.dest))
         res = res + "/>"
         return res
 
@@ -100,21 +100,28 @@ class Weld:
     def __init__(self):
         self.name = "[anonymous]"
     
-    def repo_names(self):
+    def seam_names(self):
         """
-        Returns a hash table of repo name -> (something)
+        Returns a hash table of seam name -> (something)
         """
         rv = { }
         for b in self.bases.values():
-            for r in b.repos.keys():
-                rv[r] = True
+            for s in b.seams.keys():
+                rv[s] = True
         return rv
 
-    def set_base(self, where):
+    def base_names(self):
+        return self.bases.keys()
+
+    def set_dir(self, where):
         self.base_dir = where
+    
+    def query_base(self, n):
+        return self.bases[n]
 
     def write(self, where_to):
         f = open(where_to, "wb+")
+        f.write("<?xml version='1.0' ?>\n")
         f.write(self.__repr__())
         f.close()
 
@@ -127,7 +134,7 @@ class Weld:
             res += "<origin uri=%s />\n"%(quoteattr(self.origin))
         for b in self.bases.itervalues():
             res += b.__repr__()
-        res += "</weld>"
+        res += "</weld>\n"
         return res
         
 

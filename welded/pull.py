@@ -5,38 +5,30 @@ pull.py - Pull a repo from upstream
 import git
 import utils
 import db
+import headers
+import ops
 
-def sync_and_rebase(current, spec, repo):
+def sync_and_rebase(spec, base):
     """
-    Rebase a single repo.
+    Rebase a single base.
 
-    Find the current branch, current-branch
+    Find the current branch. Stash the name.
 
-    Find the last merged branch - this will have an X-Weld-State: Merged <Repo>/<commit-id> header and its
-     commit id will be <branch-merged-id>
-
-    Find the commit-id in the upstream to merge with: <merge-with-commit-id>
-
-    git checkout -b weld-merge-<repo>-<merge-with-commit-id> <commit-id>
-
-    Now remove the repo's subdirectory and replace it with the source repo's <merge-with-commit-id>. Commit this
-     with X-Weld-State: Merged <Repo>/<merge-with-commit-id>
-
-    Leave .welded/pending as 'git merge --squash weld-merge-<repo>-<merge-with-commit-id>'
-
-    Now we want to apply <commit-id> .. <current-branch> .
-
-    git checkout <current-branch>
-    git rebase --onto weld-merge-<repo>-<merge-with-commit-id> <commit-id> 
-    
-    if the rebase completed ok, we can finalise. Otherwise, let the user do 'weld finish' at the end.
+    Now find the last commit-id for the base, by looking for 
     """
-    print("Pulling %s .. \n"%(repo))
+    print("Pulling %s .. \n"%(base))
     current_branch = git.current_branch(spec.base_dir)
-    # Find the last commit id for a repo.
-    last_commit_id = git.query_merge(spec.base_dir, repo)
-    # Now find the latest upstream revision
+    # Find the last merge
+    (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base)
+    b = spec.query_base(base)
+    # Update the base.
+    ops.update_base(spec, b)
+    # Now query the latest commit on that base
+    current_base_commit_id = ops.query_head_of_base(spec, b)
+
+    print("last commit_id = %s , current = %s\n", base_commit_id, current_base_commit_id)
+    #b = spec.query_base(base)
+    #( deleted_in_new, changes, created_in_new ) = utils.classify_seams(seams, b.seams)
     
-        
 
     
