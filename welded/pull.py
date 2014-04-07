@@ -18,6 +18,13 @@ def sync_and_rebase(spec, base):
     """
     print("Pulling %s .. \n"%(base))
     current_branch = git.current_branch(spec.base_dir)
+    current_commit = git.query_current_commit_id(spec.base_dir)
+
+    if (current_branch[:5] == "weld-"):
+        print("You are currently on a branch used by weld (%s) - please get off it before"
+              " trying to use weld."%(current_branch))
+        return 1
+
     # Find the last merge
     (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base)
     b = spec.query_base(base)
@@ -26,9 +33,80 @@ def sync_and_rebase(spec, base):
     # Now query the latest commit on that base
     current_base_commit_id = ops.query_head_of_base(spec, b)
 
-    print("last commit_id = %s , current = %s\n", base_commit_id, current_base_commit_id)
-    #b = spec.query_base(base)
-    #( deleted_in_new, changes, created_in_new ) = utils.classify_seams(seams, b.seams)
+    # Are they the same? If so, no work to do.
+    if (current_base_commit_id == base_commit_id):
+        print "  %s is up to date\n"%(base)
+        return
+    
+    print("Pulling %s from %s -> %s on top of local branch %s\n"%(base, 
+                                                                  base_commit_id,
+                                                                  current_base_commit_id,
+                                                                  current_branch))
+
+    # Get a base object.
+    b = spec.query_base(base)
+
+    if (b is None):
+        raise utils.GiveUp("No such base '%s'"%base)
+
+    # Classify seams.
+    ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.seams.values())
+
+    # No! Create a branch (and increment the counter until we 
+    #   get one that is not in use)
+    i = 0
+    while True:
+        branch_name = "weld-merge-%s-%s-%d"%(base,current_base_commit_id, i)
+        if (not git.has_branch(spec.base_dir, branch_name)):
+            break
+        i = i + 1
+
+    git.create_and_switch(spec.base_dir, branch_name, commit_id)
+
+    # First, if there are any deleted seams, use a commit to get rid of them.
+    ops.delete_seams(spec, b, deleted_in_new, current_base_commit_id)
+
+    # Now, modified seams ..
+    ops.modify_seams(spec, b, changes, base_commit_id, current_base_commit_id)
+
+    # Now added seams
+    ops.add_seams(spec, b, added_in_new, current_base_commit_id)
+    
+    # Write some stuff to the completion file.
+    ops.write_completion(spec, 
+                         "pull.finish(spec, '%s', '%s', '%s', '%s', '%s', '%s')"%
+                         (b.name, current_branch, current_commit, branch_name, 
+                          base_commit_id, current_base_commit_id),
+                         "pull.abort(spec, '%s', '%s')"%(branch_name, current_branch))
+    
+    # .. and rebase onto the merge branch.
+    rv = git.rebase(spec, current_branch)
+    if (rv == 0):
+        print("Rebase succeeded. Committing .. \n")
+        ops.do_completion(spec)
+        return 0
+    else:
+        print("Rebase failed - fix your merges and then do 'weld finish'. If you want to"
+              " abort, 'weld abort'")
+        return 1
+
+def finish(spec, base_name, current_branch, current_commit, branch_name, base_commit, 
+           current_base_commit_id):
+    """
+    Finish a merge.
+    """
+    b = spec.query_base(base_name)
+    hdr = headers.merge_marker(b, b.seams, current_base_commit_id)
+    git.merge(current_branch, branch_name, hdr, squashed = True)
+
+def abort(spec, branch_name, current_branch):
+    """
+    Abort a merge
+    """
+    git.switch_branch(spec, current_branch)
+    git.remove_branch(spec, branch_name)
+
+# end file.
     
 
     

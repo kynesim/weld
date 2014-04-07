@@ -71,6 +71,18 @@ class Seam:
         self.source = None
         self.dest = None
 
+    def get_source(self):
+        if (self.source is None):
+            return "."
+        else:
+            return self.source
+
+    def get_dest(self):
+        if (self.dest is None):
+            return "."
+        else:
+            return self.dest
+
     def __str__(self):
         return self.__repr__()
 

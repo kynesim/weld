@@ -140,7 +140,9 @@ class Pull(Command):
         if (opts.verbose):
             print("Pulling repos: %s"%(to_pull))
         for p in to_pull:
-            pull.sync_and_rebase(self.spec, p)
+            rv = pull.sync_and_rebase(self.spec, p)
+            if rv != 0:
+                return rv
         
         
 @command('help')
@@ -160,5 +162,34 @@ class Help(Command):
     def needs_weld(self):
         # help doesn't need a weld
         return False
+
+@command('finish')
+class Finish(Command):
+    """
+    Finish a pending operation
+    """
+    def go(self, opts, args):
+        spec = self.spec
+        c = layout.completion_file(spec.base_dir)
+        if (os.path.exists(c)):
+            utils.run_file(c, spec)
+            os.unlink(c)
+            os.unlink(layout.abort_file(spec.base_dir))
+        else:
+            raise utils.GiveUp("No pending command to complete")
+
+class Abort(Command):
+    """
+    Abort a pending operation
+    """
+    def go(self, opts, args):
+        spec = self.spec
+        c  = layout.abort_file(spec.base_dir)
+        if (os.path.exists(c)):
+            utils.run_file(c, spec)
+            os.unlink(c)
+            os.unlink(layout.completion_file(spec.base_dir))
+        else:
+            raise utils.GiveUp("No pending command to abort")
 
 # End file.

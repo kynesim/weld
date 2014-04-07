@@ -64,7 +64,9 @@ class Parser:
             raise utils.GiveUp("Seam %s has base %s, which is not defined."%(r.name, base_name))
         s.base =  weld.bases[base_name];
         if (node.hasAttribute("source")): 
-            s.rel = node.getAttribute("rel")
+            s.source= node.getAttribute("source")
+        if (node.hasAttribute("dest")): 
+            s.dest = node.getAttribute("dest")
         if (node.hasAttribute("current")):
             s.current = node.getAttribute("current")
         s.base.seams[s.name] = s

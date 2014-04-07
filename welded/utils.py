@@ -95,7 +95,11 @@ def classify_seams(old_seams, new_seams):
         if (not (r in old_h)):
             # Added
             created_in_new.append(y)
-            
+    return (deleted_in_new, changed, created_in_new)
+    
+
+def run_file(name, spec):
+    execfile(name, globals(), locals())
 
 class GiveUp(Exception):
     """
@@ -120,6 +124,7 @@ class GiveUp(Exception):
         if self.retcode != 1:
             parts.append('%d'%self.retcode)
         return 'GiveUp(%s)'%(', '.join(parts))
+
 
 
 class Bug(GiveUp):
