@@ -9,7 +9,7 @@ import headers
 import layout
 
 def run_with(where, cmd):
-    return utils.run(cmd, utils.with_env([ ("GIT_DIR", where) ]))
+    return utils.run(cmd, utils.with_env([ ("GIT_DIR", where) ]), cwd = where)
 
 def init(where):
     utils.run(["git", "init"], 

@@ -29,6 +29,8 @@ def init_weld(weld, where):
     f.write(".weld/complete.*\n")
     f.write(".weld/abort.*\n")
     f.write(".weld/bases\n")
+    # In case you edit stuff.
+    f.write(".weld/*~\n")
     f.write(".weld/bases/**\n")
     f.close()
     # Add these to the repo

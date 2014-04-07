@@ -23,6 +23,7 @@ import init
 import pull
 import layout
 import ops
+import query
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("--verbose", action="store_true", 
@@ -173,6 +174,7 @@ class Finish(Command):
         spec = self.spec
         ops.do_completion(spec)
 
+@command('abort')
 class Abort(Command):
     """
     Abort a pending operation
@@ -180,6 +182,22 @@ class Abort(Command):
     def go(self, opts, args):
         spec = self.spec
         ops.do_abort(spec)
+
+@command('query')
+class Query(Command):
+    """
+    Query the database
+
+      weld query base <base_name>    Query the current state of <base_name>
+    """
+    def go(self,opts,args):
+        if (len(args) < 1):
+            raise utils.GiveUp("query requires a subcommand")
+        cmd = args[0]
+        if (cmd == "base"):
+            if (len(args) < 2):
+                raise utils.GiveUp("query base requires a base name")
+            query.query_base(self.spec, args[1])
 
 
 # End file.
