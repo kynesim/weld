@@ -10,10 +10,10 @@ def weld_dir(base_dir):
     return os.path.join(base_dir, ".weld")
 
 def completion_file(base_dir):
-    return os.path.join(base_dir, ".weld", "complete")
+    return os.path.join(base_dir, ".weld", "complete.py")
 
 def abort_file(base_dir):
-    return os.path.join(base_dir, ".weld", "abort")
+    return os.path.join(base_dir, ".weld", "abort.py")
 
 def spec_file(base_dir):
     return os.path.join(base_dir, ".weld", "welded.xml")

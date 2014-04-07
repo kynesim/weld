@@ -74,10 +74,10 @@ def sync_and_rebase(spec, base):
     
     # Write some stuff to the completion file.
     ops.write_completion(spec, 
-                         "pull.finish(spec, '%s', '%s', '%s', '%s', '%s', '%s')"%
+                         " pull.finish(spec, '%s', '%s', '%s', '%s', '%s', '%s')"%
                          (b.name, current_branch, current_commit, branch_name, 
                           base_commit_id, current_base_commit_id),
-                         "pull.abort(spec, '%s', '%s')"%(branch_name, current_branch))
+                         " pull.abort(spec, '%s', '%s')"%(branch_name, current_branch))
     
     # .. and rebase onto the merge branch.
     rv = git.rebase(spec, current_branch)
@@ -96,8 +96,9 @@ def finish(spec, base_name, current_branch, current_commit, branch_name, base_co
     Finish a merge.
     """
     b = spec.query_base(base_name)
-    hdr = headers.merge_marker(b, b.seams, current_base_commit_id)
-    git.merge(current_branch, branch_name, hdr, squashed = True)
+    hdr = headers.merge_marker(b, b.get_seams(), current_base_commit_id)
+    git.merge(spec,current_branch, branch_name, hdr, squashed = True)
+    git.commit(spec.base_dir, hdr, [ ])
 
 def abort(spec, branch_name, current_branch):
     """

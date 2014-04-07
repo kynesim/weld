@@ -16,7 +16,7 @@ def init(where):
               utils.with_env([ ("GIT_DIR", where) ]))
 
 def add_in_subdir(where, dirname):
-    utils.run(["git", "add", dirname], cwd = where)
+    utils.run(["git", "add", "-A", "%s/**"%dirname], cwd = where)
 
 def add(where, files):
     utils.run(["git", "add"] + files,
@@ -156,13 +156,13 @@ def merge(spec, to_branch, from_branch, msg, squashed = False):
     """
     Note that merge leaves you on the to_branch
     """
-    switch_branch(spec.base_dir, to_branch)
+    switch_branch(spec, to_branch)
     cmd = [ "git", "merge" ]
     if (squashed):
         cmd.append("--squash")
-    cmd.append("--no-ff") # To make sure we always get our commit
+    #cmd.append("--no-ff") # To make sure we always get our commit
     # Sadly, there is no -F option
-    cmd.extend([ "-m" , "'%s'", msg])
+    cmd.extend([ "-m" , msg])
     cmd.append(from_branch)
     (rv,out,err) = run_with(spec.base_dir, cmd)
     

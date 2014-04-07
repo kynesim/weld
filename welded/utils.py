@@ -6,6 +6,9 @@ import os
 import sys
 import subprocess
 import tempfile
+import hashlib
+import imp
+import traceback
 
 def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
         cwd = None):
@@ -97,6 +100,22 @@ def classify_seams(old_seams, new_seams):
             created_in_new.append(y)
     return (deleted_in_new, changed, created_in_new)
     
+
+def dynamic_load(filename):
+    try:
+        try:
+            with open(filename, 'rb') as fin:
+                contents = fin.read()
+        except IOError, e:
+            raise Bug("Cannot open %s"%filename)
+        hasher = hashlib.md5()
+        hasher.update(contents)
+        digest = hasher.hexdigest()
+        return imp.load_source(digest, filename)
+    except GiveUp:
+        raise
+    except Exception:
+        raise GiveUp("Cannot load %s - %s"%(filename, traceback.format_exc()))
 
 def run_file(name, spec):
     execfile(name, globals(), locals())

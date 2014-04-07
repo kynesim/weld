@@ -56,9 +56,7 @@ def merge_marker(base_obj, seams, base_commit):
     """
     Construct a merge header
     """
-    rv = "X-Weld-State: Merged %s/%s "%(base_obj.name, base_commit)
-    for s in seams:
-        rv += seam_desc(s)
+    rv = "X-Weld-State: Merged %s/%s %s"%(base_obj.name, base_commit, pickle_seams(seams))
     return rv
 
 def query_last_merge(where, base):

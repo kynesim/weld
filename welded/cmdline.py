@@ -22,6 +22,7 @@ import parser
 import init
 import pull
 import layout
+import ops
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("--verbose", action="store_true", 
@@ -170,13 +171,7 @@ class Finish(Command):
     """
     def go(self, opts, args):
         spec = self.spec
-        c = layout.completion_file(spec.base_dir)
-        if (os.path.exists(c)):
-            utils.run_file(c, spec)
-            os.unlink(c)
-            os.unlink(layout.abort_file(spec.base_dir))
-        else:
-            raise utils.GiveUp("No pending command to complete")
+        ops.do_completion(spec)
 
 class Abort(Command):
     """
@@ -184,12 +179,7 @@ class Abort(Command):
     """
     def go(self, opts, args):
         spec = self.spec
-        c  = layout.abort_file(spec.base_dir)
-        if (os.path.exists(c)):
-            utils.run_file(c, spec)
-            os.unlink(c)
-            os.unlink(layout.completion_file(spec.base_dir))
-        else:
-            raise utils.GiveUp("No pending command to abort")
+        ops.do_abort(spec)
+
 
 # End file.

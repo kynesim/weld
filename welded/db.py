@@ -35,6 +35,9 @@ class Base:
         self.rev = None
         self.seams = { }
 
+    def get_seams(self):
+        return self.seams.values()
+
     def __repr__(self):
         res = "<base name=%s uri=%s"%(quoteattr(self.name), quoteattr(self.uri))
         if (self.branch is not None):

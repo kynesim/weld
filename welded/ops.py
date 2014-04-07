@@ -65,12 +65,20 @@ def add_seams(spec, base_obj, seams, base_commit):
     hdrs = headers.seam_op(headers.SEAM_VERB_ADDED, base_obj, seams, base_commit)
     git.commit(spec.base_dir, hdrs, [] )
 
+COMPLETION_PREFIX="import pull\n" + \
+    "def go(spec):"
+COMPLETION_SUFFIX="\n"
+
 def write_completion(spec, cmds_ok, cmds_abort):
     f = open(layout.completion_file(spec.base_dir), "w+")
+    f.write(COMPLETION_PREFIX)
     f.write(cmds_ok)
+    f.write(COMPLETION_SUFFIX)
     f.close()
     f = open(layout.abort_file(spec.base_dir), "w+")
+    f.write(COMPLETION_PREFIX)
     f.write(cmds_abort)
+    f.write(COMPLETION_SUFFIX)
     f.close()
 
 def done_completion(spec):
@@ -81,7 +89,8 @@ def done_completion(spec):
 def do_completion(spec):
     c = layout.completion_file(spec.base_dir)
     if (os.path.exists(c)):
-        utils.run_file(c, spec)
+        f = utils.dynamic_load(c)
+        f.go(spec)
         os.unlink(c)
         os.unlink(layout.abort_file(spec.base_dir))
     else:
@@ -90,7 +99,8 @@ def do_completion(spec):
 def do_abort(spec):
     c  = layout.abort_file(spec.base_dir)
     if (os.path.exists(c)):
-        utils.run_file(c, spec)
+        f = utils.dynamic_load(c)
+        f.go(spec)
         os.unlink(c)
         os.unlink(layout.completion_file(spec.base_dir))
     else:
