@@ -5,6 +5,7 @@ Parse the various headers that weld leaves for itself
 import git
 import re
 import json
+import db
 
 SEAM_VERB_ADDED = "Added"
 SEAM_VERB_DELETED = "Deleted"

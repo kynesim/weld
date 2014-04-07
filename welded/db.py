@@ -90,7 +90,11 @@ class Seam:
         return self.__repr__()
 
     def __repr__(self):
-        res = "<seam name=%s base=%s"%(quoteattr(self.name), quoteattr(self.base.name))
+        res = "<seam"
+        if (self.name is not None):
+            res += "name=%s "%(quoteattr(self.name))
+        if (self.base is not None):
+            res += "base=%s "%(quoteattr(self.base.name))
         if (self.source is not None):
             res += " source=%s"%(quoteattr(self.source))
         if (self.dest is not None):
