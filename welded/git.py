@@ -1,5 +1,7 @@
 """
 Git utilities
+
+@todo We rely on porcelain quite heavily here - we should stop doing that.
 """
 
 import utils
@@ -126,8 +128,9 @@ def has_branch(where, branch_name):
     (rv, out, err) = run_with(where, ["git", "branch", "-v"])
     lines = out.split('\n')
     for l in lines:
+        l = l[1:].strip()
         f = l.split(' ')
-        if (len(f) > 1 and f[1]== branch_name):
+        if (len(f) > 1 and f[0]== branch_name):
             return True
     return False
 
@@ -165,6 +168,13 @@ def merge(spec, to_branch, from_branch, msg, squashed = False):
     cmd.extend([ "-m" , msg])
     cmd.append(from_branch)
     (rv,out,err) = run_with(spec.base_dir, cmd)
+
+def has_local_changes(where):
+    (rv,out,err) = run_with(where, ["git", "status", "-s"])
+    if (len(out.strip()) == 0):
+        return False
+    else:
+        return True
     
         
 # End file.

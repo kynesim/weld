@@ -198,6 +198,9 @@ class Query(Command):
             if (len(args) < 2):
                 raise utils.GiveUp("query base requires a base name")
             query.query_base(self.spec, args[1])
-
+        elif (cmd == "bases"):
+            query.query_bases(self.spec)
+        else:
+            raise utils.GiveUp("No query subcommand '%s'"%cmd)
 
 # End file.

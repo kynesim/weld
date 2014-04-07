@@ -22,6 +22,13 @@ def query_base(spec, base_name):
     print("  the base is now at %s \n"%(current_base_cid))
     
 
+def query_bases(spec):
+    for n in spec.base_names():
+        b = spec.query_base(n)
+        print " %s\b"%b.name
+        for s in b.seams.values():
+            print "  %s: %s -> %s\n"%(s.name, s.get_source(),s.get_dest())
+
 # End file.
 
     
