@@ -7,6 +7,7 @@ import utils
 import layout
 import headers
 import os
+import shutil
 
 def update_base(spec, base):
     """
@@ -32,8 +33,17 @@ def delete_seams(spec, base_obj, seams, base_commit):
     Take the array of seam objects in seams and delete them from base_obj in spec, then
     commit the result.
     """
-    if (len(seams) > 0):
-        raise utils.Bug("delete_seams not yet implemented")
+    # Actually remarkably easy. First, delete stuff.
+    for s in seams:
+        to_zap = os.path.join(spec.base_dir, s.dest)
+        print("W: Remove %s\n"%to_zap)
+        shutil.rmtree(to_zap)
+        git.add_in_subdir(spec.base_dir, s.dest )
+    
+    # Now create the header for all this ..
+    hdr = headers.seam_op(headers.SEAM_VERB_DELETED, base_obj ,seams, base_commit)
+    # .. aaand commit.
+    git.commit(spec.base_dir, hdr, [])
 
 def modify_seams(spec, base_obj, changes, old_commit, new_commit):
     """

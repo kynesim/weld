@@ -62,7 +62,7 @@ def sync_and_rebase(spec, base):
     #   get one that is not in use)
     i = 0
     while True:
-        branch_name = "weld-merge-%s-%s-%d"%(base,current_base_commit_id, i)
+        branch_name = "weld-merge-%s-%d"%(base,i)
         if (not git.has_branch(spec.base_dir, branch_name)):
             break
         i = i + 1
