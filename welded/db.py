@@ -102,6 +102,14 @@ class Seam:
         res = res + "/>"
         return res
 
+    def srcdest(self):
+        res = ""
+        if (self.source is not None):
+            res = res + self.source
+        res = res + ":"
+        if (self.dest is not None):
+            res = res + self.dest
+        return res
 
 
 class Weld:

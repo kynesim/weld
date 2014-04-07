@@ -81,20 +81,20 @@ def classify_seams(old_seams, new_seams):
     old_h = { }
     new_h = { }
     for x in old_seams:
-        old_h[ x.__repr__() ] = x
+        old_h[ x.srcdest() ] = x
     for y in new_seams:
-        new_h[ y.__repr__() ] = y
+        new_h[ y.srcdest() ] = y
     # Everything in old but not new is deleted
     for x in old_seams:
-        r = x.__repr__()
+        r = x.srcdest()
         if (r in new_h):
             # Changed
-            changes.append(x)
+            changed.append(x)
         else:
             # Deleted
             deleted_in_new.append(x)
     for y in new_seams:
-        r = y.__repr__()
+        r = y.srcdest()
         if (not (r in old_h)):
             # Added
             created_in_new.append(y)
