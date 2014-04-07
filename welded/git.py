@@ -10,8 +10,8 @@ import os
 import headers
 import layout
 
-def run_with(where, cmd):
-    return utils.run(cmd, utils.with_env([ ("GIT_DIR", where) ]), cwd = where)
+def run_with(where, cmd, allowFailure = False):
+    return utils.run(cmd, utils.with_env([ ("GIT_DIR", where) ]), cwd = where, allowFailure = allowFailure)
 
 def init(where):
     utils.run(["git", "init"], 
@@ -34,7 +34,7 @@ def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
         cmd.extend([ "-r", from_rev ])
     cmd.append(from_repo)
     cmd.append(dir_into)
-    utils.run(cmd)
+    utils.run_to_stdout(cmd)
 
 def pull(dir_into, remote, from_branch, from_tag, from_rev):
     cmd = [ "git", "pull", remote ]
@@ -207,6 +207,14 @@ def apply(where, patch_file):
     """
     (rv, out, err) = run_with(where, ["git", "apply", "-v", patch_file] )
 
+
+def set_remote(where, name, origin):
+    """
+    Set a remote
+    """
+    run_with(where, ["git", "remote", "rm", name], allowFailure = True)
+    run_with(where, ["git", "remote", "add", name, origin])
+    
 
         
 # End file.

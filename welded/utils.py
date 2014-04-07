@@ -10,6 +10,29 @@ import hashlib
 import imp
 import traceback
 
+def run_to_stdout(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
+        cwd = None):
+    """
+    Runs a command via the shell
+
+    cmd is an array in the usual way. 
+
+    @return (rv, out, err) .
+    """
+    if (verbose):
+        print "> %s"%(" ".join(cmd))
+    if env is None:
+        env = os.environ
+    a_process = subprocess.Popen(cmd, 
+                                 shell = useShell,
+                                 cwd = cwd)
+    (out, err) = a_process.communicate()
+    rv = a_process.wait()
+    if (rv and (not allowFailure)):
+        raise GiveUp("Command '%s' failed - %d\n%s"%(" ".join(cmd), rv, err))
+    return (a_process.wait(), None, None)
+
+
 def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
         cwd = None):
     """

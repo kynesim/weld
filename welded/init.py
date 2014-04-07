@@ -35,6 +35,10 @@ def init_weld(weld, where):
     f.close()
     # Add these to the repo
     git.add(where, [ layout.spec_file(weld.base_dir), ".gitignore" ])
+    # If there is an origin in the weld file, add it to git
+    if (weld.origin is not None):
+        git.set_remote(where, 'origin', weld.origin)
+
     # Commit.
     git.commit(where, "Weld initialisation", [ headers.header_init() ])
     print("Weld initialised OK.\n")

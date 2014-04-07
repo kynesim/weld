@@ -28,7 +28,7 @@ class Parser:
 
         origins = dom.getElementsByTagName("origin")
         if (len(origins) > 0):
-            weld.origin = origins[0].attributes["uri"]
+            weld.origin = origins[0].getAttribute("uri")
         bases = dom.getElementsByTagName("base")
         seams = dom.getElementsByTagName("seam")
         for b in bases:
@@ -54,9 +54,8 @@ class Parser:
 
     def handle_seam(self, weld, node):
         s = db.Seam()
-        if (not node.hasAttribute("name")):
-            raise utils.GiveUp("Seam without a name")
-        s.name = node.getAttribute("name")
+        if (node.hasAttribute("name")):
+            s.name = node.getAttribute("name")
         if (not node.hasAttribute("base")):
             raise utils.GiveUp("Seam %s has no base."%s.name)
         base_name = node.getAttribute("base")

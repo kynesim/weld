@@ -50,7 +50,7 @@ def sync_and_rebase(spec, base):
     if (current_base_commit_id == base_commit_id and len(deleted_in_new) == 0 and
         len(added_in_new) == 0):
         print "  %s is up to date\n"%(base)
-        return
+        return 0
     
     print("Pulling %s from %s -> %s on top of local branch %s\n"%(base, 
                                                                   base_commit_id,
