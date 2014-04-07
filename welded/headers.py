@@ -66,6 +66,13 @@ def pickle_seams(seams):
         t.append( ( s.source, s.dest ) )
     return json.dumps(t)
 
+def ported_commit(base_obj, seams, cid):
+    """
+    Construct a ported commit header
+    """
+    rv = "X-Weld-State: PortedCommit %s/%s %s"%(base_obj.name, cid, pickle_seams(seams))
+    return rv
+
 def seam_op(verb, base_obj, seams, base_commit):
     """
     Construct seam operation header.

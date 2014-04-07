@@ -175,6 +175,39 @@ def has_local_changes(where):
         return False
     else:
         return True
+
+def list_changes(where, from_cid, to_cid):
+    """
+    Return a list of commits in where from from_cid to to_cid, including
+    to_cid but not from_cid, in the order in which they should be applied
+    """
+    (rv, out, err) = run_with(where, ["git", "rev-list", "%s..%s"%(from_cid, to_cid)])
+    lines = out.split('\n')
+    rv = [ ]
+    for l in lines:
+        l = l.strip()
+        if (len(l) > 0):
+            rv.insert(0, l)
+    return rv
+
+
+def show(where, cid):
+    """
+    Returns a temporary file containing a binary patch representing cid
+    """
+    f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%cid)
+    # @todo Could be very much more efficient (and prolly needs to be)
+    (rv, out, err) = run_with(where, ["git", "show", "--binary", cid])
+    f.file.write(out)
+    return f
     
+def apply(where, patch_file):
+    """
+    Apply the given patch file to the given repo
+    """
+    (rv, out, err) = run_with(where, ["git", "apply", "-v", patch_file] )
+
+
         
 # End file.
+

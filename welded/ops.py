@@ -7,6 +7,8 @@ import utils
 import layout
 import headers
 import os
+import tempfile
+import re
 import shutil
 
 def update_base(spec, base):
@@ -45,15 +47,96 @@ def delete_seams(spec, base_obj, seams, base_commit):
     # .. aaand commit.
     git.commit(spec.base_dir, hdr, [])
 
+def rewrite_diff(infile, cid, changes):
+    """
+    Rewrite the diff in infile to account for the given changes. Files outside
+    those seams are removed from the diff
+    """
+    infile.file.seek(0)
+    outfile = tempfile.NamedTemporaryFile(prefix="weldcid%s-out"%cid, delete = False)
+    rec = re.compile(r'^diff\s+--git\s+a/([^\s]+)\s+b/([^\s]+)\s*$')
+
+    # State:
+    #        1 - echoing a diff to output.
+    #        2 - eliding a diff from output.
+    state = 1
+    while True:
+        l = infile.file.readline()
+        if (len(l) == 0):
+            return outfile
+        m = rec.match(l)
+        if (m is None):
+           if (state == 1):
+                l = re.sub(r'^(\s*)X-Weld-State:', r'\1XX-Weld-State:', l)
+                if (len(l) > 5):
+                    if (l[:5] == '--- a' or l[:5] == '+++ b'):
+                        # It's a diff line
+                        for s in changes:
+                            if (s.source is not None and len(s.source) > 0):
+                                src_check = s.source + "/"
+                            else:
+                                src_check = ""
+                            if (l[6:].startswith(src_check)):
+                                x = len(src_check)
+                                l = l[:6] + s.dest + '/' + l[(6+x):]
+                                break
+
+                outfile.file.write(l)
+        else:
+            # Right. Now, is the destination part of any of our seams?
+            src_file = m.group(1)
+            dest_file = m.group(2)
+            state = 2
+            for s in changes:
+                # Need to make sure it is a '/' so that we don't get
+                # unwanted prefix matches.
+                if (s.source is not None and len(s.source) > 0): 
+                    src_check = s.source + "/"
+                else:
+                    src_check = ""
+                if (dest_file.startswith(src_check) and src_file.startswith(src_check)):
+                    # It's going to be in this seam. 
+                    # Git models moves as "remove A, put B", so there is no
+                    #  moving in the filenames, we can just replace the paths.
+                    l = len(src_check)
+                    src_file = "%s/%s"%(s.dest, src_file[l:])
+                    dest_file = "%s/%s"%(s.dest, dest_file[l:])
+                    l = "diff --git a/%s b/%s\n"%(src_file, dest_file)
+                    outfile.file.write(l)
+                    state = 1
+                    break
+                    
+
+    return outfile
+
+        
 def modify_seams(spec, base_obj, changes, old_commit, new_commit):
     """
     Take the array of seam objects in changes and apply the changes from old_commit to
     new_commit to them
     """
-    for c in changes:
-        print "W: Applying changes to seam (%s->%s) from %s to %s\n"%(c.source, c.dest, old_commit, new_commit)
-        raise utils.Bug("modify_seams not yet implemented")
-
+    if (len(changes) > 0):
+        commits = git.list_changes(layout.base_repo(spec.base_dir, base_obj.name), old_commit, new_commit)
+        print("W: Replaying %d commits from %s in %d seams .."%(len(commits), base_obj.name, len(changes)))
+        for c in commits:
+            print("W: Replay cid %s: Extract diff \n"%c)
+            temp = git.show(layout.base_repo(spec.base_dir, base_obj.name), c)
+            print("W: Rename diff .. \n")
+            temp2 = rewrite_diff(temp, c, changes)
+            n = temp.name
+            temp.close()
+            print("W: Apply diff .. \n")
+            n = temp2.name
+            temp2.close()
+            git.apply(spec.base_dir, temp2.name)
+            os.unlink(n)
+            print("W: Add .. \n")
+            for s in changes:
+                git.add_in_subdir(spec.base_dir, os.path.join(spec.base_dir, s.get_dest()))
+            print("W: Commit .. \n")
+            hdr = headers.ported_commit(base_obj, changes, c)
+            git.commit(spec.base_dir, hdr, [] )
+            
 def add_seams(spec, base_obj, seams, base_commit):
     """
     Take the array of seam objects in seams and create the new seams in seams.
