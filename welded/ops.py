@@ -118,24 +118,23 @@ def modify_seams(spec, base_obj, changes, old_commit, new_commit):
     if (len(changes) > 0):
         commits = git.list_changes(layout.base_repo(spec.base_dir, base_obj.name), old_commit, new_commit)
         print("W: Replaying %d commits from %s in %d seams .."%(len(commits), base_obj.name, len(changes)))
-        for c in commits:
-            print("W: Replay cid %s: Extract diff \n"%c)
-            temp = git.show(layout.base_repo(spec.base_dir, base_obj.name), c)
-            print("W: Rename diff .. \n")
-            temp2 = rewrite_diff(temp, c, changes)
-            n = temp.name
-            temp.close()
-            print("W: Apply diff .. \n")
-            n = temp2.name
-            temp2.close()
-            git.apply(spec.base_dir, temp2.name)
-            os.unlink(n)
-            print("W: Add .. \n")
-            for s in changes:
-                git.add_in_subdir(spec.base_dir, os.path.join(spec.base_dir, s.get_dest()))
-            print("W: Commit .. \n")
-            hdr = headers.ported_commit(base_obj, changes, c)
-            git.commit(spec.base_dir, hdr, [] )
+        print("W: Replay (squashed) changes. Extract diff\n")
+        temp = git.show_diff(layout.base_repo(spec.base_dir, base_obj.name), old_commit, new_commit)
+        print("W: Rename diff .. \n")
+        temp2 = rewrite_diff(temp, new_commit, changes)
+        n = temp.name
+        temp.close()
+        print("W: Apply diff .. \n")
+        n = temp2.name
+        temp2.close()
+        git.apply(spec.base_dir, temp2.name)
+        os.unlink(n)
+        print("W: Add .. \n")
+        for s in changes:
+            git.add_in_subdir(spec.base_dir, os.path.join(spec.base_dir, s.get_dest()))
+        print("W: Commit .. \n")
+        hdr = headers.ported_commit(base_obj, changes, new_commit)
+        git.commit(spec.base_dir, hdr, [] )
             
 def add_seams(spec, base_obj, seams, base_commit):
     """
