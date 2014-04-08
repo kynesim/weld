@@ -85,8 +85,11 @@ def sync_and_rebase(spec, base):
                           base_commit_id, current_base_commit_id),
                          " pull.abort(spec, '%s', '%s')"%(branch_name, current_branch))
     
+    # Move back to the main branch.
+    git.switch_branch(spec, current_branch)
+
     # .. and rebase onto the merge branch.
-    rv = git.rebase(spec, current_branch)
+    rv = git.rebase(spec, commit_id, None, branch_name)
     if (rv == 0):
         print("Rebase succeeded. Committing .. \n")
         ops.do_completion(spec)
@@ -110,6 +113,7 @@ def abort(spec, branch_name, current_branch):
     """
     Abort a merge
     """
+    git.abort_rebase(spec)
     git.switch_branch(spec, current_branch)
     git.remove_branch(spec, branch_name)
 

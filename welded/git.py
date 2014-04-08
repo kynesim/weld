@@ -134,6 +134,9 @@ def has_branch(where, branch_name):
             return True
     return False
 
+def abort_rebase(spec):
+    run_with(spec.base_dir, [ "git", "rebase", "--abort" ])
+
 def rebase(spec, upstream, branch = None, onto = None):
     """
     Rebase from_commit .. to_commit onto branch onto
