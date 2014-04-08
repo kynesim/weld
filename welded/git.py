@@ -46,7 +46,7 @@ def pull(dir_into, remote, from_branch, from_tag, from_rev):
         cmd.append(from_rev)
     else:
         cmd.append("master")
-    utils.run(cmd, cwd = dir_into)
+    utils.run_to_stdout(cmd, cwd = dir_into)
 
 def commit(where, comment, headers):
     """
