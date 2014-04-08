@@ -106,7 +106,7 @@ class Command(object):
             elif (a in self.spec.bases):
                 bases[a] = True
             else:
-                raise GiveUp("Base '%s' is unknown"%(a))
+                raise utils.GiveUp("Base '%s' is unknown"%(a))
         return bases.keys()
     
 
