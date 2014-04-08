@@ -24,8 +24,8 @@ class Base:
     # rev
     rev = None
 
-    # seams using this base. name -> seam
-    seams = { }
+    # seams using this base. Since seams can be anonymous, an array.
+    seams = [ ]
 
     def __init__(self):
         self.name = None
@@ -33,10 +33,10 @@ class Base:
         self.branch = None
         self.tag = None
         self.rev = None
-        self.seams = { }
+        self.seams = [ ]
 
     def get_seams(self):
-        return self.seams.values()
+        return self.seams
 
     def __repr__(self):
         res = "<base name=%s uri=%s"%(quoteattr(self.name), quoteattr(self.uri))
@@ -47,7 +47,7 @@ class Base:
         if (self.rev is not None):
             res = res + " rev=%s"%(quoteattr(self.rev))
         res = res + " />\n"
-        for s in self.seams.itervalues():
+        for s in self.seams:
             res += "  " + s.__repr__() + "\n"
         return res
 

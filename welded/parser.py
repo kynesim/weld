@@ -68,7 +68,7 @@ class Parser:
             s.dest = node.getAttribute("dest")
         if (node.hasAttribute("current")):
             s.current = node.getAttribute("current")
-        s.base.seams[s.name] = s
+        s.base.seams.append(s)
 
 
 
