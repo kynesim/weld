@@ -44,7 +44,8 @@ def sync_and_rebase(spec, base):
         raise utils.GiveUp("No such base '%s'"%base)
 
     # Classify seams.
-    ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.seams.values())
+    ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.get_seams())
+
 
     # Are they the same? If so, no work to do.
     if (current_base_commit_id == base_commit_id and len(deleted_in_new) == 0 and

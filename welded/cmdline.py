@@ -189,6 +189,8 @@ class Query(Command):
     Query the database
 
       weld query base <base_name>    Query the current state of <base_name>
+      weld query bases               List bases
+      weld query seam-changes <base_name>  Query the seam changes for <base_name>
     """
     def go(self,opts,args):
         if (len(args) < 1):
@@ -200,6 +202,10 @@ class Query(Command):
             query.query_base(self.spec, args[1])
         elif (cmd == "bases"):
             query.query_bases(self.spec)
+        elif (cmd == "seam-changes"):
+            if (len(args) != 2):
+                raise utils.GiveUp("query seam-changes requires a base name")
+            query.query_seam_changes(self.spec, args[1])
         else:
             raise utils.GiveUp("No query subcommand '%s'"%cmd)
 

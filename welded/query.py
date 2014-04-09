@@ -29,6 +29,15 @@ def query_bases(spec):
         for s in b.seams.values():
             print "  %s: %s -> %s\n"%(s.name, s.get_source(),s.get_dest())
 
+def query_seam_changes(spec, base_name):
+    # Find the last merge
+    (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base_name)
+    b = spec.query_base(base_name)
+    ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.get_seams())
+    print("Seams: D: %s\n C: %s\n A: %s\n"%(deleted_in_new, changes, added_in_new))
+    return 1
+    
+
 # End file.
 
     

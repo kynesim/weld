@@ -36,6 +36,10 @@ def delete_seams(spec, base_obj, seams, base_commit):
     commit the result.
     """
     # Actually remarkably easy. First, delete stuff.
+    if (len(seams) == 0): 
+        # It's a no-op
+        return
+
     for s in seams:
         to_zap = os.path.join(spec.base_dir, s.dest)
         print("W: Remove %s\n"%to_zap)
@@ -51,10 +55,14 @@ def rewrite_diff(infile, cid, changes):
     """
     Rewrite the diff in infile to account for the given changes. Files outside
     those seams are removed from the diff
+    
+    @return (bool, Tempfile) - the bool is True if there are any files left that
+            we care about.
     """
     infile.file.seek(0)
     outfile = tempfile.NamedTemporaryFile(prefix="weldcid%s-out"%cid, delete = False)
     rec = re.compile(r'^diff\s+--git\s+a/([^\s]+)\s+b/([^\s]+)\s*$')
+    are_any = False
 
     # State:
     #        1 - echoing a diff to output.
@@ -63,7 +71,7 @@ def rewrite_diff(infile, cid, changes):
     while True:
         l = infile.file.readline()
         if (len(l) == 0):
-            return outfile
+            return (are_any, outfile)
         m = rec.match(l)
         if (m is None):
            if (state == 1):
@@ -103,11 +111,12 @@ def rewrite_diff(infile, cid, changes):
                     dest_file = "%s/%s"%(s.dest, dest_file[l:])
                     l = "diff --git a/%s b/%s\n"%(src_file, dest_file)
                     outfile.file.write(l)
+                    are_any = True
                     state = 1
                     break
                     
 
-    return outfile
+    return (are_any, outfile)
 
         
 def modify_seams(spec, base_obj, changes, old_commit, new_commit):
@@ -121,13 +130,14 @@ def modify_seams(spec, base_obj, changes, old_commit, new_commit):
         print("W: Replay (squashed) changes. Extract diff\n")
         temp = git.show_diff(layout.base_repo(spec.base_dir, base_obj.name), old_commit, new_commit)
         print("W: Rename diff .. \n")
-        temp2 = rewrite_diff(temp, new_commit, changes)
+        (are_any, temp2) = rewrite_diff(temp, new_commit, changes)
         n = temp.name
         temp.close()
         print("W: Apply diff .. \n")
         n = temp2.name
         temp2.close()
-        git.apply(spec.base_dir, temp2.name)
+        if (are_any):
+            git.apply(spec.base_dir, temp2.name)
         os.unlink(n)
         print("W: Add .. \n")
         for s in changes:
@@ -140,6 +150,10 @@ def add_seams(spec, base_obj, seams, base_commit):
     """
     Take the array of seam objects in seams and create the new seams in seams.
     """
+    if (len(seams) == 0): 
+        # It's a no-op
+        return
+
     for s in seams:
         print("W: Creating new seam (%s->%s) from %s \n"%(s.get_source(), s.get_dest(), base_obj.name))
         # Really, just copy the directories over. If there are files already there, keep them.
