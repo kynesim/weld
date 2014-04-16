@@ -124,11 +124,14 @@ def ensure_got_withdir():
         shell('git clone https://github.com/tibs/withdir.git withdir')
     sys.path.append(os.path.abspath('withdir'))
 
-def build_repo(name):
-    """Build an example repository.
+# Side effects! In a module!
+ensure_got_withdir()
+from withdir import Directory, NewDirectory, TransientDirectory
+
+def build_repo_subdir(name):
+    """Build an example repository sub-directory.
     """
     c_file = '%s.c'%name
-    git('init')
     touch('Makefile', '# An empty makefile\n')
     touch(c_file, '// An empty C file\n')
     git('add Makefile %s'%c_file)
@@ -140,22 +143,35 @@ def build_repo(name):
     git('add Makefile %s'%c_file)
     git('commit -m "Second commit of %s - maybe it does something"'%name)
 
+def build_repo(repo_name, subdir_names):
+    """Build an example repository.
+    """
+    with NewDirectory(repo_name):
+        git('init')
+        for name in subdir_names:
+            with NewDirectory(name):
+                build_repo_subdir(name)
+
 def make_and_run(name):
     shell('make')
     shell('./%s'%name)
 
-def main(args):
+def make_and_run_all(repo_name, subdir_names):
+    with Directory(repo_name):
+        for name in subdir_names:
+            with Directory(name):
+                make_and_run(name)
 
-    ensure_got_withdir()
-    from withdir import NewDirectory, TransientDirectory
+def main(args):
 
     with TransientDirectory('test', keep_on_error=True) as d:
         touch('weld.xml', weld_xml_file)
         weld('init weld.xml')
 
-        with NewDirectory('fred'):
-            build_repo('fred')
-            make_and_run('fred')
+        fred_repo = 'fred'
+        fred_dirs = ['one', 'two']
+        build_repo(fred_repo, fred_dirs)
+        make_and_run_all(fred_repo, fred_dirs)
 
 
 if __name__ == '__main__':
