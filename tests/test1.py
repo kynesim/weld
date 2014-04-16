@@ -11,19 +11,29 @@ import traceback
 # -----------------------------------------------------------------------------
 # Test support
 
-def get_parent_dir(this_file=None):
-    """Determine the path of our parent directory.
+def get_this_dir(this_file=None):
+    """Determine the path of our the directory containing 'this_file'.
 
-    If 'this_file' is not given, then we'll return the parent directory
+    If 'this_file' is not given, then we'll return the directory
     of this file...
     """
     if this_file is None:
         this_file = __file__
     this_file = os.path.abspath(this_file)
     this_dir = os.path.split(this_file)[0]
+    return this_dir
+
+def get_parent_dir(this_file=None):
+    """Determine the path of our parent directory.
+
+    If 'this_file' is not given, then we'll return the parent directory
+    of this file...
+    """
+    this_dir = get_this_dir(this_file)
     parent_dir = os.path.split(this_dir)[0]
     return parent_dir
 
+THIS_DIR = get_this_dir()
 PARENT_DIR = get_parent_dir()
 
 class GiveUp(Exception):
@@ -106,10 +116,10 @@ def append(filename, content, verbose=True):
 weld_xml_file = """\
 <?xml version="1.0" ?>
 <weld name="frank">
-  <origin uri="ssh://git@home.example.com/ribbit/fromble" />
+  <origin uri="file://{testdir}/fromble" />
 
-  <base name="project124" uri="ssh://git@foo.example.com/my/base" branch="b" rev=".." tag=".."/>
-  <base name="igniting_duck" uri="ssh://git@bar.example.com/wobble" />
+  <base name="project124" uri="file://{testdir}/project124" branch="b" rev=".." tag=".."/>
+  <base name="igniting_duck" uri="file://{testdir}/igniting_duck" />
 
   <seam base="project124" dest="flibble" />
   <seam base="igniting_duck" src="foo" dest="bar" />
@@ -126,9 +136,9 @@ def ensure_got_withdir():
 
 # Side effects! In a module!
 ensure_got_withdir()
-from withdir import Directory, NewDirectory, TransientDirectory
+from withdir import Directory, NewDirectory, TransientDirectory, NewCountedDirectory
 
-def build_repo_subdir(name):
+def build_repo_subdir(repo_name, name):
     """Build an example repository sub-directory.
     """
     c_file = '%s.c'%name
@@ -139,7 +149,9 @@ def build_repo_subdir(name):
     append('Makefile',
             '\nall: {name}\n\n{name}: {c_file}\n'.format(name=name,
                 c_file=c_file))
-    append(c_file, '#include "stdio.h"\n\nmain()\n{\n  printf("Hello world\\n");\n  return 0;\n}\n')
+    append(c_file, '#include "stdio.h"\n\nmain()\n{\n  printf("Hello world,'
+           ' this is %s/%s\\n");\n  return 0;\n}\n'%(' '.join(repo_name.split('_')),
+               name))
     git('add Makefile %s'%c_file)
     git('commit -m "Second commit of %s - maybe it does something"'%name)
 
@@ -150,7 +162,7 @@ def build_repo(repo_name, subdir_names):
         git('init')
         for name in subdir_names:
             with NewDirectory(name):
-                build_repo_subdir(name)
+                build_repo_subdir(repo_name, name)
 
 def make_and_run(name):
     shell('make')
@@ -164,14 +176,46 @@ def make_and_run_all(repo_name, subdir_names):
 
 def main(args):
 
-    with TransientDirectory('test', keep_on_error=True) as d:
-        touch('weld.xml', weld_xml_file)
-        weld('init weld.xml')
+    keep = False
+    while args:
+        word = args.pop(0)
+        if word in ('-h', '-help', '--help'):
+            print __doc__
+            return                  # really? is this success
+        elif word == '-keep':
+            keep = True
+        else:
+            raise GiveUp('Unexpected command line argument %r'%word)
 
-        fred_repo = 'fred'
-        fred_dirs = ['one', 'two']
-        build_repo(fred_repo, fred_dirs)
-        make_and_run_all(fred_repo, fred_dirs)
+    with TransientDirectory('tests', keep_on_error=True, keep_anyway=keep):
+        with NewDirectory('repos') as d:
+            touch('weld.xml', weld_xml_file)
+            weld('init weld.xml')
+
+            fromble_repo = 'fromble'
+            fromble_dirs = ['one', 'two']
+            build_repo(fromble_repo, fromble_dirs)
+
+            project124_repo = 'project124'
+            project124_dirs = ['one', 'two']
+            build_repo(project124_repo, project124_dirs)
+
+            igniting_duck_repo = 'igniting_duck'
+            igniting_duck_dirs = ['one', 'two']
+            build_repo(igniting_duck_repo, igniting_duck_dirs)
+
+            make_and_run_all(fromble_repo, fromble_dirs)
+            make_and_run_all(project124_repo, project124_dirs)
+            make_and_run_all(igniting_duck_repo, igniting_duck_dirs)
+
+            repo_dir = d.where
+
+        with NewCountedDirectory('test'):
+            touch('weld.xml', weld_xml_file.format(testdir=repo_dir))
+            weld('init weld.xml')
+
+        if keep:
+            print 'By the way, the transient directory is', d.where
 
 
 if __name__ == '__main__':
