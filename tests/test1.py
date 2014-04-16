@@ -57,6 +57,13 @@ def weld(cmd, verbose=True):
     """
     shell('%s %s'%(os.path.join(PARENT_DIR, 'weld'), cmd))
 
+def git(cmd, verbose=True):
+    """Run 'git', with the given arguments
+
+    E.g., git('add fred.c')
+    """
+    shell('git %s'%cmd)
+
 def captured_cmd_seq(cmd_seq, verbose=True):
     """Grab the exit code and output from a command.
 
@@ -86,6 +93,14 @@ def touch(filename, content=None, verbose=True):
     with open(filename, 'w') as fd:
         if content:
             fd.write(content)
+
+def append(filename, content, verbose=True):
+    """Append 'content' to the given file
+    """
+    if verbose:
+        print '++ append to %s'%filename
+    with open(filename, 'a') as fd:
+        fd.write(content)
 # -----------------------------------------------------------------------------
 
 weld_xml_file = """\
@@ -103,9 +118,31 @@ weld_xml_file = """\
 """
 
 def ensure_got_withdir():
+    """Make sure we've got a local copy of 'withdir'
+    """
     if not os.path.exists('withdir'):
         shell('git clone https://github.com/tibs/withdir.git withdir')
     sys.path.append(os.path.abspath('withdir'))
+
+def build_repo(name):
+    """Build an example repository.
+    """
+    c_file = '%s.c'%name
+    git('init')
+    touch('Makefile', '# An empty makefile\n')
+    touch(c_file, '// An empty C file\n')
+    git('add Makefile %s'%c_file)
+    git('commit -m "Initial commit of %s"'%name)
+    append('Makefile',
+            '\nall: {name}\n\n{name}: {c_file}\n'.format(name=name,
+                c_file=c_file))
+    append(c_file, '#include "stdio.h"\n\nmain()\n{\n  printf("Hello world\\n");\n  return 0;\n}\n')
+    git('add Makefile %s'%c_file)
+    git('commit -m "Second commit of %s - maybe it does something"'%name)
+
+def make_and_run(name):
+    shell('make')
+    shell('./%s'%name)
 
 def main(args):
 
@@ -115,6 +152,10 @@ def main(args):
     with TransientDirectory('test', keep_on_error=True) as d:
         touch('weld.xml', weld_xml_file)
         weld('init weld.xml')
+
+        with NewDirectory('fred'):
+            build_repo('fred')
+            make_and_run('fred')
 
 
 if __name__ == '__main__':
