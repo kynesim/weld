@@ -66,6 +66,8 @@ def go(args):
         if (obj.needs_weld()):
             obj.set_weld_dir(utils.find_weld_dir(os.getcwd()))
         return obj.go(opts, args[1:])
+    else:
+        raise utils.GiveUp('Unrecognised command %r'%cmd)
 
 
 class Command(object):
