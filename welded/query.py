@@ -26,7 +26,7 @@ def query_bases(spec):
     for n in spec.base_names():
         b = spec.query_base(n)
         print " %s\b"%b.name
-        for s in b.seams.values():
+        for s in b.seams:
             print "  %s: %s -> %s\n"%(s.name, s.get_source(),s.get_dest())
 
 def query_seam_changes(spec, base_name):
