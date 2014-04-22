@@ -118,13 +118,33 @@ weld_xml_file = """\
 <weld name="frank">
   <origin uri="file://{testdir}/fromble" />
 
+  <!-- The original had a branch, a revision and a tag.
+       My testing isn't working with branches yet, and the implementation
+       of weld doesn't "clone" with a revision and tag yet (it's got a bug,
+       specifically it tries to do "git clone -r <rev> -r <tag>" and there
+       is no "-r" switch). Also, I'm doubtful that it makes sense to specify
+       more than one of branch, revision and tag. Weld currently just chooses
+       one (in some internally specified order), but it might be better if
+       it refused the weld file in this case (although note that muddle also
+       has something of this problem).
+
   <base name="project124" uri="file://{testdir}/project124" branch="b" rev=".." tag=".."/>
+  -->
+
+  <base name="project124" uri="file://{testdir}/project124"/>
+    <seam base="project124" dest="124" />
   <base name="igniting_duck" uri="file://{testdir}/igniting_duck" />
-
-  <seam base="project124" dest="flibble" />
-  <seam base="igniting_duck" src="foo" dest="bar" />
-
+    <seam base="igniting_duck" source="one" dest="one-duck" />
+    <seam base="igniting_duck" source="two" dest="two-duck" />
 </weld>
+"""
+
+gitignore_ducks = """\
+# Ignore our executables
+one-duck/one
+two-duck/two
+124/one/one
+124/two/two
 """
 
 def ensure_got_withdir():
@@ -136,7 +156,8 @@ def ensure_got_withdir():
 
 # Side effects! In a module!
 ensure_got_withdir()
-from withdir import Directory, NewDirectory, TransientDirectory, NewCountedDirectory
+from withdir import Directory, NewDirectory, TransientDirectory, \
+        NewCountedDirectory, normalise_dir
 
 def build_repo_subdir(repo_name, name):
     """Build an example repository sub-directory.
@@ -155,14 +176,15 @@ def build_repo_subdir(repo_name, name):
     git('add Makefile %s'%c_file)
     git('commit -m "Second commit of %s - maybe it does something"'%name)
 
-def build_repo(repo_name, subdir_names):
+def build_repo(repo, repo_name, subdir_names):
     """Build an example repository.
     """
-    with NewDirectory(repo_name):
-        git('init')
+    git('clone %s %s'%(repo, repo_name))
+    with Directory(repo_name):
         for name in subdir_names:
             with NewDirectory(name):
                 build_repo_subdir(repo_name, name)
+        git('push origin master')
 
 def make_and_run(name):
     shell('make')
@@ -173,6 +195,14 @@ def make_and_run_all(repo_name, subdir_names):
         for name in subdir_names:
             with Directory(name):
                 make_and_run(name)
+
+def muddle(cmd, verbose=True):
+    """Run 'muddle', with the given arguments
+
+    E.g., muddle('pull')
+    """
+    MUDDLE = normalise_dir('~tibs/sw/muddle/muddle')    # XXX NOT PORTABLE!!!
+    shell('%s %s'%(MUDDLE, cmd))
 
 def main(args):
 
@@ -187,35 +217,80 @@ def main(args):
         else:
             raise GiveUp('Unexpected command line argument %r'%word)
 
-    with TransientDirectory('tests', keep_on_error=True, keep_anyway=keep):
-        with NewDirectory('repos') as d:
-            touch('weld.xml', weld_xml_file)
-            weld('init weld.xml')
+    with TransientDirectory(#'transient',
+                            keep_on_error=True,
+                            keep_anyway=keep) as transient:
+        # Set up our (empty) repositories
+        with NewDirectory('repos') as r:
+            # Our normal "source" repositories are normal bare repositories
+            with NewDirectory('project124') as project124_base:
+                git('init --bare')
+                r_project124 = project124_base.where
+            with NewDirectory('igniting_duck') as igniting_duck_base:
+                git('init --bare')
+                r_igniting_duck = igniting_duck_base.where
 
-            fromble_repo = 'fromble'
-            fromble_dirs = ['one', 'two']
-            build_repo(fromble_repo, fromble_dirs)
+            repo_base = r.where
 
-            project124_repo = 'project124'
+        # Create some original content
+        with NewDirectory('original'):
+
+            # Source packages
+            project124 = 'project124'
             project124_dirs = ['one', 'two']
-            build_repo(project124_repo, project124_dirs)
+            build_repo(r_project124, project124, project124_dirs)
 
-            igniting_duck_repo = 'igniting_duck'
+            igniting_duck = 'igniting_duck'
             igniting_duck_dirs = ['one', 'two']
-            build_repo(igniting_duck_repo, igniting_duck_dirs)
+            build_repo(r_igniting_duck, igniting_duck, igniting_duck_dirs)
 
-            make_and_run_all(fromble_repo, fromble_dirs)
-            make_and_run_all(project124_repo, project124_dirs)
-            make_and_run_all(igniting_duck_repo, igniting_duck_dirs)
+            # Check they build and run
+            make_and_run_all(project124, project124_dirs)
+            make_and_run_all(igniting_duck, igniting_duck_dirs)
 
-            repo_dir = d.where
+        with Directory('repos') as r:
+            touch('weld.xml', weld_xml_file.format(testdir=repo_base))
 
+            # A weld is actually a source (not bare) repository
+            with NewDirectory('fromble') as fromble_base:
+                weld('init ../weld.xml')
+                weld('pull _all')
+                r_fromble = fromble_base.where
+
+        # So, can we clone our weld?
         with NewCountedDirectory('test'):
-            touch('weld.xml', weld_xml_file.format(testdir=repo_dir))
-            weld('init weld.xml')
+            git('clone %s'%r_fromble)
+            # That should give us:
+            #
+            # * fromble/124/one
+            # * fromble/124/two
+            # * fromble/one-duck/one
+            # * fromble/two-duck/two
+            with Directory('fromble'):
+                make_and_run_all('124', ['one', 'two'])
+                with Directory('one-duck'):
+                    make_and_run('one')
+                with Directory('two-duck'):
+                    make_and_run('two')
+
+                append('.gitignore', gitignore_ducks)
+                git('add .gitignore')
+                git('commit -m "Ignore executables"')
+
+                weld('pull _all')
+                # Whilst it's not really something one is meant to do...
+                with Directory('.weld'):
+                    with Directory('bases'):
+                        make_and_run_all('project124', ['one', 'two'])
+                        make_and_run_all('igniting_duck', ['one', 'two'])
+                        # ...and since we weren't meant to do that, tidy up
+                        shell('rm project124/one/one')
+                        shell('rm project124/two/two')
+                        shell('rm igniting_duck/one/one')
+                        shell('rm igniting_duck/two/two')
 
         if keep:
-            print 'By the way, the transient directory is', d.where
+            print 'By the way, the transient directory is', transient.where
 
 
 if __name__ == '__main__':

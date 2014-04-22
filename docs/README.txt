@@ -56,7 +56,7 @@ weld.xml
    <base name="igniting_duck" uri="ssh://git@bar.example.com/wobble" />
 
    <seam base="project124" dest="flibble" />
-   <seam base="igniting_duck" src="foo" dest="bar" />
+   <seam base="igniting_duck" source="foo" dest="bar" />
 
  </weld>
  
@@ -120,7 +120,26 @@ X-Weld-State: Init
 
  Indicates that the weld started here (with nothing merged)
 
-End file.
+Using the weld command line tool
+================================
+weld init
+---------
+::
+
+  weld init <weld-xml-file>
+
+Reads in a weld XML file, and:
+
+1. writes out the same data (possibly in a different order) to
+   ``.weld/welded.xml``
+2. Does a ``git init``
+3. Write a ``.gitignore`` to ignore various transient files that may appear
+   in the ``.weld`` directory.
+4. Commits the ``.gitignore`` and ``.weld/welded.xnl`` to git, with the commit
+   message::
+
+      X-Weld-State: Init
+
+      Weld initialisation
 
 
-   
