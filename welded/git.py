@@ -27,7 +27,8 @@ def add(where, files):
 def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
     cmd = [ "git", "clone" ]
     if (from_branch is not None):
-        cmd.extend([ "-b", from_branch ])
+        cmd.extend([ "--branch", from_branch ])
+    # XXX There is no '-r' switch to 'git clone' - what is meant to happen?
     if (from_tag is not None):
         cmd.extend(["-r", from_tag])
     if (from_rev is not None):
@@ -38,6 +39,8 @@ def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
 
 def pull(dir_into, remote, from_branch, from_tag, from_rev):
     cmd = [ "git", "pull", remote ]
+    # XXX Is the user going to be surprised by this precedence (and the
+    # XXX consequent ignoring of values because of it?)
     if (from_branch is not None):
         cmd.append(from_branch)
     elif (from_tag is not None):
