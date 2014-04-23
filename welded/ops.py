@@ -234,7 +234,7 @@ def done_completion(spec):
 def do_completion(spec):
     c = layout.completion_file(spec.base_dir)
     if (os.path.exists(c)):
-        f = utils.dynamic_load(c)
+        f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.unlink(c)
         os.unlink(layout.abort_file(spec.base_dir))
@@ -244,7 +244,7 @@ def do_completion(spec):
 def do_abort(spec):
     c  = layout.abort_file(spec.base_dir)
     if (os.path.exists(c)):
-        f = utils.dynamic_load(c)
+        f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.unlink(c)
         os.unlink(layout.completion_file(spec.base_dir))

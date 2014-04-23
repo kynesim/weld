@@ -124,7 +124,7 @@ def classify_seams(old_seams, new_seams):
     return (deleted_in_new, changed, created_in_new)
     
 
-def dynamic_load(filename):
+def dynamic_load(filename, no_pyc=False):
     try:
         try:
             with open(filename, 'rb') as fin:
@@ -134,7 +134,14 @@ def dynamic_load(filename):
         hasher = hashlib.md5()
         hasher.update(contents)
         digest = hasher.hexdigest()
-        return imp.load_source(digest, filename)
+        old_dont_write_bytecode = sys.dont_write_bytecode
+        try:
+            if no_pyc:
+                # Request that loading the source file doesn't create a .pyc file
+                sys.dont_write_bytecode = True
+            return imp.load_source(digest, filename)
+        finally:
+            sys.dont_write_bytecode = old_dont_write_bytecode
     except GiveUp:
         raise
     except Exception:
