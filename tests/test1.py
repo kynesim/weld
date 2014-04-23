@@ -512,67 +512,70 @@ def main(args):
                             keep_on_error=True,
                             keep_anyway=keep) as transient:
         # Set up our (empty) repositories
-        with NewDirectory('repos') as r:
+        with NewDirectory('repos') as repo_base:
             # Our normal "source" repositories are normal bare repositories
-            with NewDirectory('project124') as project124_base:
+            with NewDirectory('project124') as project124_repo:
                 git('init --bare')
-                r_project124 = project124_base.where
-            with NewDirectory('igniting_duck') as igniting_duck_base:
+            with NewDirectory('igniting_duck') as igniting_duck_repo:
                 git('init --bare')
-                r_igniting_duck = igniting_duck_base.where
-
-            repo_base = r.where
 
         # Create some original content
-        with NewDirectory('original'):
+        with NewDirectory('original') as orig_dir:
 
             # Source packages
             project124 = 'project124'
             project124_dirs = ['one', 'two']
-            project124_orig = build_repo(r_project124, project124, project124_dirs)
+            project124_orig = build_repo(project124_repo.where, project124, project124_dirs)
 
             igniting_duck = 'igniting_duck'
             igniting_duck_dirs = ['one', 'two']
-            igniting_duck_orig = build_repo(r_igniting_duck, igniting_duck, igniting_duck_dirs)
+            igniting_duck_orig = build_repo(igniting_duck_repo.where, igniting_duck, igniting_duck_dirs)
 
             # Check they build and run
             make_and_run_all(project124, project124_dirs)
             make_and_run_all(igniting_duck, igniting_duck_dirs)
 
-        with Directory('repos') as r:
-            touch('weld.xml', weld_xml_file.format(testdir=repo_base))
+        with Directory(repo_base.where):
+            touch('weld.xml', weld_xml_file.format(testdir=repo_base.where))
 
             # A weld is actually a source (not bare) repository
             with NewDirectory('fromble') as fromble_base:
                 weld('init ../weld.xml')
-                weld('pull _all')
-                r_fromble = fromble_base.where
+                print 'Comparing tree', fromble_base.where
+                dt = DirTree('.', fold_dirs=['.git', '.weld'])
+                dt.assert_same_as_list(['./',
+                                        '  .git/...',
+                                        '  .gitignore',
+                                        '  .weld/...',
+                                        ], 'expected')
 
-            dt = DirTree('fromble', fold_dirs=['.git'])
-            dt.assert_same_as_list(['fromble/',
-                                    '  .gitignore',
-                                    '  124/',
-                                    '    one/',
-                                    '      Makefile',
-                                    '      one.c',
-                                    '    two/',
-                                    '      Makefile',
-                                    '      two.c',
-                                    '  one-duck/',
-                                    '    Makefile',
-                                    '    one.c',
-                                    '  two-duck/',
-                                    '    Makefile',
-                                    '    two.c',
-                                    ], 'expected',
-                                    unwanted_files=['.weld', '.git'])
+                weld('pull _all')
+                print 'Comparing tree', fromble_base.where
+                dt = DirTree(fromble_base.where, fold_dirs=['.git', '.weld'])
+                dt.assert_same_as_list(['  .git/...',
+                                        '  .gitignore',
+                                        '  .weld/...',
+                                        '  124/',
+                                        '    one/',
+                                        '      Makefile',
+                                        '      one.c',
+                                        '    two/',
+                                        '      Makefile',
+                                        '      two.c',
+                                        '  one-duck/',
+                                        '    Makefile',
+                                        '    one.c',
+                                        '  two-duck/',
+                                        '    Makefile',
+                                        '    two.c',
+                                        ], 'expected', onedown=True)
 
         # So, can we clone our weld?
         # This is how we are meant to get a copy of the weld to work on
         with NewCountedDirectory('test') as test1:
             # Because we're using git to clone it, we *could* change the
             # name of the directory we extract into, but we're not going to
-            git('clone %s'%r_fromble)
+            git('clone %s'%fromble_base.where)
             # Remember that our weld.xml does redirect some of the "internal"
             # directories (in particular, of igniting_duck) so they get put
             # somewhere else in our source tree.
@@ -714,6 +717,53 @@ def main(args):
                                             '      two.c',
                                             ], 'expected',
                                             unwanted_files=['.git'])
+
+        # *However* this does not update the "intermediate" weld repository
+        # that we first cloned
+        with Directory(fromble_base.where):
+            dt = DirTree('.', fold_dirs=['.git'])
+            dt.assert_same_as_list(['./',
+                                    '  .gitignore',
+                                    '  124/',
+                                    '    one/',
+                                    '      Makefile',
+                                    '      one.c',
+                                    '    two/',
+                                    '      Makefile',
+                                    '      two.c',
+                                    '  one-duck/',
+                                    '    Makefile',
+                                    '    one.c',
+                                    '  two-duck/',
+                                    '    Makefile',
+                                    '    two.c',
+                                    ], 'expected',
+                                    unwanted_files=['.weld', '.git'])
+
+            # So we need to do:
+            weld('pull _all')
+            # here as well, and then:
+            dt = DirTree('.', fold_dirs=['.git'])
+            dt.assert_same_as_list(['./',
+                                    '  .gitignore',
+                                    '  124/',
+                                    '    one/',
+                                    '      Makefile',
+                                    '      one.c',
+                                    '    three/',
+                                    '      Makefile',
+                                    '      three.c',
+                                    '    two/',
+                                    '      Makefile',
+                                    '      two.c',
+                                    '  one-duck/',
+                                    '    Makefile',
+                                    '    one.c',
+                                    '  two-duck/',
+                                    '    Makefile',
+                                    '    two.c',
+                                    ], 'expected',
+                                    unwanted_files=['.weld', '.git'])
 
         if keep:
             print 'By the way, the transient directory is', transient.where

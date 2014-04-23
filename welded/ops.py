@@ -163,8 +163,47 @@ def add_seams(spec, base_obj, seams, base_commit):
             os.makedirs(dest)
         except:
             pass
+
+        # XXX TODO XXX TODO XXX TODO    .git directories and submodules
+        # Since we're copying from the clone in our .weld directory, if the
+        # source is the "top level" of said clone, then it will contain a .git
+        # directory, which we do not want to copy.
+        #
+        # However, if the source is *not* the top level of its clone, and there
+        # is a .git directory, well, that's distincly odd, but presumably we
+        # might want to honour it? If we do, oddness abounds (!), and if we
+        # don't, then we're not copying what is there. So what to do...
+        #
+        # ...the simplest thing is, of course, just to ignore all .git
+        # directories, and wait for someone with a pathological case to
+        # grumble to us...
+        #
+        # Hmm. I have a feeling if we do that we're explicitly not supporting
+        # submodules, which is perhaps a Good Thing, without thinking more
+        # about it, not least because a submodule looks like:
+        #
+        #   <top-level>/
+        #      .git/...
+        #      .gitmodules      -- names the submodules
+        #      <stuff>
+        #         <submodule>/
+        #            .git
+        #
+        # which means that the .gitmodules is required to make sense of the
+        # submodule as such, and specifically to give context to the .git
+        # directory therein. So I think that the simplest thing, for now, is
+        # to explicitly NOT support submodules, and ignore all .git
+        # directories.
+        #
+        # (NB: this all goes awry if we DO have a submodule and copy its
+        # .submodule file but not the submodule .git directories. So this
+        # definitely needs more work)
+        #
+        # (and, for extra points, what is our policy on .gitignore files at
+        # this level? Is the naive answer of just copying them good enough?)
+
         # Now just rsync it all over
-        utils.run(["rsync", "-avz", os.path.join(src, "."), os.path.join(dest, ".")])
+        utils.run(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
         # Make sure you add all the files in the subdirectory
         git.add_in_subdir(spec.base_dir, dest)
     # Now commit them with an appropriate header.
