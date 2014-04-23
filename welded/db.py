@@ -4,6 +4,7 @@ The weld database; contains a description of a weld.
 
 import utils
 from xml.sax.saxutils import quoteattr
+from functools import total_ordering
 
 class Base:
     """
@@ -51,6 +52,7 @@ class Base:
             res += "  " + s.__repr__() + "\n"
         return res
 
+@total_ordering
 class Seam:
     """
     Represents a seam
@@ -102,8 +104,19 @@ class Seam:
             res += " source=%s"%(quoteattr(self.source))
         if (self.dest is not None):
             res += " dest=%s"%(quoteattr(self.dest))
+        # XXX Surely we also need branch and/or other things as well?
+        # XXX (just as in the XML file...)
         res = res + "/>"
         return res
+
+    def __eq__(self, other):
+        return repr(self) == repr(other)
+
+    def __ne__(self, other):
+        return repr(self) != repr(other)
+
+    def __lt__(self, other):
+        return repr(self) < repr(other)
 
     def srcdest(self):
         res = ""

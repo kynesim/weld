@@ -17,21 +17,29 @@ def query_base(spec, base_name):
     (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base_name)
     b = spec.query_base(base_name)
     ops.update_base(spec, b)
-    current_base_cid = ops.query_head_of_base(spec, b)
-    print "The last commit for base %s was our cid %s,"%(base_name, commit_id)
-    print "  base cid %s"%(base_commit_id)
-    print "  the base is now at %s"%(current_base_cid)
+    current_base_id = ops.query_head_of_base(spec, b)
+    print "Base %s"%base_name
+    print "  last merge %s"%commit_id
+    print "  base merge %s"%base_commit_id
+    print "  base HEAD  %s"%current_base_id
+    #print "The last commit for base %s was our cid %s,"%(base_name, commit_id)
+    #print "  base cid %s"%(base_commit_id)
+    #print "  the base is now at %s"%(current_base_id)
 
     if base_commit_id is None and seams == []:
         print "  There was no 'last merge' for %s"%base_name
     
 
 def query_bases(spec):
-    for n in spec.base_names():
+    """Report on the bases we have, and their seams.
+
+    Values are sorted so that the order is predictable.
+    """
+    for n in sorted(spec.base_names()):
         b = spec.query_base(n)
-        print " %s\b"%b.name
-        for s in b.seams:
-            print "  %s: %s -> %s\n"%(s.name, s.get_source(),s.get_dest())
+        print "Base %s\b"%b.name
+        for s in sorted(b.seams):
+            print "  Seam %s: %s -> %s"%(s.name, s.get_source(),s.get_dest())
 
 def query_seam_changes(spec, base_name):
     # Find the last merge. This returns (<commit-id>, None, []) if there
