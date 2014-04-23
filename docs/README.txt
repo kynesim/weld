@@ -33,6 +33,10 @@ Files in .welded
  .welded/bases/ ..
    Copies of all your bases.
 
+ .welded/counter
+   Counts upward; this is used to force changes so we never have
+   empty commits - git commit --allow-empty doesn't really work and
+   can easily lose commits.
 
 bases and seams
 ===============

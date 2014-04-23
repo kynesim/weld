@@ -122,7 +122,30 @@ def classify_seams(old_seams, new_seams):
             # Added
             created_in_new.append(y)
     return (deleted_in_new, changed, created_in_new)
-    
+
+def spurious_modification(w):
+    """
+    Spuriously modify a weld and git add it so that your
+    commit is never empty
+    """
+    a_file = layout.count_file(w.base_dir)
+    count(a_file)
+    git.add(w.base_dir, a_file)
+
+def count(filename):
+    c = 0
+    try:
+        with open(filename, 'rb') as fin:
+            contents = fin.read().trim()
+            c = int(contents)
+    except:
+        c = 0
+    c = c + 1
+    try:
+        with open(filename, 'wb') as fout:
+            fout.write("%s\n"%c)
+    except:
+        raise GiveUp("Cannot increment counter in %s"%filename)
 
 def dynamic_load(filename):
     try:
