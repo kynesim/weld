@@ -116,6 +116,22 @@ def append(filename, content, verbose=True):
     with open(filename, 'a') as fd:
         fd.write(content)
 
+def banner(text, level=1, with_newline=True):
+    """Print a banner around the given text.
+
+    'level' is 1..3, with 1 being the "most important" level of banner
+    """
+    delimiters = {1:'*', 2:'+', 3:'-'}
+    endpoints  = {1:'*', 2:'|', 3:':'}
+    delim_char = delimiters[level]
+    endpoint_char = endpoints[level]
+    delim = delim_char * (len(text)+4)
+    if with_newline:
+        print
+    print delim
+    print '%s %s %s'%(endpoint_char, text, endpoint_char)
+    print delim
+
 class DirTree(object):
     """A tool for representing a directory tree in ASCII.
 
@@ -512,6 +528,7 @@ def main(args):
                             keep_on_error=True,
                             keep_anyway=keep) as transient:
         # Set up our (empty) repositories
+        banner('Setting up empty repositories')
         with NewDirectory('repos') as repo_base:
             # Our normal "source" repositories are normal bare repositories
             with NewDirectory('project124') as project124_repo:
@@ -520,6 +537,7 @@ def main(args):
                 git('init --bare')
 
         # Create some original content
+        banner('Creating content')
         with NewDirectory('original') as orig_dir:
 
             # Source packages
@@ -535,6 +553,7 @@ def main(args):
             make_and_run_all(project124, project124_dirs)
             make_and_run_all(igniting_duck, igniting_duck_dirs)
 
+        banner('Creating "source" weld')
         with Directory(repo_base.where):
             touch('weld.xml', weld_xml_file.format(testdir=repo_base.where))
 
@@ -572,6 +591,7 @@ def main(args):
 
         # So, can we clone our weld?
         # This is how we are meant to get a copy of the weld to work on
+        banner('Cloning source weld')
         with NewCountedDirectory('test') as test1:
             # Because we're using git to clone it, we *could* change the
             # name of the directory we extract into, but we're not going to
@@ -658,12 +678,14 @@ def main(args):
                         shell('rm igniting_duck/two/two')
 
         # Alter (update) project124 in its repository
+        banner('Alter repository for project124')
         with Directory(project124_orig):
             with NewDirectory('three'):
                 build_repo_subdir('project124', 'three')
             git('push')
 
         # And check we can pull that using weld
+        banner('Pull into cloned weld')
         with Directory(test1.where):
             with Directory('fromble'):
                 weld('pull project124')
@@ -720,6 +742,7 @@ def main(args):
 
         # *However* this does not update the "intermediate" weld repository
         # that we first cloned
+        banner('Pull into source weld')
         with Directory(fromble_base.where):
             dt = DirTree('.', fold_dirs=['.git'])
             dt.assert_same_as_list(['./',
@@ -766,6 +789,7 @@ def main(args):
                                     unwanted_files=['.weld', '.git'])
 
         if keep:
+            print
             print 'By the way, the transient directory is', transient.where
 
 if __name__ == '__main__':
