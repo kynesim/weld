@@ -600,9 +600,11 @@ def main(args):
             # directories (in particular, of igniting_duck) so they get put
             # somewhere else in our source tree.
 
-            dt = DirTree('fromble', fold_dirs=['.git'])
+            dt = DirTree('fromble', fold_dirs=['.git', '.weld'])
             dt.assert_same_as_list(['fromble/',
+                                    '  .git/...',
                                     '  .gitignore',
+                                    '  .weld/...',
                                     '  124/',
                                     '    one/',
                                     '      Makefile',
@@ -616,8 +618,7 @@ def main(args):
                                     '  two-duck/',
                                     '    Makefile',
                                     '    two.c',
-                                    ], 'expected',
-                                    unwanted_files=['.weld', '.git'])
+                                    ], 'expected')
 
             with Directory('fromble'):
                 # And from that we should be able to build/run
@@ -650,9 +651,10 @@ def main(args):
                 # then demonstrate that those *are* the source repositories
                 # that we have downloaded
                 with Directory('.weld'):
-                    dt = DirTree('bases', fold_dirs=['.git'])
+                    dt = DirTree('bases', fold_dirs=['.git', '.weld'])
                     dt.assert_same_as_list(['bases/',
                                             '  igniting_duck/',
+                                            '    .git/...',
                                             '    one/',
                                             '      Makefile',
                                             '      one.c',
@@ -660,14 +662,14 @@ def main(args):
                                             '      Makefile',
                                             '      two.c',
                                             '  project124/',
+                                            '    .git/...',
                                             '    one/',
                                             '      Makefile',
                                             '      one.c',
                                             '    two/',
                                             '      Makefile',
                                             '      two.c',
-                                            ], 'expected',
-                                            unwanted_files=['.git'])
+                                            ], 'expected')
                     with Directory('bases'):
                         make_and_run_all('project124', ['one', 'two'])
                         make_and_run_all('igniting_duck', ['one', 'two'])
@@ -690,9 +692,11 @@ def main(args):
             with Directory('fromble'):
                 weld('pull project124')
 
-                dt = DirTree('.', fold_dirs=['.git'])
+                dt = DirTree('.', fold_dirs=['.git', '.weld'])
                 dt.assert_same_as_list(['./',
+                                        '  .git/...',
                                         '  .gitignore',
+                                        '  .weld/...',
                                         '  124/',
                                         '    one/',
                                         '      Makefile',
@@ -713,14 +717,14 @@ def main(args):
                                         '    Makefile',
                                         '    two*',
                                         '    two.c',
-                                        ], 'expected',
-                                        unwanted_files=['.weld', '.git'])
+                                        ], 'expected')
 
                 # And our .weld directory should also have been updated
                 with Directory('.weld'):
-                    dt = DirTree('bases', fold_dirs=['.git'])
+                    dt = DirTree('bases', fold_dirs=['.git', '.weld'])
                     dt.assert_same_as_list(['bases/',
                                             '  igniting_duck/',
+                                            '    .git/...',
                                             '    one/',
                                             '      Makefile',
                                             '      one.c',
@@ -728,6 +732,7 @@ def main(args):
                                             '      Makefile',
                                             '      two.c',
                                             '  project124/',
+                                            '    .git/...',
                                             '    one/',
                                             '      Makefile',
                                             '      one.c',
@@ -737,16 +742,17 @@ def main(args):
                                             '    two/',
                                             '      Makefile',
                                             '      two.c',
-                                            ], 'expected',
-                                            unwanted_files=['.git'])
+                                            ], 'expected')
 
         # *However* this does not update the "intermediate" weld repository
         # that we first cloned
         banner('Pull into source weld')
         with Directory(fromble_base.where):
-            dt = DirTree('.', fold_dirs=['.git'])
+            dt = DirTree('.', fold_dirs=['.git', '.weld'])
             dt.assert_same_as_list(['./',
+                                    '  .git/...',
                                     '  .gitignore',
+                                    '  .weld/...',
                                     '  124/',
                                     '    one/',
                                     '      Makefile',
@@ -760,15 +766,16 @@ def main(args):
                                     '  two-duck/',
                                     '    Makefile',
                                     '    two.c',
-                                    ], 'expected',
-                                    unwanted_files=['.weld', '.git'])
+                                    ], 'expected')
 
             # So we need to do:
             weld('pull _all')
             # here as well, and then:
-            dt = DirTree('.', fold_dirs=['.git'])
+            dt = DirTree('.', fold_dirs=['.git', '.weld'])
             dt.assert_same_as_list(['./',
+                                    '  .git/...',
                                     '  .gitignore',
+                                    '  .weld/...',
                                     '  124/',
                                     '    one/',
                                     '      Makefile',
@@ -785,8 +792,7 @@ def main(args):
                                     '  two-duck/',
                                     '    Makefile',
                                     '    two.c',
-                                    ], 'expected',
-                                    unwanted_files=['.weld', '.git'])
+                                    ], 'expected')
 
         if keep:
             print
