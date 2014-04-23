@@ -387,6 +387,69 @@ def main(args):
                                     '    two.c',
                                     ], 'expected')
 
+        banner('Amend the checked out sources')
+        with Directory(test1.where):
+            with Directory('fromble'):
+                with Directory('124'):
+                    with Directory('three'):
+                        touch('three-and-a-bit.c',
+                              '#include "stdio.h"\n\nmain()\n{\n  printf("Hello world,'
+                              ' this is 123/3-and-a-bit\\n");\n  return 0;\n}\n')
+                        append('Makefile',
+                               '\nthree-and-a-bit: three-and-a-bit.c\n\n')
+                        git('add three-and-a-bit.c Makefile')
+                        git('commit -m "Add three-and-a-bit"')
+                with Directory('two-duck'):
+                    append('Makefile', '\n# Look, this comment does nothing')
+                    git('add Makefile')
+                    git('commit -m "Add a comment to the end of the Makefile"')
+                    append('Makefile', '\ntwo-duck: two.c\n\t$(CC) -o two-duck two.c\n')
+                    git('add Makefile')
+                    git('commit -m "Also build two-duck, same as two"')
+
+                make_and_run_all('124', ['one', 'two', 'three'])
+                with Directory('124'):
+                    with Directory('three'):
+                        shell('make three-and-a-bit')
+                        shell('./three-and-a-bit')
+                with Directory('one-duck'):
+                    make_and_run('one')
+                with Directory('two-duck'):
+                    make_and_run('two')
+                    shell('make two-duck')
+                    shell('./two-duck')
+
+            dt = DirTree('fromble', fold_dirs=['.git', '.weld'])
+            dt.assert_same_as_list(['fromble/',
+                                    '  .git/...',
+                                    '  .gitignore',
+                                    '  .weld/...',
+                                    '  124/',
+                                    '    one/',
+                                    '      Makefile',
+                                    '      one*',
+                                    '      one.c',
+                                    '    three/',
+                                    '      Makefile',
+                                    '      three*',
+                                    '      three-and-a-bit*',
+                                    '      three-and-a-bit.c',
+                                    '      three.c',
+                                    '    two/',
+                                    '      Makefile',
+                                    '      two*',
+                                    '      two.c',
+                                    '  one-duck/',
+                                    '    Makefile',
+                                    '    one*',
+                                    '    one.c',
+                                    '  two-duck/',
+                                    '    Makefile',
+                                    '    two*',
+                                    '    two-duck*',
+                                    '    two.c',
+                                    ], 'expected')
+
         if keep:
             print
             print 'By the way, the transient directory is', transient.where
