@@ -9,6 +9,8 @@ import tempfile
 import hashlib
 import imp
 import traceback
+import layout
+import git
 
 def run_to_stdout(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
         cwd = None):
@@ -130,22 +132,22 @@ def spurious_modification(w):
     """
     a_file = layout.count_file(w.base_dir)
     count(a_file)
-    git.add(w.base_dir, a_file)
+    git.add(w.base_dir, [ a_file ] )
 
 def count(filename):
-    c = 0
+    contents = ""
     try:
         with open(filename, 'rb') as fin:
             contents = fin.read().trim()
-            c = int(contents)
     except:
-        c = 0
-    c = c + 1
+        pass
+    contents = contents + "1\n"
     try:
         with open(filename, 'wb') as fout:
-            fout.write("%s\n"%c)
-    except:
-        raise GiveUp("Cannot increment counter in %s"%filename)
+            fout.write("%s"%contents)
+    except Exception as e:
+        traceback.print_exc()
+        raise GiveUp("Cannot increment counter in %s - %s"%(filename, e))
 
 def dynamic_load(filename):
     try:
