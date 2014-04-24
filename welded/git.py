@@ -4,25 +4,22 @@ Git utilities
 @todo We rely on porcelain quite heavily here - we should stop doing that.
 """
 
-import utils
 import tempfile
 import os
+
 import headers
 import layout
 
-def run_with(where, cmd, allowFailure = False):
-    return utils.run(cmd, utils.with_env([ ("GIT_DIR", where) ]), cwd = where, allowFailure = allowFailure)
+from utils import run_silently, run_to_stdout, GiveUp
 
 def init(where):
-    utils.run(["git", "init"], 
-              utils.with_env([ ("GIT_DIR", where) ]))
+    run_silently(["git", "init"], cwd=where)
 
 def add_in_subdir(where, dirname):
-    utils.run(["git", "add", "-A", "%s/**"%dirname], cwd = where)
+    run_silently(["git", "add", "-A", "%s/**"%dirname], cwd=where)
 
 def add(where, files):
-    utils.run(["git", "add"] + files,
-              utils.with_env([ ("GIT_DIR", where) ]))
+    run_silently(["git", "add"] + files, cwd=where)
 
 def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
     cmd = [ "git", "clone" ]
@@ -35,7 +32,7 @@ def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
         cmd.extend([ "-r", from_rev ])
     cmd.append(from_repo)
     cmd.append(dir_into)
-    utils.run_to_stdout(cmd)
+    run_to_stdout(cmd)
 
 def pull(dir_into, remote, from_branch, from_tag, from_rev):
     cmd = [ "git", "pull", remote ]
@@ -49,7 +46,7 @@ def pull(dir_into, remote, from_branch, from_tag, from_rev):
         cmd.append(from_rev)
     else:
         cmd.append("master")
-    utils.run_to_stdout(cmd, cwd = dir_into)
+    run_to_stdout(cmd, cwd=dir_into)
 
 def commit(where, comment, headers):
     """
@@ -67,12 +64,11 @@ def commit(where, comment, headers):
     t.write(res)
     n = t.name
     t.close()
-    utils.run(["git", "commit", "--allow-empty", "-F", n], 
-              utils.with_env([ ("GIT_DIR", where) ]))
+    run_silently(["git", "commit", "--allow-empty", "-F", n], cwd=where)
     os.unlink(n)
 
 def current_branch(where):
-    (rv, out, err) = run_with(where, ["git", "branch", "-v"])
+    rv, out = run_silently(["git", "branch", "-v"], cwd=where)
     lines = out.splitlines()
     for l in lines:
         l = l.strip()
@@ -85,14 +81,15 @@ def log(where, commit_id):
     """
     Get the log entry for a commit
     """
-    (rv, out, err) = run_with(where, ["git", "log", "-n", "1", "--format=format:%B", commit_id])
+    rv, out = run_silently(["git", "log", "-n", "1", "--format=format:%B", commit_id],
+                       cwd=where)
     return out
 
 def query_current_commit_id(where):
     """
     Retrieve the commit id for the current point in where
     """
-    (rv, out, err) = run_with(where, ["git", "log", "-n", "1", "--format=format:%H"] )
+    rv, out = run_silently(["git", "log", "-n", "1", "--format=format:%H"], cwd=where)
     return out.strip()
 
 def query_merge(where, base):
@@ -104,8 +101,8 @@ def query_merge(where, base):
     If there wasn't one, find the "X-Weld-State: Init" commit and returns
     its SHA1 id instead.
     """
-    (rv, out, err) = utils.run(["git", "log", "--grep=%s"%(headers.header_grep_merge(base)), 
-                                "-E", "--oneline", "--no-abbrev-commit"])
+    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_merge(base)),
+                            "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
         f = lines[0].split(' ')
@@ -117,8 +114,8 @@ def query_init(where):
     """
     Query the weld init commit
     """
-    (rv, out, err) = utils.run(["git", "log", "--grep=%s"%(headers.header_grep_init()),
-                                "-E", "--oneline", "--no-abbrev-commit"])
+    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_init()),
+                            "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
         f = lines[0].split(' ')
@@ -131,10 +128,10 @@ def create_and_switch(where, branch_name, from_commit):
     Checkout where at from_commit, create branch_name at that point
     and switch to it
     """
-    (rv,out, err) = run_with(where, ["git", "checkout", "-b", branch_name, from_commit])
+    rv, out = run_silently(["git", "checkout", "-b", branch_name, from_commit], cwd=where)
 
 def has_branch(where, branch_name):
-    (rv, out, err) = run_with(where, ["git", "branch", "-v"])
+    rv, out = run_silently(["git", "branch", "-v"], cwd=where)
     lines = out.split('\n')
     for l in lines:
         l = l[1:].strip()
@@ -144,7 +141,7 @@ def has_branch(where, branch_name):
     return False
 
 def abort_rebase(spec):
-    run_with(spec.base_dir, [ "git", "rebase", "--abort" ])
+    run_silently([ "git", "rebase", "--abort" ], cwd=spec.base_dir)
 
 def rebase(spec, upstream, branch = None, onto = None):
     """
@@ -156,16 +153,13 @@ def rebase(spec, upstream, branch = None, onto = None):
     cmd.append(upstream)
     if (branch is not None):
         cmd.append(branch)
-    (rv,out,err) = run_with(spec.base_dir, cmd)
-    return rv
+    run_silently(cmd, cwd=spec.base_dir)
   
 def switch_branch(spec, to_branch):
-    (rv, out,err) = run_with(spec.base_dir, 
-                             [ "git", "checkout", to_branch ])
+    run_silently([ "git", "checkout", to_branch ], cwd=spec.base_dir)
 
 def remove_branch(spec, rm_branch):
-    (rv,out,err) = run_with(spec.base_dir, 
-                            [ "git", "branch", "-d", rm_branch ])
+    run_silently([ "git", "branch", "-d", rm_branch ], cwd=spec.base_dir)
 
 def merge(spec, to_branch, from_branch, msg, squashed = False):
     """
@@ -179,10 +173,10 @@ def merge(spec, to_branch, from_branch, msg, squashed = False):
     # Sadly, there is no -F option
     cmd.extend([ "-m" , msg])
     cmd.append(from_branch)
-    (rv,out,err) = run_with(spec.base_dir, cmd)
+    run_silently(cmd, cwd=spec.base_dir)
 
 def has_local_changes(where):
-    (rv,out,err) = run_with(where, ["git", "status", "-s"])
+    rv, out = run_silently(["git", "status", "-s"], cwd=where)
     if (len(out.strip()) == 0):
         return False
     else:
@@ -193,7 +187,7 @@ def list_changes(where, from_cid, to_cid):
     Return a list of commits in where from from_cid to to_cid, including
     to_cid but not from_cid, in the order in which they should be applied
     """
-    (rv, out, err) = run_with(where, ["git", "rev-list", "%s...%s"%(from_cid, to_cid)])
+    rv, out = run_silently(["git", "rev-list", "%s...%s"%(from_cid, to_cid)], cwd=where)
     lines = out.split('\n')
     rv = [ ]
     for l in lines:
@@ -209,7 +203,7 @@ def show(where, cid):
     """
     f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%cid)
     # @todo Could be very much more efficient (and prolly needs to be)
-    (rv, out, err) = run_with(where, ["git", "show", "--binary", cid])
+    rv, out = run_silently(["git", "show", "--binary", cid], cwd=where)
     f.file.write(out)
     return f
 
@@ -219,7 +213,7 @@ def show_diff(where, from_cid, to_cid):
     """
     f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%to_cid)
     # @todo Could be very much more efficient (and prolly needs to be)
-    (rv, out, err) = run_with(where, ["git", "diff", "--binary", "%s...%s"%(from_cid, to_cid)])
+    rv, out = run_silently(["git", "diff", "--binary", "%s...%s"%(from_cid, to_cid)], cwd=where)
     f.file.write(out)
     return f
 
@@ -228,17 +222,14 @@ def apply(where, patch_file):
     """
     Apply the given patch file to the given repo
     """
-    (rv, out, err) = run_with(where, ["git", "apply", "-v", patch_file] )
+    run_silently(["git", "apply", "-v", patch_file], cwd=where)
 
 
 def set_remote(where, name, origin):
     """
     Set a remote
     """
-    run_with(where, ["git", "remote", "rm", name], allowFailure = True)
-    run_with(where, ["git", "remote", "add", name, origin])
-    
+    run_silently(["git", "remote", "rm", name], allowFailure=True, cwd=where)
+    run_silently(["git", "remote", "add", name, origin], cwd=where)
 
-        
 # End file.
-

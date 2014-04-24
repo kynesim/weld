@@ -203,7 +203,7 @@ def add_seams(spec, base_obj, seams, base_commit):
         # this level? Is the naive answer of just copying them good enough?)
 
         # Now just rsync it all over
-        utils.run(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
+        utils.run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
         # Make sure you add all the files in the subdirectory
         git.add_in_subdir(spec.base_dir, dest)
     # Now commit them with an appropriate header.

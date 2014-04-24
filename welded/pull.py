@@ -7,6 +7,7 @@ import utils
 import db
 import headers
 import ops
+import layout
 
 def sync_and_rebase(spec, base):
     """
@@ -90,15 +91,27 @@ def sync_and_rebase(spec, base):
     git.switch_branch(spec, current_branch)
 
     # .. and rebase onto the merge branch.
-    rv = git.rebase(spec, commit_id, None, branch_name)
-    if (rv == 0):
-        print("Rebase succeeded. Committing .. \n")
-        ops.do_completion(spec)
-        return 0
-    else:
-        print("Rebase failed - fix your merges and then do 'weld finish'. If you want to"
-              " abort, 'weld abort'")
+    try:
+        git.rebase(spec, commit_id, None, branch_name)
+    except GiveUp as e:
+        print str(e)
+        print "Rebase failed"
+        print "Either fix your merges and then do 'weld finish',"
+        print "or do 'weld abort' to give up."
         return 1
+
+    print("Rebase succeeded. Committing .. \n")
+    ops.do_completion(spec)
+    return 0
+
+def spurious_modification(w):
+    """
+    Spuriously modify a weld and git add it so that your
+    commit is never empty
+    """
+    a_file = layout.count_file(w.base_dir)
+    utils.count(a_file)
+    git.add(w.base_dir, [ a_file ] )
 
 def finish(spec, base_name, current_branch, current_commit, branch_name, base_commit, 
            current_base_commit_id):
@@ -108,7 +121,7 @@ def finish(spec, base_name, current_branch, current_commit, branch_name, base_co
     b = spec.query_base(base_name)
     hdr = headers.merge_marker(b, b.get_seams(), current_base_commit_id)
     git.merge(spec,current_branch, branch_name, hdr, squashed = True)
-    utils.spurious_modification(spec)
+    spurious_modification(spec)
     git.commit(spec.base_dir, hdr, [ ])
 
 def abort(spec, branch_name, current_branch):

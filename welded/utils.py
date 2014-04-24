@@ -9,54 +9,60 @@ import tempfile
 import hashlib
 import imp
 import traceback
-import layout
-import git
+import string
 
-def run_to_stdout(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
-        cwd = None):
-    """
-    Runs a command via the shell
+def run_to_stdout(cmd, allowFailure=False, verbose=True, cwd=None):
+    """Runs a command with its output going to stdout/stderr as normal.
 
-    cmd is an array in the usual way. 
+    cmd is an array in the usual way.
 
-    @return (rv, out, err) .
-    """
-    if (verbose):
-        print "> %s"%(" ".join(cmd))
-    if env is None:
-        env = os.environ
-    a_process = subprocess.Popen(cmd, 
-                                 shell = useShell,
-                                 cwd = cwd)
-    (out, err) = a_process.communicate()
-    rv = a_process.wait()
-    if (rv and (not allowFailure)):
-        raise GiveUp("Command '%s' failed - %d\n%s"%(" ".join(cmd), rv, err))
-    return (a_process.wait(), None, None)
+    If allowFailure is false, and the command has a non-zero returncode, then
+    it raises GiveUp, with much explanation in the exception text.
 
-
-def run(cmd, env = None, useShell = False, allowFailure = False, isSystem = False, verbose = True,
-        cwd = None):
-    """
-    Runs a command via the shell
-
-    cmd is an array in the usual way. 
-
-    @return (rv, out, err) .
+    Otherwise, it just returns.
     """
     if (verbose):
         print "> %s"%(" ".join(cmd))
-    if env is None:
-        env = os.environ
-    a_process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                 stderr = subprocess.PIPE,
-                                 shell = useShell,
-                                 cwd = cwd)
-    (out, err) = a_process.communicate()
-    rv = a_process.wait()
-    if (rv and (not allowFailure)):
-        raise GiveUp("Command '%s' failed - %d\n%s"%(" ".join(cmd), rv, err))
-    return (a_process.wait(), out, err)
+    try:
+        subprocess.check_call(cmd,
+                              stderr=subprocess.STDOUT,
+                              cwd=cwd)
+        return
+    except subprocess.CalledProcessError as e:
+        if allowFailure:
+            return
+        else:
+            raise GiveUp(str(e))
+
+
+def run_silently(cmd, allowFailure=False, verbose=True, cwd=None):
+    """Runs a command and captures its output.
+
+    cmd is an array in the usual way.
+
+    If allowFailure is true, then it returns (returncode, output) where
+    'output' is stdout and stderr together.
+
+    If allowFailure is false, then if the command has a returncode of 0 it
+    returns (0, output), and otherwise it raises GiveUp, with much explanation
+    in the exception text.
+    """
+    if (verbose):
+        print "> %s"%(" ".join(cmd))
+    try:
+        out = subprocess.check_output(cmd,
+                                      stderr=subprocess.STDOUT,
+                                      cwd=cwd)
+        return 0, out
+    except subprocess.CalledProcessError as e:
+        if allowFailure:
+            return e.returncode, e.output
+        else:
+            parts = []
+            parts.append(str(e))
+            errortext = e.output.splitlines()
+            parts.extend(['  {}'.format(x) for x in errortext])
+            raise GiveUp('\n'.join(parts))
 
 def with_env(lst):
     """
@@ -124,15 +130,6 @@ def classify_seams(old_seams, new_seams):
             # Added
             created_in_new.append(y)
     return (deleted_in_new, changed, created_in_new)
-
-def spurious_modification(w):
-    """
-    Spuriously modify a weld and git add it so that your
-    commit is never empty
-    """
-    a_file = layout.count_file(w.base_dir)
-    count(a_file)
-    git.add(w.base_dir, [ a_file ] )
 
 def count(filename):
     contents = ""
