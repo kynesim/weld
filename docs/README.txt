@@ -87,6 +87,9 @@ Using weld
    This command takes a weld.xml that you have written and creates a git 
     repository for it, including writing you a .git/info/sparse-checkout file.
 
+**The following are wrong. For the moemnt, use "weld help" to find out its
+commands, and this section will be updated later on.***
+
  weld import
 
    This command imports any missing repos into the weld. If any branches have
