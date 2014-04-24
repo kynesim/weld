@@ -108,6 +108,7 @@ def finish(spec, base_name, current_branch, current_commit, branch_name, base_co
     b = spec.query_base(base_name)
     hdr = headers.merge_marker(b, b.get_seams(), current_base_commit_id)
     git.merge(spec,current_branch, branch_name, hdr, squashed = True)
+    utils.spurious_modification(spec)
     git.commit(spec.base_dir, hdr, [ ])
 
 def abort(spec, branch_name, current_branch):

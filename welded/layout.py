@@ -21,6 +21,8 @@ def spec_file(base_dir):
 def base_repo(base_dir, base):
     return os.path.join(base_dir, ".weld", "bases", base)
 
+def count_file(base_dir):
+    return os.path.join(base_dir, ".weld", "counter")
 
 
 # End file.
