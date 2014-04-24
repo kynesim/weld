@@ -455,6 +455,22 @@ def main(args):
                                     '    two.c',
                                     ], 'expected')
 
+        # Alter (update) project124 in its repository again
+        banner('Alter repository for project124 (again)')
+        with Directory(project124_orig):
+            with NewDirectory('four'):
+                build_repo_subdir('project124', 'four')
+            git('push')
+
+        # But this time, delibarately don't alter anything else
+        with Directory(test1.where):
+            with Directory('fromble'):
+                # Querying base project124 will update .weld/bases/project124
+                # and thus reflect the difference between its HEAD and the
+                # last commit we merged from it. It won't, of course, update
+                # our checked out 124 directory.
+                weld('query base project124')
+
         if keep:
             print
             print 'By the way, the transient directory is', transient.where
