@@ -146,4 +146,110 @@ Reads in a weld XML file, and:
 
       Weld initialisation
 
+...and more stuff to be written
 
+
+Interesting information
+=======================
+...or stuff Tibs is learning about weld that will get put somewhere else
+later, but he doesn't want to lose...
+
+How "weld pull" does its stuff
+------------------------------
+So we're pulling a base.
+
+  (pulling an individual seam would in theory be possible, but rather fiddly,
+  and of questionable use anyway, so we'll go with just pulling bases).
+
+1. Weld makes sure its copy of the base is up-to-date
+
+   a. If it doesn't yet have a clone of the base, it does::
+
+         cd .weld/bases
+         git clone <base-repository>
+         cd <base>
+         git pull
+
+   b. If it does have a clone of the base, it does::
+
+         cd .weld/bases/<base>
+         git pull
+
+2. Back in the "main" directory structure (outside the .weld) it branches
+   with a branch name of the form "weld-merge-<base>-<index>", where <index>
+   is chosen to make the branch unique in this repository. The branch point is
+   the last "X-Weld-State: Merged <base>" commit, or the "X-Weld-State: Init"
+   commit.
+
+3. It rsyncs the source directory (as specified in the seam in the weld XML
+   file) onto the target directory (ditto), and commits that.
+
+4. It rebases (from) the branch point (to HEAD) onto this branch.
+
+5. It does a squash merge of the branch back onto master, and commits that
+   with an "X-Weld-State: Merged <base>" message.
+
+Note that it doesn't delete the "transient" branch (and the last such branch
+may actually appear to be an ancestor of HEAD). We may add a "weld tidy"
+command at some time to remove "weld-" branches, but during the current active
+development they may be useful.
+
+Also note that the "weld-" branches are always meant to be local to the
+current repository - they're not meant to be pushed anywhere else.
+
+This procedure will preserve the obvious ordering for the "Merged" state
+messages, but the "Seam-Added" messages on master may appear reversed (or in
+some other unobvious order) because of the way the above is done. This should
+not matter.
+
+So one can end up with a git log something like the following (but note I've
+shortened the SHA1 ids in the X-Weld-State messages, which are normally
+presented at full length)::
+
+  * 5b3b562 (HEAD, master) X-Weld-State: Merged project124/4849616[[null, "124"]]
+  * ad9cb22 (weld-merge-project124-1) X-Weld-State: PortedCommit project124/4849616[[null, "124"]]
+  * 8e5acbd X-Weld-State: Merged project124/46b0f6c[[null, "124"]]
+  * 6192696 X-Weld-State: Merged igniting_duck/ef9c9c0[["one", "one-duck"], ["two", "two-duck"]]
+  * d7be62e X-Weld-State: Seam-Added igniting_duck/ef9c9c0[["one", "one-duck"], ["two", "two-duck"]]
+  * 43505fb (weld-merge-project124-0) X-Weld-State: Seam-Added project124/46b0f6c[[null, "124"]]
+  | * 17be721 (weld-merge-igniting_duck-0) X-Weld-State: Seam-Added igniting_duck/ef9c9c0[["one", "one-duck"], ["two", "two-duck"]]
+  |/  
+  * f07cd81 X-Weld-State: Init
+
+or (in a user's checkout of the weld)::
+
+  * a4406c3 (HEAD, master) Also build two-duck, same as two
+  * 09fe795 Add a comment to the end of the Makefile
+  * 86f4852 Add three-and-a-bit
+  * 9b95689 X-Weld-State: Merged project124/4849616[[null, "124"]]
+  * f2fab93 Ignore executables
+  * 68b3e53 (weld-merge-project124-0) X-Weld-State: PortedCommit project124/4849616[[null, "124"]]
+  * 8e5acbd (origin/master, origin/HEAD) X-Weld-State: Merged project124/46b0f6c[[null, "124"]]
+  * 6192696 X-Weld-State: Merged igniting_duck/ef9c9c0[["one", "one-duck"], ["two", "two-duck"]]
+  * d7be62e X-Weld-State: Seam-Added igniting_duck/ef9c9c0[["one", "one-duck"], ["two", "two-duck"]]
+  * 43505fb X-Weld-State: Seam-Added project124/46b0f6c[[null, "124"]]
+  * f07cd81 X-Weld-State: Init
+
+Not having those "remotes/origin/weld-" branches
+------------------------------------------------
+As we said above, weld uses branches called "weld-..." to do its work, and
+doesn't delete them when it has finished with them. This means that if you
+then do a::
+
+  git clone <weld-repository>
+
+you will see (in ``gitk --all`` or with ``git branch -a``) the ``weld-...``
+branches in the ``remotes/origin/``. These are of no use at all. The simplest
+way to not see them is to not get them in the first place. If you have git
+version 1.7.10 or later, then you can do::
+
+  git clone --single-branch <weld-repository>
+
+to retrieve (in this case) just master (or use ``-b <branch`` to name a
+specific branch).
+
+Of course, unfortunately, if you later do a ``git pull``, then the branches
+will be fetched for you at that stage, so it's not a perfect solution.
+
+Our putative "weld tidy" maybe needs to do more work than we first thought...
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
