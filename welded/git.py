@@ -120,7 +120,7 @@ def query_init(where):
     if (len(lines) > 0):
         f = lines[0].split(' ')
         return f[0]
-    raise utils.GiveUp("Cannot find a weld init line in history")
+    raise GiveUp("Cannot find a weld init line in history")
 
 
 def create_and_switch(where, branch_name, from_commit):

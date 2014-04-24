@@ -24,7 +24,7 @@ class Parser:
         if (node.hasAttribute("name")):
             weld.name = node.getAttribute("name")
         else:
-            raise GiveUp("Weld has no name")
+            raise utils.GiveUp("Weld has no name")
 
         origins = dom.getElementsByTagName("origin")
         if (len(origins) > 0):
