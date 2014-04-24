@@ -188,7 +188,12 @@ def main(args):
         with NewCountedDirectory('test') as test1:
             # Because we're using git to clone it, we *could* change the
             # name of the directory we extract into, but we're not going to
-            git('clone %s'%fromble_base.where)
+            #
+            # git 1.7.10 introduces the --single-branch switch, which does what
+            # it suggests. If we use this, then we won't get the "weld-"
+            # branches from the original weld repository copied over, which
+            # leads to a neater appearance in gitk (!)
+            git('clone --single-branch %s'%fromble_base.where)
             # Remember that our weld.xml does redirect some of the "internal"
             # directories (in particular, of igniting_duck) so they get put
             # somewhere else in our source tree.
