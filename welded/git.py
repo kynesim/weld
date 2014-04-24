@@ -96,8 +96,13 @@ def query_current_commit_id(where):
     return out.strip()
 
 def query_merge(where, base):
-    """
-    Query the last commit which contained a merge
+    """Return the id of the last commit which contained a merge for this 'base'
+
+    Finds the last "X-Weld-State: Merged <base>" commit, and returns its
+    SHA1 id.
+
+    If there wasn't one, find the "X-Weld-State: Init" commit and returns
+    its SHA1 id instead.
     """
     (rv, out, err) = utils.run(["git", "log", "--grep=%s"%(headers.header_grep_merge(base)), 
                                 "-E", "--oneline", "--no-abbrev-commit"])
@@ -105,7 +110,8 @@ def query_merge(where, base):
     if (len(lines) > 0):
         f = lines[0].split(' ')
         return f[0]
-    return query_init(where)
+    else:
+        return query_init(where)
 
 def query_init(where):
     """

@@ -155,7 +155,7 @@ def add_seams(spec, base_obj, seams, base_commit):
         return
 
     for s in seams:
-        print("W: Creating new seam (%s->%s) from %s \n"%(s.get_source(), s.get_dest(), base_obj.name))
+        print("W: Creating new seam (%s->%s) from %s"%(s.get_source(), s.get_dest(), base_obj.name))
         # Really, just copy the directories over. If there are files already there, keep them.
         src = os.path.join(layout.base_repo(spec.base_dir, base_obj.name), s.get_source())
         dest = os.path.join(spec.base_dir, s.get_dest())
