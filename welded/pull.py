@@ -93,7 +93,7 @@ def sync_and_rebase(spec, base):
     # .. and rebase onto the merge branch.
     try:
         git.rebase(spec, commit_id, None, branch_name)
-    except GiveUp as e:
+    except utils.GiveUp as e:
         print str(e)
         print "Rebase failed"
         print "Either fix your merges and then do 'weld finish',"
