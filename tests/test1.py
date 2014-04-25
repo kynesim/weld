@@ -138,7 +138,7 @@ def weld_query_base(base_name):
 def git_rev_parse(what):
     """Return the SHA1 id for 'what'
     """
-    text = shell_get_output('git rev-parse %s'%what)
+    text = shell_get_output('git rev-parse %s'%what, verbose=False)
     return text.strip()
 
 def compare_dir(where, content_list):
@@ -414,6 +414,7 @@ def test():
 
     banner('Amend the checked out sources')
     with Directory(fromble_test.where):
+        fromble_test_id_before_three_plus = git_rev_parse('HEAD')
         with Directory('124'):
             with Directory('three'):
                 touch('three-and-a-bit.c',
@@ -430,6 +431,8 @@ def test():
             append('Makefile', '\ntwo-duck: two.c\n\t$(CC) -o two-duck two.c\n')
             git('add Makefile')
             git('commit -m "Also build two-duck, same as two"')
+
+        fromble_test_after_three_plus = git_rev_parse('HEAD')
 
         make_and_run_all('124', ['one', 'two', 'three'])
         make_and_run(os.path.join('124', 'three'), 'three-and-a-bit')
@@ -470,9 +473,11 @@ def test():
     # Alter (update) project124 in its repository again
     banner('Alter repository for project124 (again)')
     with Directory(project124_orig):
+        project124_id_before_four = git_rev_parse('HEAD')
         with NewDirectory('four'):
             build_repo_subdir('project124', 'four')
         git('push')
+        project124_id_after_four = git_rev_parse('HEAD')
 
     # But this time, delibarately don't alter anything else
     with Directory(fromble_test.where):
@@ -483,12 +488,22 @@ def test():
         weld('query base project124')
 
         last_merge, base_merge, base_head = weld_query_base('project124')
-        print last_merge
-        print base_merge
-        print base_head
+        print 'last merge ', last_merge[:10]
+        print 'base merge ', base_merge[:10]
+        print 'base HEAD  ', base_head[:10]
 
-        print 'HEAD', git_rev_parse('HEAD')
-        print 'weld-merge-project124-0', git_rev_parse('weld-merge-project124-0')
+        print
+        print 'fromble test:'
+        print '    HEAD                  ', git_rev_parse('HEAD')[:10]
+        print '    before three-and-a-bit', fromble_test_id_before_three_plus[:10], '(last merge)'
+        print '    after  three-and-a-bit', fromble_test_after_three_plus[:10], '(local head)'
+        print 'project124'
+        print '    before four           ', project124_id_before_four[:10], '(base merge)'
+        print '    after  four           ', project124_id_after_four[:10], '(base head)'
+
+        assert fromble_test_id_before_three_plus == last_merge
+        assert project124_id_before_four == base_merge
+        assert project124_id_after_four == base_head
 
     # And then start investigating what "weld push" should do...
 
