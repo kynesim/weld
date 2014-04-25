@@ -12,6 +12,11 @@ import stat
 from difflib import unified_diff, ndiff
 from fnmatch import fnmatchcase
 
+def normalise_path(path):
+    path = os.path.expanduser(path)
+    path = os.path.abspath(path)
+    return path
+
 def get_this_dir(this_file=None):
     """Determine the path of our the directory containing 'this_file'.
 
