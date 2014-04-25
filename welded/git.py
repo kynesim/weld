@@ -153,7 +153,7 @@ def rebase(spec, upstream, branch = None, onto = None):
     cmd.append(upstream)
     if (branch is not None):
         cmd.append(branch)
-    run_silently(cmd, cwd=spec.base_dir)
+    run_to_stdout(cmd, cwd=spec.base_dir)
   
 def switch_branch(spec, to_branch):
     run_silently([ "git", "checkout", to_branch ], cwd=spec.base_dir)
@@ -211,9 +211,9 @@ def show_diff(where, from_cid, to_cid):
     """
     Returns a temporary file containing the diffs from from to to.
     """
-    f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%to_cid)
+    f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%to_cid, delete=False)
     # @todo Could be very much more efficient (and prolly needs to be)
-    rv, out = run_silently(["git", "diff", "--binary", "%s...%s"%(from_cid, to_cid)], cwd=where)
+    rv, out = run_silently(["git", "diff", "--binary", "%s..%s"%(from_cid, to_cid)], cwd=where)
     f.file.write(out)
     return f
 
