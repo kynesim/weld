@@ -28,6 +28,8 @@ class Parser:
 
         origins = dom.getElementsByTagName("origin")
         if (len(origins) > 0):
+            # XXX Should the URI be optional?
+            # XXX Should we allow other attributes?
             weld.origin = origins[0].getAttribute("uri")
         bases = dom.getElementsByTagName("base")
         seams = dom.getElementsByTagName("seam")

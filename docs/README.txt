@@ -50,22 +50,19 @@ bases and seams
 weld.xml
 ========
 
- A typical weld.xml:
+A typical weld.xml::
 
- <?xml version="1.0" ?>
- <weld name="frank">
-   <origin uri="ssh://git@home.example.com/ribbit/fromble" />
-
-   <base name="project124" uri="ssh://git@foo.example.com/my/base" branch="b" rev=".." tag=".."/>
-   <base name="igniting_duck" uri="ssh://git@bar.example.com/wobble" />
-
-   <seam base="project124" dest="flibble" />
-   <seam base="igniting_duck" source="foo" dest="bar" />
-
- </weld>
+   <?xml version="1.0" ?>
+   <weld name="frank">
+     <origin uri="ssh://git@home.example.com/ribbit/fromble" />
+     <base name="project124" uri="ssh://git@foo.example.com/my/base" branch="b" rev=".." tag=".."/>
+     <base name="igniting_duck" uri="ssh://git@bar.example.com/wobble" />
+     <seam base="project124" dest="flibble" />
+     <seam base="igniting_duck" source="foo" dest="bar" />
+   </weld>
  
 
- This file tells weld:
+This file tells weld:
 
    * This weld is called frank - this name is used when upstreaming.
    * The origin for this weld is at ssh://git@home.example.com/ribbit/fromble.
@@ -73,47 +70,109 @@ weld.xml
    * project124 turns up in a directory in the weld called flibble.
    * igniting_duck/foo turns up in <weld>/bar
 
+Details
+-------
+The XML file must:
+
+* start with an XML verison line: ``<?xml version="1.0" ?>``, because
+  otherwise it wouldn't be XML
+
+* continue with the start of a weld definition: ``<weld name=``\ *name*\
+  ``>``. Whilst the weld name is required, it is not currently used for
+  anything.
+
+* which contains an ``<origin uri=``\ *origin*\ ``/>`` entity (althogh the
+  ``uri`` is optional at the moment)
+
+* as well as zero or more base and seam definitions
+
+* and end with the end of a weld definition: ``</weld>``
+
+Comments are allowed as normal, and are ignored (and will not be retained when
+the XML file is copied).
+
+Only one weld definition is allowed in a file, although this may or may not be
+checked - regardless, any weld definitions after the first are ignored.
+
+With a weld definition, there are two types of entity:
+
+* base definitions
+* seam definitions
+
+These may occur in any order. A base must have at least one corresponding
+seam, and a seam must belong to a single base. The two are linked by the base
+name,
+
+A base definition contains:
+
+* ``name`` - the name of this base
+* ``uri`` - the URI for the repository from which this base is to
+  cloned/checked out
+* ``branch``, ``rev`` or ``tag`` - the branch, revision or tag to clone/check
+  out. These defaut to "master", "HEAD" and (essentially) "HEAD" respectively.
+  It is not currently defined what happens if you specify more than one of
+  these for a particular base.
+
+A seam definition contains:
+
+* ``base`` - the name of the base that this seam belongs to. This base must
+  already have been defined in the XML file.
+* ``name`` - the name of this seam. This is optional, and defaults to None
+* ``source`` - where the seam's contents are taken from in the base
+  repository. This is optional, and defaults to ``"."``, meaning the top
+  (root) of the repository.
+* ``dest`` - where the seam is to be put in the target directory in the weld.
+  This is optional and defaults to ???.
+* ``current`` - ??? This is optional and defaults to ???
+
+It is not defined what happens if the same base or seam is defined more than
+once (with either the same values or different values).
+
+It *is* intended that two bases with diffferent names be regarded as
+different, although what happens if that is the only difference between them
+is not defined.
+
 Going behind weld's back
 ========================
 
- As with muddle, weld attempts to support you going behind its back.
+As with muddle, weld attempts to support you going behind its back.
 
 
 Using weld   
 ==========
 
- weld init weld.xml
+weld init weld.xml
   
    This command takes a weld.xml that you have written and creates a git 
-    repository for it, including writing you a .git/info/sparse-checkout file.
+   repository for it, including writing you a .git/info/sparse-checkout file.
 
 **The following are wrong. For the moemnt, use "weld help" to find out its
 commands, and this section will be updated later on.***
 
- weld import
+weld import
 
    This command imports any missing repos into the weld. If any branches have
-    changed, 
+   changed, 
 
- weld upstream <base>
+weld upstream <base>
 
-   Here is where the magic happens. Weld collects all the diffs that might affect
+  Here is where the magic happens. Weld collects all the diffs that might affect
   <base> and ports them (individually) upstream to that base. Weld axdds a
   Welded-From: <name>/<commit-id> to each comment.
 
- weld sync <URI>
+weld sync <URI>
 
-   Weld will check out the .weld from <URI> and synchronise with it -
-this is largely a clone, but because weld will write a sparse-checkout file
-you do not need to check out any parts of the repository which are not 
-currently in the weld.
+  Weld will check out the .weld from <URI> and synchronise with it -
+  this is largely a clone, but because weld will write a sparse-checkout file
+  you do not need to check out any parts of the repository which are not 
+  currently in the weld.
 
 Headers that weld introduces
 ============================
 
- Weld will occasionally leave commits containing messages to itself.
+Weld will occasionally leave commits containing messages to itself.
 It is important that you do not start any legitimate commit messages
-with
+with:
 
 X-Weld-State:
 
