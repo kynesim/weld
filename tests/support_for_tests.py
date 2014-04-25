@@ -42,9 +42,12 @@ class GiveUp(Exception):
 
 class ShellError(GiveUp):
     def __init__(self, cmd, retcode, text=None):
-        msg = "Shell command '%s' failed with retcode %d"%(cmd, retcode)
+        msg = "Shell command %r failed with retcode %d"%(cmd, retcode)
         if text:
-            msg = '%s\n%s'%(msg, text)
+            parts = [msg]
+            text = text.splitlines()
+            parts.extend(['  {}'.format(x) for x in text])
+            msg = '\n'.join(parts)
         super(GiveUp, self).__init__(msg)
         self.retcode=retcode
 
@@ -61,12 +64,47 @@ def shell(cmd, verbose=True):
     if retcode:
         raise ShellError(cmd, retcode)
 
+def shell_get_output(cmd, verbose=True):
+    """Run a command in the shell and get its output
+
+    'cmd' is the comamnd to run, e.g., "weld init".
+
+    Returns the output of the command (which is not written to stdout/stderr)
+
+    Raises a ShellError if the return code is not zero.
+    """
+    if verbose:
+        print '>> %s'%cmd
+    try:
+        return subprocess.check_output(cmd, shell=True,
+                                       stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        raise ShellError(cmd, retcode=e.returncode, text=e.output)
+
 def weld(cmd, verbose=True):
     """Run our local 'weld', with the given arguments
 
     E.g., weld('init weld.xml')
     """
     shell('%s %s'%(os.path.join(PARENT_DIR, 'weld'), cmd))
+
+def weld_get_output(cmd, verbose=True):
+    """Run a weld command in the shell and get its output
+
+    'cmd' is the weld comamnd to run, e.g., "init".
+
+    Returns the output of the command (which is not written to stdout/stderr)
+
+    Raises a ShellError if the return code is not zero.
+    """
+    cmd = "%s %s"%(os.path.join(PARENT_DIR, 'weld'), cmd)
+    if verbose:
+        print '>> %s'%cmd
+    try:
+        return subprocess.check_output(cmd, shell=True,
+                                       stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        raise ShellError(cmd, retcode=e.returncode, text=e.output)
 
 def git(cmd, verbose=True):
     """Run 'git', with the given arguments

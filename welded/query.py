@@ -26,9 +26,11 @@ def query_base(spec, base_name):
     #print "  base cid %s"%(base_commit_id)
     #print "  the base is now at %s"%(current_base_id)
 
-    if base_commit_id is None and seams == []:
-        print "  There was no 'last merge' for %s"%base_name
-    
+    # I introduced the following, but I'm not convinced it helps, given
+    # "base merge None" is fairly explicit *if you understand what the above
+    # is saying*, which is actually the difficult bit...
+    #if base_commit_id is None and seams == []:
+    #    print "  There was no 'last merge' for %s"%base_name
 
 def query_bases(spec):
     """Report on the bases we have, and their seams.
@@ -48,9 +50,9 @@ def query_seam_changes(spec, base_name):
     b = spec.query_base(base_name)
     ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.get_seams())
     print "Seams:"
-    print " D: %s"%deleted_in_new
-    print " C: %s"%changes
-    print " A: %s"%added_in_new
+    print "  D: %s"%deleted_in_new
+    print "  C: %s"%changes
+    print "  A: %s"%added_in_new
     return 1
     
 

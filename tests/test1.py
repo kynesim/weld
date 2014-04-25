@@ -104,6 +104,29 @@ def muddle(cmd, verbose=True):
     MUDDLE = normalise_dir('~tibs/sw/muddle/muddle')    # XXX NOT PORTABLE!!!
     shell('%s %s'%(MUDDLE, cmd))
 
+def weld_query_base(base_name):
+    """Run "weld query base 'base_name'" and dissect its results
+
+    Returns <last merge id>, <base merge id>, <base HEAD id>
+
+    All will be strings containing a SHA1 id, except that <base merge id> may
+    be None (not a string, actual None)
+    """
+    text = weld_get_output('query base %s'%base_name)
+    lines = text.splitlines()
+    last_merge_line = lines[-3]
+    base_merge_line = lines[-2]
+    base_head_line  = lines[-1]
+
+    last_merge = last_merge_line.split()[-1]
+    base_merge = base_merge_line.split()[-1]
+    base_head  = base_head_line.split()[-1]
+
+    if base_merge == 'None':
+        base_merge = None
+
+    return last_merge, base_merge, base_head
+
 def main(args):
 
     keep = False
@@ -470,6 +493,13 @@ def main(args):
                 # last commit we merged from it. It won't, of course, update
                 # our checked out 124 directory.
                 weld('query base project124')
+
+                last_merge, base_merge, base_head = weld_query_base('project124')
+                print last_merge
+                print base_merge
+                print base_head
+
+        # And then start investigating what "weld push" should do...
 
         if keep:
             print
