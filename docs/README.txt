@@ -2,8 +2,6 @@
 Weld
 ====
 
-(in text because I am far less neat than Tony).
-
 The multiple repository model used by muddle makes it quite difficult
 to track changes. It would be simpler if there was a single git 
 repository for a project which could track back to other repositories.
@@ -28,7 +26,7 @@ Files in .welded
 
  .welded/completion
    A set of instructions for weld finish to perform once you have
-    completed your merge.
+   completed your merge.
 
  .welded/bases/ ..
    Copies of all your bases.
@@ -74,7 +72,7 @@ Details
 -------
 The XML file must:
 
-* start with an XML verison line: ``<?xml version="1.0" ?>``, because
+* start with an XML version line: ``<?xml version="1.0" ?>``, because
   otherwise it wouldn't be XML
 
 * continue with the start of a weld definition: ``<weld name=``\ *name*\
@@ -132,10 +130,18 @@ It *is* intended that two bases with diffferent names be regarded as
 different, although what happens if that is the only difference between them
 is not defined.
 
+TO BE CLARIFIED/CHECKED:
+
+  *Do not cross the streams.* Specifically, no two different seams should have
+  the same destination, lest weld get terribly confused. This *may* also mean
+  that destinations that "nest" - e.g., ``src/fred`` and ``src/fred/jim`` -
+  are regarded as "the same" for this purpose.
+
 Going behind weld's back
 ========================
 
-As with muddle, weld attempts to support you going behind its back.
+As with muddle, weld attempts to support you going behind its back. This
+mainluy means assuming that you're going to use git to do stuff regardless.
 
 
 Using weld   
@@ -146,7 +152,7 @@ weld init weld.xml
    This command takes a weld.xml that you have written and creates a git 
    repository for it, including writing you a .git/info/sparse-checkout file.
 
-**The following are wrong. For the moemnt, use "weld help" to find out its
+**The following are wrong. For the moment, use "weld help" to find out its
 commands, and this section will be updated later on.***
 
 weld import
@@ -314,4 +320,5 @@ Of course, unfortunately, if you later do a ``git pull``, then the branches
 will be fetched for you at that stage, so it's not a perfect solution.
 
 Our putative "weld tidy" maybe needs to do more work than we first thought...
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

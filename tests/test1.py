@@ -298,10 +298,10 @@ def test():
                     make_and_run_all('project124', ['one', 'two'])
                     make_and_run_all('igniting_duck', ['one', 'two'])
                     # ...and since we weren't meant to do that, tidy up
-                    shell('rm project124/one/one')
-                    shell('rm project124/two/two')
-                    shell('rm igniting_duck/one/one')
-                    shell('rm igniting_duck/two/two')
+                    os.unlink(os.path.join('project124', 'one', 'one'))
+                    os.unlink(os.path.join('project124', 'two', 'two'))
+                    os.unlink(os.path.join('igniting_duck', 'one', 'one'))
+                    os.unlink(os.path.join('igniting_duck', 'two', 'two'))
 
     # Alter (update) project124 in its repository
     banner('Alter original and repository for project124')
@@ -479,106 +479,175 @@ def test():
         git('push')
         project124_id_after_four = git_rev_parse('HEAD')
 
+    # Summary:
+    #
+    # Locally, we have made alterations to both 124 and to two-duck
+    # Remotely, "someone else" has made alterations to project124
+    #
+    # So, "pushing" two-duck is relatively simple - we need to fold its
+    # changes back into our base igniting_duck, and push that.
+    #
+    # It's a bit less certain what to do for project124, as there are
+    # changes (since the last Merge event) both far and near.
+    # Of course, so far as "this end" is concerned, we don't "know" about
+    # the far changes yet - they've not been "pulled" into our local 124
+    # directory. Maybe that's just an argument for doing "weld pull" before
+    # doing "weld push" - much as one should with git itself. If we go
+    # with that, then we should perform all the merging on the "visible"
+    # side (i.e., in our main directories, not in our .weld/bases),
+    # and applying the patch to the .weld/bases/<base> should then Just
+    # Work, since any conflicts have already been resolved...
+    #
+    # Given the above, should we note that a "weld pull" is needed, and
+    # tell the user they *must* sort it out before we can allow "weld push"?
+    # Can we tell?
+    #
+    # XXX And don't forget the other thing I've not looked at yet, which
+    # XXX is editing the weld.xml file (.weld/welded.xml, I suppose) and
+    # XXX wanting to push *that*.
+    # XXX
+    # XXX For both pulling and pushing, we need to consider (the
+    # XXX appropriate end):
+    # XXX
+    # XXX a) adding a new base or seam to the XML file
+    # XXX b) removing a base or seam from the XML file
+    # XXX c) changing a seam in the XML file (ick)
+    #
+    # (Does "weld pull" check that the XML file hasn't changed? Does it
+    # try pulling it? It is under git control, as is the top-level
+    # .gitignore)
+
     # But this time, delibarately don't alter anything else
     with Directory(fromble_test.where):
         # Querying base project124 will update .weld/bases/project124
         # and thus reflect the difference between its HEAD and the
         # last commit we merged from it. It won't, of course, update
         # our checked out 124 directory.
-        last_124_merge, base_124_merge, base_124_head = weld_query_base('project124')
-        print 'last merge ', last_124_merge[:10]
-        print 'base merge ', base_124_merge[:10]
-        print 'base HEAD  ', base_124_head[:10]
+        last_124_merge1, base_124_merge1, base_124_head1 = weld_query_base('project124')
+        print 'last merge ', last_124_merge1[:10]
+        print 'base merge ', base_124_merge1[:10]
+        print 'base HEAD  ', base_124_head1[:10]
 
         # Similarly for igniting_duck
-        last_ign_merge, base_ign_merge, base_ign_head = weld_query_base('igniting_duck')
-        print 'last merge ', last_ign_merge[:10]
-        print 'base merge ', base_ign_merge[:10]
-        print 'base HEAD  ', base_ign_head[:10]
+        last_ign_merge1, base_ign_merge1, base_ign_head1 = weld_query_base('igniting_duck')
+        print 'last merge ', last_ign_merge1[:10]
+        print 'base merge ', base_ign_merge1[:10]
+        print 'base HEAD  ', base_ign_head1[:10]
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
-            assert base_124_head == git_rev_parse('HEAD')
+            assert base_124_head1 == git_rev_parse('HEAD')
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
-            assert base_ign_head == git_rev_parse('HEAD')
+            assert base_ign_head1 == git_rev_parse('HEAD')
 
-        fromble_test_head = git_rev_parse('HEAD')[:10]
+        fromble_test_head1 = git_rev_parse('HEAD')
 
         print
         print 'fromble test:'
-        print '    HEAD                  ', fromble_test_head
+        print '    HEAD                  ', fromble_test_head1[:10]
         print '    before three-and-a-bit', fromble_test_id_before_three_plus[:10], '(last merge)'
         print '    after  three-and-a-bit', fromble_test_id_after_three_plus[:10], '(local head)'
         print 'project124'
-        print '    HEAD                  ', base_124_head[:10]
+        print '    HEAD                  ', base_124_head1[:10]
         print '    before four           ', project124_id_before_four[:10], '(base merge)'
         print '    after  four           ', project124_id_after_four[:10], '(base head)'
         print 'igniting_duck'
-        print '    HEAD                  ', base_ign_head[:10]
+        print '    HEAD                  ', base_ign_head1[:10]
 
-        assert fromble_test_id_before_three_plus == last_124_merge
-        assert project124_id_before_four         == base_124_merge
-        assert project124_id_after_four          == base_124_head
-
-        # Summary:
-        #
-        # Locally, we have made alterations to both 124 and to two-duck
-        # Remotely, "someone else" has made alterations to project124
-        #
-        # So, "pushing" two-duck is relatively simple - we need to fold its
-        # changes back into our base igniting_duck, and push that.
-        #
-        # It's a bit less certain what to do for project124, as there are
-        # changes (since the last Merge event) both far and near.
-        # Of course, so far as "this end" is concerned, we don't "know" about
-        # the far changes yet - they've not been "pulled" into our local 124
-        # directory. Maybe that's just an argument for doing "weld pull" before
-        # doing "weld push" - much as one should with git itself. If we go
-        # with that, then we should perform all the merging on the "visible"
-        # side (i.e., in our main directories, not in our .weld/bases),
-        # and applying the patch to the .weld/bases/<base> should then Just
-        # Work, since any conflicts have already been resolved...
-        #
-        # Given the above, should we note that a "weld pull" is needed, and
-        # tell the user they *must* sort it out before we can allow "weld push"?
-        # Can we tell?
-        #
-        # XXX And don't forget the other thing I've not looked at yet, which
-        # XXX is editing the weld.xml file (.weld/welded.xml, I suppose) and
-        # XXX wanting to push *that*.
-        # XXX
-        # XXX For both pulling and pushing, we need to consider (the
-        # XXX appropriate end):
-        # XXX
-        # XXX a) adding a new base or seam to the XML file
-        # XXX b) removing a base or seam from the XML file
-        # XXX c) changing a seam in the XML file (ick)
-        #
-        # (Does "weld pull" check that the XML file hasn't changed? Does it
-        # try pulling it? It is under git control, as is the top-level
-        # .gitignore)
+        assert fromble_test_id_before_three_plus == last_124_merge1
+        assert project124_id_before_four         == base_124_merge1
+        assert project124_id_after_four          == base_124_head1
 
         print
         print 'What changed in fromble test from last merge with project124 to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge)
+        shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge1)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
             print 'What changed in base project124 from last merge to its HEAD'
-            shell('git --no-pager log --oneline %s..HEAD'%base_124_merge)
+            shell('git --no-pager log --oneline %s..HEAD'%base_124_merge1)
             print
 
         print
         print 'What changed in fromble test from last merge with igniting_duck to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge)
+        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge1)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
             print 'What changed in base igniting_duck from last merge to its HEAD'
-            shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge)
+            shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge1)
             print
+
+
+        # Remove the executables that we built (which are not tracked by git,
+        # and so will prevent us doing "weld pull")
+        os.unlink(os.path.join('124', 'three', 'three'))
+        os.unlink(os.path.join('124', 'three', 'three-and-a-bit'))
+        os.unlink(os.path.join('two-duck', 'two-duck'))
+
+        # At which point we can do a "weld pull _all" to update our world...
+        weld('pull _all')
+
+        # And redo our various queries
+        last_124_merge2, base_124_merge2, base_124_head2 = weld_query_base('project124')
+        print 'last merge ', last_124_merge2[:10]
+        print 'base merge ', base_124_merge2[:10]
+        print 'base HEAD  ', base_124_head2[:10]
+
+        # Similarly for igniting_duck
+        last_ign_merge2, base_ign_merge2, base_ign_head2 = weld_query_base('igniting_duck')
+        print 'last merge ', last_ign_merge2[:10]
+        print 'base merge ', base_ign_merge2[:10]
+        print 'base HEAD  ', base_ign_head2[:10]
+
+        with Directory(os.path.join('.weld', 'bases', 'project124')):
+            assert base_124_head2 == git_rev_parse('HEAD')
+
+        with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
+            assert base_ign_head2 == git_rev_parse('HEAD')
+
+        fromble_test_head2 = git_rev_parse('HEAD')
+
+        print
+        print 'fromble test:'
+        print '    HEAD                  ', fromble_test_head2[:10]
+        print '    before three-and-a-bit', fromble_test_id_before_three_plus[:10], '(last merge)'
+        print '    after  three-and-a-bit', fromble_test_id_after_three_plus[:10], '(local head)'
+        print 'project124'
+        print '    HEAD                  ', base_124_head2[:10]
+        print '    before four           ', project124_id_before_four[:10], '(base merge)'
+        print '    after  four           ', project124_id_after_four[:10], '(base head)'
+        print 'igniting_duck'
+        print '    HEAD                  ', base_ign_head2[:10]
+
+        assert fromble_test_head2         == last_124_merge2
+        assert project124_id_after_four   == base_124_merge2 # it moved
+        assert project124_id_after_four   == base_124_head2
+
+        print
+        print 'What changed in fromble test from last merge with project124 to HEAD'
+        shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge2)
+        print
+
+        with Directory(os.path.join('.weld', 'bases', 'project124')):
+            print
+            print 'What changed in base project124 from last merge to its HEAD'
+            shell('git --no-pager log --oneline %s..HEAD'%base_124_merge2)
+            print
+
+        print
+        print 'What changed in fromble test from last merge with igniting_duck to HEAD'
+        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge2)
+        print
+
+        with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
+            print
+            print 'What changed in base igniting_duck from last merge to its HEAD'
+            shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge2)
+            print
+
 
     # And then start investigating what "weld push" should do...
 
