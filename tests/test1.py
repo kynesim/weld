@@ -185,6 +185,31 @@ def compare_dir(where, content_list):
     dt = DirTree(where, fold_dirs=['.git', '.weld'])
     dt.assert_same_as_list(content_list, 'expected', onedown=True)
 
+def first_path_item(path):
+    """Return the first element from a path
+
+    This is somewhat icky, and surely slow...
+
+    >>> first_path_item('')
+    ''
+    >>> first_path_item('/')
+    ''
+    >>> first_path_item('//')
+    ''
+    >>> first_path_item('a')
+    'a'
+    >>> first_path_item('a/b')
+    'a'
+    >>> first_path_item('a/b/c')
+    'a'
+    """
+    rest = ''
+    while path and path[0] == '/':
+        path = path[1:]
+    while path:
+        path, rest = os.path.split(path)
+    return rest
+
 def test():
     """Our main test script
     """
@@ -516,6 +541,12 @@ def test():
             append('welded.xml', '<!-- An insignificant comment -->\n')
             git('commit welded.xml -m "Fromble: Add an insignificant coment"')
 
+        # And, to be cruel, a change across everything...
+        append('.gitignore', '# a trailing comment\n')
+        append(os.path.join('124', 'three', 'Makefile'), '# a trailing comment\n')
+        append(os.path.join('one-duck', 'Makefile'), '# a trailing comment\n')
+        git('commit -a -m "Add trailing comments across the bases and to the weld"')
+
     # Alter (update) project124 in its repository again
     banner('Alter repository for project124 (again)')
     with Directory(project124_orig):
@@ -759,6 +790,33 @@ def test():
         pign_changes = git_log_for(weld_init, 'HEAD', ['one-duck', 'two-duck'])
         print '\n'.join(trim_states(pign_changes))
 
+        print
+        print 'Looking at all_changes to see which (if any) bases they are in'
+        # Surely we can do this with porcelain? And perhaps more efficiently...
+        base_dirs = ['124', 'one-duck', 'two-duck']
+        all_changes = trim_states(all_changes)
+        weld_changes = []
+        for line in all_changes:
+            sha1 = line.split()[0]
+            print sha1
+            changed_files = shell_get_output('git diff --name-only %s^!'%sha1, verbose=False)
+            changed_files = changed_files.splitlines()
+            weld_files = []
+            other_also = []
+            for t in changed_files:
+                first = first_path_item(t)
+                if first in base_dirs:
+                    print '  %s in %s'%(t, first)
+                    other_also.append(t)
+                else:
+                    print '  %s only in weld'%t
+                    weld_files.append(t)
+            if weld_files:
+                weld_changes.append( (sha1, weld_files, other_also) )
+        print
+        print 'The following are changes in the weld:'
+        for sha1, files, other_also in weld_changes:
+            print '  %s: %s%s'%(sha1, files, ' and also %s'%other_also if other_also else '')
         print
 
     # And then start investigating what "weld push" should do...
