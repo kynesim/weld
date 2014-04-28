@@ -8,6 +8,9 @@ import db
 import headers
 import ops
 import layout
+import os
+import os.path
+import sys
 
 def sync_and_rebase(spec, base):
     """
@@ -17,7 +20,7 @@ def sync_and_rebase(spec, base):
 
     Now find the last commit-id for the base, by looking for 
     """
-    # Make sure we have no unstaged changes.
+    # Make sure we have no unstaged changes.less 
     if (git.has_local_changes(spec.base_dir)):
         raise utils.GiveUp("You have local changes; please commit or stash them.")
 
@@ -87,15 +90,12 @@ def sync_and_rebase(spec, base):
                           base_commit_id, current_base_commit_id),
                          " pull.abort(spec, '%s', '%s')"%(branch_name, current_branch))
     
-    # Move back to the main branch.
-    git.switch_branch(spec, current_branch)
-
-    # .. and rebase onto the merge branch.
+    # Now merge master into current-branch
     try:
-        git.rebase(spec, commit_id, None, branch_name)
+        git.merge(spec, branch_name, current_branch, "Merging changes from %s"%current_branch)
     except utils.GiveUp as e:
         print str(e)
-        print "Rebase failed"
+        print "Merge failed"
         print "Either fix your merges and then do 'weld finish',"
         print "or do 'weld abort' to give up."
         return 1
@@ -120,9 +120,30 @@ def finish(spec, base_name, current_branch, current_commit, branch_name, base_co
     """
     b = spec.query_base(base_name)
     hdr = headers.merge_marker(b, b.get_seams(), current_base_commit_id)
-    git.merge(spec,current_branch, branch_name, hdr, squashed = True)
+
+    # Make sure we are merging to the right place.
+    git.switch_branch(spec, current_branch)
+
+    # You can't merge a weld pull, because it will reverse the order of commits, which is
+    #  quite bad, but also remove commits that didn't have any net effect - which will
+    #  lose us our headers.
+    #
+    # So, what you need to do is to do a git diff and then apply that patch and commit.
+    tmpfile = git.show_diff(spec.base_dir, current_branch, branch_name)
+    # Apply the patch.
+    n = tmpfile.name
+    tmpfile.file.close()
+    #tmpfile.close()
+    if (os.path.exists(n) and os.path.getsize(n) > 0):
+        git.apply(spec.base_dir, n)
+    # Add everything.
+    os.unlink(n)
+    git.add_in_subdir(spec.base_dir, ".")
+    # Spurious mod just in case ..
     spurious_modification(spec)
+    # .. and commit.
     git.commit(spec.base_dir, hdr, [ ])
+
 
 def abort(spec, branch_name, current_branch):
     """
