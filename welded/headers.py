@@ -94,12 +94,20 @@ def merge_marker(base_obj, seams, base_commit):
 
 def query_last_merge(where, base_name):
     """
-    Find the last merge of base in where and return ( commit-id, merge-commit-id, seams )
+    Find the last merge of base in where
 
-    If this base was never merged, return (commit-id, None, []), where
-    commit-id is the SHA1 id for the Init commit.
+    Returns ( base-commit-id, merge-commit-id, seams ) where base-commit-id
+    is the SHA1 id of the commit in 'base_name' that was merged,
+    merge-commit-id is the SHA1 id of the Merged commit in 'where', and
+    'seams' is a list of the seams implicated in that merge.
+
+    If base 'base_name' has never been merged, then we return (None, None, []),
+    and the caller will probably have to make do with the Init commit.
     """
     commit_id = git.query_merge(where, base_name)
+    if commit_id is None:
+        return (None, None, [])
+        #commit_id = git.query_init(where)
     log_entry = git.log(where, commit_id)
     hdrs = decode_headers(log_entry)
     # Find all the merges
@@ -111,7 +119,9 @@ def query_last_merge(where, base_name):
             if (base_name == in_base_name):
                 return (commit_id, cid, seams)
 
-    return (commit_id, None, [ ])
+    raise GiveUp('Unable to find "X-Weld-State: Merged" data in merge commit\n'
+                 'In base %s, id %s\n%s'%(base_name, commit_id,
+                     '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
 def query_last_push(where, base_name):
     """
@@ -121,6 +131,9 @@ def query_last_push(where, base_name):
     commit-id is the SHA1 id for the Init commit.
     """
     commit_id = git.query_pull(where, base_name)
+    if commit_id is None:
+        return (None, None, [])
+        #commit_id = git.query_init(where)
     log_entry = git.log(where, commit_id)
     hdrs = decode_headers(log_entry)
     # Find all the pulls
@@ -132,7 +145,9 @@ def query_last_push(where, base_name):
             if (base_name == in_base_name):
                 return (commit_id, cid, seams)
 
-    return (commit_id, None, [ ])
+    raise GiveUp('Unable to find"X-Weld-State: Merged" data in merge commit\n'
+                 'In base %s, id %s\n%s'%(base_name, commit_id,
+                     '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
 
 

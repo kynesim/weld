@@ -12,9 +12,11 @@ def query_base(spec, base_name):
     """
     What is the latest commit on a given base?
     """
-    # Find the last merge. This returns (<commit-id>, None, []) if there
-    # was no last merge
+    # Find the last merge. This returns (None, None, []) if there wasn't one
     merge_id, base_merge_id, seams = headers.query_last_merge(spec.base_dir, base_name)
+    if merge_id is None:
+        # There was no previous merge - fall back to the Init state
+        merge_id = git.query_init(spec.base_dir)
     # Find the last push. Similar things happen if there wasn't one
     push_id, base_push_id, seams = headers.query_last_push(spec.base_dir, base_name)
     b = spec.query_base(base_name)
@@ -39,9 +41,11 @@ def query_bases(spec):
             print "  Seam %s: %s -> %s"%(s.name, s.get_source(),s.get_dest())
 
 def query_seam_changes(spec, base_name):
-    # Find the last merge. This returns (<commit-id>, None, []) if there
-    # was no last merge
+    # Find the last merge. This returns (None, None, []) if there wasn't one
     (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base_name)
+    if commit_id is None:
+        # There was no previous merge - fall back to the Init state
+        commit_id = git.query_init(spec.base_dir)
     b = spec.query_base(base_name)
     ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.get_seams())
     print "Seams:"

@@ -35,6 +35,9 @@ def sync_and_rebase(spec, base):
 
     # Find the last merge
     (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base)
+    if commit_id is None:
+        # There was no previous merge - fall back to the Init state
+        commit_id = git.query_init(spec.base_dir)
     b = spec.query_base(base)
     # Update the base.
     ops.update_base(spec, b)
