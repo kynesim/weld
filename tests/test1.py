@@ -247,6 +247,9 @@ def test():
                      ])
 
         with Directory('fromble') as fromble_test:
+
+            fromble_test_clone_id = git_rev_parse('HEAD')
+
             # And from that we should be able to build/run
             #
             # * fromble/124/one
@@ -262,7 +265,7 @@ def test():
             # ensure we ignore the executables we just built
             append('.gitignore', gitignore_ducks)
             git('add .gitignore')
-            git('commit -m "Ignore executables"')
+            git('commit -m "Fromble: Ignore executables"')
 
             # And we can then update the "internal" copies of the source
             # repositories we are using, via:
@@ -302,6 +305,8 @@ def test():
                     os.unlink(os.path.join('project124', 'two', 'two'))
                     os.unlink(os.path.join('igniting_duck', 'one', 'one'))
                     os.unlink(os.path.join('igniting_duck', 'two', 'two'))
+
+            fromble_test_first_pull_id = git_rev_parse('HEAD')
 
     # Alter (update) project124 in its repository
     banner('Alter original and repository for project124')
@@ -423,14 +428,14 @@ def test():
                 append('Makefile',
                        '\nthree-and-a-bit: three-and-a-bit.c\n\n')
                 git('add three-and-a-bit.c Makefile')
-                git('commit -m "Add three-and-a-bit"')
+                git('commit -m "124: Add three-and-a-bit"')
         with Directory('two-duck'):
             append('Makefile', '\n# Look, this comment does nothing')
             git('add Makefile')
-            git('commit -m "Add a comment to the end of the Makefile"')
+            git('commit -m "Two-duck: Add a comment to the end of the Makefile"')
             append('Makefile', '\ntwo-duck: two.c\n\t$(CC) -o two-duck two.c\n')
             git('add Makefile')
-            git('commit -m "Also build two-duck, same as two"')
+            git('commit -m "Two-duck: Also build two-duck, same as two"')
 
         fromble_test_id_after_three_plus = git_rev_parse('HEAD')
 
@@ -559,24 +564,24 @@ def test():
         assert project124_id_after_four          == base_124_head1
 
         print
-        print 'What changed in fromble test from last merge with project124 to HEAD'
+        print 'fromble test: What changed from last merge with project124 to HEAD'
         shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge1)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
-            print 'What changed in base project124 from last merge to its HEAD'
+            print 'base project124: What changed from last merge to its HEAD'
             shell('git --no-pager log --oneline %s..HEAD'%base_124_merge1)
             print
 
         print
-        print 'What changed in fromble test from last merge with igniting_duck to HEAD'
+        print 'fromble test: What changed from last merge with igniting_duck to HEAD'
         shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge1)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
-            print 'What changed in base igniting_duck from last merge to its HEAD'
+            print 'base igniting_duck: What changed from last merge to its HEAD'
             shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge1)
             print
 
@@ -627,27 +632,53 @@ def test():
         assert project124_id_after_four   == base_124_head2
 
         print
-        print 'What changed in fromble test from last merge with project124 to HEAD'
+        print 'fromble test: What changed from last merge with project124 to HEAD'
         shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge2)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
-            print 'What changed in base project124 from last merge to its HEAD'
+            print 'base project124: What changed from last merge to its HEAD'
             shell('git --no-pager log --oneline %s..HEAD'%base_124_merge2)
             print
 
         print
-        print 'What changed in fromble test from last merge with igniting_duck to HEAD'
+        print 'fromble test: What changed from last merge with igniting_duck to HEAD'
         shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge2)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
-            print 'What changed in base igniting_duck from last merge to its HEAD'
+            print 'base igniting_duck: What changed from last merge to its HEAD'
             shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge2)
             print
 
+        # So after the "weld pull", we've successfully merged in the far
+        # changes, but we've still got stuff we want to push that occurs
+        # *before* the "last Merge with project124" (which is now the HEAD
+        # checkin).
+
+        fromble_test_remote_master_id = git_rev_parse('remotes/origin/master')
+
+        print 'Fromble test after clone     ', fromble_test_clone_id[:10]
+        print 'Fromble test after first pull', fromble_test_first_pull_id[:10]
+        print 'Fromble test remote master   ', fromble_test_remote_master_id[:10]
+
+        print
+        print 'fromble test: What changed for project124 from remote master to HEAD'
+        shell('git --no-pager log --oneline %s..HEAD 124'%fromble_test_remote_master_id)
+        print
+
+        print
+        print 'fromble test: What changed for project124 from remote master to last merge'
+        shell('git --no-pager log --oneline %s..%s 124'%(fromble_test_remote_master_id,
+                                                         last_124_merge2))
+        print
+
+        print
+        print 'fromble test: What changed for igniting_duck from remote master to HEAD'
+        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%fromble_test_remote_master_id)
+        print
 
     # And then start investigating what "weld push" should do...
 
