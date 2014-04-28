@@ -110,6 +110,24 @@ def query_merge(where, base):
     else:
         return query_init(where)
 
+def query_pull(where, base):
+    """Return the id of the last commit which contained a pull for this 'base'
+
+    Finds the last "X-Weld-State: Pulled <base>" commit, and returns its
+    SHA1 id.
+
+    If there wasn't one, find the "X-Weld-State: Init" commit and returns
+    its SHA1 id instead.
+    """
+    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_pull(base)),
+                            "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
+    lines = out.splitlines()
+    if (len(lines) > 0):
+        f = lines[0].split(' ')
+        return f[0]
+    else:
+        return query_init(where)
+
 def query_init(where):
     """
     Query the weld init commit

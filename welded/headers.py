@@ -58,6 +58,9 @@ def header_init():
 def header_grep_merge(base):
     return "^X-Weld-State: Merged %s/"%base
 
+def header_grep_pull(base):
+    return "^X-Weld-State: Pulled %s/"%base
+
 def header_grep_init():
     return "^X-Weld-State: Init"
 
@@ -92,9 +95,9 @@ def merge_marker(base_obj, seams, base_commit):
 def query_last_merge(where, base_name):
     """
     Find the last merge of base in where and return ( commit-id, merge-commit-id, seams )
-    
-    If this base was never merged, return (commit-id, None, [])
 
+    If this base was never merged, return (commit-id, None, []), where
+    commit-id is the SHA1 id for the Init commit.
     """
     commit_id = git.query_merge(where, base_name)
     log_entry = git.log(where, commit_id)
@@ -103,6 +106,27 @@ def query_last_merge(where, base_name):
     for h in hdrs:
         (verb, data) = h
         if (verb == "Merged"):
+            # Gotcha!
+            (in_base_name, cid, seams) = decode_commit_data(data)
+            if (base_name == in_base_name):
+                return (commit_id, cid, seams)
+
+    return (commit_id, None, [ ])
+
+def query_last_push(where, base_name):
+    """
+    Find the last push of base in where and return ( commit-id, pull-commit-id, seams )
+
+    If this base was never pushed, return (commit-id, None, []), where
+    commit-id is the SHA1 id for the Init commit.
+    """
+    commit_id = git.query_pull(where, base_name)
+    log_entry = git.log(where, commit_id)
+    hdrs = decode_headers(log_entry)
+    # Find all the pulls
+    for h in hdrs:
+        (verb, data) = h
+        if (verb == "Pushed"):
             # Gotcha!
             (in_base_name, cid, seams) = decode_commit_data(data)
             if (base_name == in_base_name):

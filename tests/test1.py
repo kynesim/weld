@@ -122,18 +122,25 @@ def weld_query_base(base_name):
     """
     text = weld_get_output('query base %s'%base_name)
     lines = text.splitlines()
-    last_merge_line = lines[-3]
-    base_merge_line = lines[-2]
+    last_merge_line = lines[-5]
+    base_merge_line = lines[-4]
+    last_push_line  = lines[-3]
+    base_push_line  = lines[-2]
     base_head_line  = lines[-1]
 
     last_merge = last_merge_line.split()[-1]
     base_merge = base_merge_line.split()[-1]
+    last_push  = last_push_line.split()[-1]
+    base_push  = base_push_line.split()[-1]
     base_head  = base_head_line.split()[-1]
 
     if base_merge == 'None':
         base_merge = None
 
-    return last_merge, base_merge, base_head
+    if base_push == 'None':
+        base_push = None
+
+    return last_merge, base_merge, last_push, base_push, base_head
 
 def git_rev_parse(what):
     """Return the SHA1 id for 'what'
@@ -522,22 +529,35 @@ def test():
     # try pulling it? It is under git control, as is the top-level
     # .gitignore)
 
+    def print_sha1_ids(last_merge, base_merge, last_push, base_push, base_head):
+        print 'last merge ', last_merge[:10]
+        if base_merge is None:
+            print 'base merge  None'
+        else:
+            print 'base merge ', base_merge[:10]
+        print 'last push  ', last_push[:10]
+        if base_push is None:
+            print 'base push   None'
+        else:
+            print 'base push  ', base_push[:10]
+        print 'base HEAD  ', base_head[:10]
+
     # But this time, delibarately don't alter anything else
     with Directory(fromble_test.where):
         # Querying base project124 will update .weld/bases/project124
         # and thus reflect the difference between its HEAD and the
         # last commit we merged from it. It won't, of course, update
         # our checked out 124 directory.
-        last_124_merge1, base_124_merge1, base_124_head1 = weld_query_base('project124')
-        print 'last merge ', last_124_merge1[:10]
-        print 'base merge ', base_124_merge1[:10]
-        print 'base HEAD  ', base_124_head1[:10]
+        (last_124_merge1, base_124_merge1, last_124_push1, base_124_push1,
+                base_124_head1) = weld_query_base('project124')
+        print_sha1_ids(last_124_merge1, base_124_merge1, last_124_push1,
+                       base_124_push1, base_124_head1)
 
         # Similarly for igniting_duck
-        last_ign_merge1, base_ign_merge1, base_ign_head1 = weld_query_base('igniting_duck')
-        print 'last merge ', last_ign_merge1[:10]
-        print 'base merge ', base_ign_merge1[:10]
-        print 'base HEAD  ', base_ign_head1[:10]
+        (last_ign_merge1, base_ign_merge1, last_ign_push1, base_ign_push1,
+                base_ign_head1) = weld_query_base('igniting_duck')
+        print_sha1_ids(last_ign_merge1, base_ign_merge1, last_ign_push1,
+                       base_ign_push1, base_ign_head1)
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             assert base_124_head1 == git_rev_parse('HEAD')
@@ -596,16 +616,16 @@ def test():
         weld('pull _all')
 
         # And redo our various queries
-        last_124_merge2, base_124_merge2, base_124_head2 = weld_query_base('project124')
-        print 'last merge ', last_124_merge2[:10]
-        print 'base merge ', base_124_merge2[:10]
-        print 'base HEAD  ', base_124_head2[:10]
+        (last_124_merge2, base_124_merge2, last_124_push2, base_124_push2,
+                base_124_head2) = weld_query_base('project124')
+        print_sha1_ids(last_124_merge2, base_124_merge2, last_124_push2,
+                       base_124_push2, base_124_head2)
 
         # Similarly for igniting_duck
-        last_ign_merge2, base_ign_merge2, base_ign_head2 = weld_query_base('igniting_duck')
-        print 'last merge ', last_ign_merge2[:10]
-        print 'base merge ', base_ign_merge2[:10]
-        print 'base HEAD  ', base_ign_head2[:10]
+        (last_ign_merge2, base_ign_merge2, last_ign_push2, base_ign_push2,
+                base_ign_head2) = weld_query_base('igniting_duck')
+        print_sha1_ids(last_ign_merge2, base_ign_merge2, last_ign_push2,
+                       base_ign_push2, base_ign_head2)
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             assert base_124_head2 == git_rev_parse('HEAD')
