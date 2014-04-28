@@ -163,6 +163,19 @@ def git_rev_parse(what):
     text = shell_get_output('git rev-parse %s'%what, verbose=False)
     return text.strip()
 
+def git_log_for(from_id, to_id, paths=None):
+    """Do a git log for "<from_id>..<to_id> -- <paths>"
+
+    Returns a sequence of lines.
+    """
+    if paths:
+        cmd = 'git --no-pager log --oneline %s..%s -- %s'%(from_id, to_id,
+                ' '.join(repr(x) for x in paths))
+    else:
+        cmd = 'git --no-pager log --oneline %s..%s'%(from_id, to_id)
+    changes = shell_get_output(cmd)
+    return changes.splitlines()
+
 def compare_dir(where, content_list):
     """Compare the content of 'where' against 'content_list'.
 
@@ -497,6 +510,12 @@ def test():
                      '    two.c',
                      ])
 
+        # Let's also make a (trivial) change to the welded.xml file
+        # - we shall be careful not to change anything significant
+        with Directory('.weld'):
+            append('welded.xml', '<!-- An insignificant comment -->\n')
+            git('commit welded.xml -m "Fromble: Add an insignificant coment"')
+
     # Alter (update) project124 in its repository again
     banner('Alter repository for project124 (again)')
     with Directory(project124_orig):
@@ -607,24 +626,28 @@ def test():
 
         print
         print 'fromble test: What changed from last merge with project124 to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge1)
+        lines = git_log_for(last_124_merge1, 'HEAD', ['124'])
+        print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
             print 'base project124: What changed from last merge to its HEAD'
-            shell('git --no-pager log --oneline %s..HEAD'%base_124_merge1)
+            lines = git_log_for(base_124_merge1, 'HEAD')
+            print '\n'.join(lines)
             print
 
         print
         print 'fromble test: What changed from last merge with igniting_duck to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge1)
+        lines = git_log_for(last_ign_merge1, 'HEAD', ['one-duck', 'two-duck'])
+        print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
             print 'base igniting_duck: What changed from last merge to its HEAD'
-            shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge1)
+            lines = git_log_for(base_ign_merge1, 'HEAD')
+            print '\n'.join(lines)
             print
 
 
@@ -675,24 +698,28 @@ def test():
 
         print
         print 'fromble test: What changed from last merge with project124 to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD 124'%last_124_merge2)
+        lines = git_log_for(last_124_merge2, 'HEAD', ['124'])
+        print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
             print 'base project124: What changed from last merge to its HEAD'
-            shell('git --no-pager log --oneline %s..HEAD'%base_124_merge2)
+            lines = git_log_for(base_124_merge2, 'HEAD')
+            print '\n'.join(lines)
             print
 
         print
         print 'fromble test: What changed from last merge with igniting_duck to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%last_ign_merge2)
+        lines = git_log_for(last_ign_merge2, 'HEAD', ['one-duck', 'two-duck'])
+        print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
             print 'base igniting_duck: What changed from last merge to its HEAD'
-            shell('git --no-pager log --oneline %s..HEAD'%base_ign_merge2)
+            lines = git_log_for(base_ign_merge2, 'HEAD')
+            print '\n'.join(lines)
             print
 
         # So after the "weld pull", we've successfully merged in the far
@@ -706,20 +733,32 @@ def test():
         print 'Fromble test after first pull', fromble_test_first_pull_id[:10]
         print 'Fromble test remote master   ', fromble_test_remote_master_id[:10]
 
-        print
-        print 'fromble test: What changed for project124 from remote master to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD 124'%fromble_test_remote_master_id)
-        print
+        # We know we didn't have any Push events in our past, so we will be
+        # falling back to the Init event, which is the same for everyone
+
+        def trim_states(lines):
+            new = []
+            for line in lines:
+                words = line.split()
+                if words[1] != 'X-Weld-State:':
+                    new.append(line)
+            return new
 
         print
-        print 'fromble test: What changed for project124 from remote master to last merge'
-        shell('git --no-pager log --oneline %s..%s 124'%(fromble_test_remote_master_id,
-                                                         last_124_merge2))
-        print
+        print 'fromble test: What changed for everyone from Init to HEAD'
+        all_changes = git_log_for(weld_init, 'HEAD')
+        print '\n'.join(trim_states(all_changes))
 
         print
-        print 'fromble test: What changed for igniting_duck from remote master to HEAD'
-        shell('git --no-pager log --oneline %s..HEAD one-duck two-duck'%fromble_test_remote_master_id)
+        print 'fromble test: What changed for project124 from Init to HEAD'
+        p124_changes = git_log_for(weld_init, 'HEAD', ['124'])
+        print '\n'.join(trim_states(p124_changes))
+
+        print
+        print 'fromble test: What changed for igniting_duck from Init to HEAD'
+        pign_changes = git_log_for(weld_init, 'HEAD', ['one-duck', 'two-duck'])
+        print '\n'.join(trim_states(pign_changes))
+
         print
 
     # And then start investigating what "weld push" should do...
