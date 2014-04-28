@@ -107,7 +107,6 @@ def query_last_merge(where, base_name):
     commit_id = git.query_merge(where, base_name)
     if commit_id is None:
         return (None, None, [])
-        #commit_id = git.query_init(where)
     log_entry = git.log(where, commit_id)
     hdrs = decode_headers(log_entry)
     # Find all the merges
@@ -127,13 +126,12 @@ def query_last_push(where, base_name):
     """
     Find the last push of base in where and return ( commit-id, pull-commit-id, seams )
 
-    If this base was never pushed, return (commit-id, None, []), where
-    commit-id is the SHA1 id for the Init commit.
+    If base 'base_name' has never been merged, then we return (None, None, []),
+    and the caller will probably have to make do with the Init commit.
     """
     commit_id = git.query_pull(where, base_name)
     if commit_id is None:
         return (None, None, [])
-        #commit_id = git.query_init(where)
     log_entry = git.log(where, commit_id)
     hdrs = decode_headers(log_entry)
     # Find all the pulls

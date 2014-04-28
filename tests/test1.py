@@ -115,32 +115,47 @@ def muddle(cmd, verbose=True):
 def weld_query_base(base_name):
     """Run "weld query base 'base_name'" and dissect its results
 
-    Returns <last merge id>, <base merge id>, <base HEAD id>
+    Returns a six-tuple, containing:
 
-    All will be strings containing a SHA1 id, except that <base merge id> may
-    be None (not a string, actual None)
+        <last_merge_weld>, <last_merge_base>, <last_push_weld>,
+        <last_push_base>, <base_head>, <weld_init>
+
+    All will be strings containing a SHA1 id, except that the first four
+    be None (not a string, actual None) indicating that there was no last
+    merge or push (respectively) - we expect both the merge and/or both the
+    push values to be None if either is.
     """
     text = weld_get_output('query base %s'%base_name)
     lines = text.splitlines()
-    last_merge_line = lines[-5]
-    base_merge_line = lines[-4]
-    last_push_line  = lines[-3]
-    base_push_line  = lines[-2]
-    base_head_line  = lines[-1]
+    last_merge_weld_line = lines[-6]
+    last_merge_base_line = lines[-5]
+    last_push_weld_line  = lines[-4]
+    last_push_base_line  = lines[-3]
+    base_head_line  = lines[-2]
+    weld_init_line  = lines[-1]
 
-    last_merge = last_merge_line.split()[-1]
-    base_merge = base_merge_line.split()[-1]
-    last_push  = last_push_line.split()[-1]
-    base_push  = base_push_line.split()[-1]
+    last_merge_weld = last_merge_weld_line.split()[-1]
+    last_merge_base = last_merge_base_line.split()[-1]
+    last_push_weld  = last_push_weld_line.split()[-1]
+    last_push_base  = last_push_base_line.split()[-1]
     base_head  = base_head_line.split()[-1]
+    weld_init  = weld_init_line.split()[-1]
 
-    if base_merge == 'None':
-        base_merge = None
+    if last_merge_base == 'None':
+        last_merge_base = None
 
-    if base_push == 'None':
-        base_push = None
+    if last_push_weld == 'None':
+        last_push_weld = None
 
-    return last_merge, base_merge, last_push, base_push, base_head
+    if last_merge_base == 'None':
+        last_merge_base = None
+
+    if last_push_weld == 'None':
+        last_push_weld = None
+
+    return (last_merge_weld, last_merge_base,
+            last_push_weld, last_push_base,
+            base_head, weld_init)
 
 def git_rev_parse(what):
     """Return the SHA1 id for 'what'
@@ -529,18 +544,25 @@ def test():
     # try pulling it? It is under git control, as is the top-level
     # .gitignore)
 
-    def print_sha1_ids(last_merge, base_merge, last_push, base_push, base_head):
-        print 'last merge ', last_merge[:10]
+    def print_sha1_ids(last_merge, base_merge, last_push, base_push, base_head, weld_init):
+        if last_merge is None:
+            print 'last merge, weld  None'
+        else:
+            print 'last merge, weld ', last_merge[:10]
         if base_merge is None:
-            print 'base merge  None'
+            print '            base  None'
         else:
-            print 'base merge ', base_merge[:10]
-        print 'last push  ', last_push[:10]
+            print '            base ', base_merge[:10]
+        if last_push is None:
+            print 'last push,  weld  None'
+        else:
+            print 'last push,  weld ', last_push[:10]
         if base_push is None:
-            print 'base push   None'
+            print '            base  None'
         else:
-            print 'base push  ', base_push[:10]
+            print '            base ', base_push[:10]
         print 'base HEAD  ', base_head[:10]
+        print 'weld Init  ', weld_init[:10]
 
     # But this time, delibarately don't alter anything else
     with Directory(fromble_test.where):
@@ -549,15 +571,15 @@ def test():
         # last commit we merged from it. It won't, of course, update
         # our checked out 124 directory.
         (last_124_merge1, base_124_merge1, last_124_push1, base_124_push1,
-                base_124_head1) = weld_query_base('project124')
+                base_124_head1, weld_init) = weld_query_base('project124')
         print_sha1_ids(last_124_merge1, base_124_merge1, last_124_push1,
-                       base_124_push1, base_124_head1)
+                       base_124_push1, base_124_head1, weld_init)
 
         # Similarly for igniting_duck
         (last_ign_merge1, base_ign_merge1, last_ign_push1, base_ign_push1,
-                base_ign_head1) = weld_query_base('igniting_duck')
+                base_ign_head1, weld_init) = weld_query_base('igniting_duck')
         print_sha1_ids(last_ign_merge1, base_ign_merge1, last_ign_push1,
-                       base_ign_push1, base_ign_head1)
+                       base_ign_push1, base_ign_head1, weld_init)
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             assert base_124_head1 == git_rev_parse('HEAD')
@@ -617,15 +639,15 @@ def test():
 
         # And redo our various queries
         (last_124_merge2, base_124_merge2, last_124_push2, base_124_push2,
-                base_124_head2) = weld_query_base('project124')
+                base_124_head2, weld_init) = weld_query_base('project124')
         print_sha1_ids(last_124_merge2, base_124_merge2, last_124_push2,
-                       base_124_push2, base_124_head2)
+                       base_124_push2, base_124_head2, weld_init)
 
         # Similarly for igniting_duck
         (last_ign_merge2, base_ign_merge2, last_ign_push2, base_ign_push2,
-                base_ign_head2) = weld_query_base('igniting_duck')
+                base_ign_head2, weld_init) = weld_query_base('igniting_duck')
         print_sha1_ids(last_ign_merge2, base_ign_merge2, last_ign_push2,
-                       base_ign_push2, base_ign_head2)
+                       base_ign_push2, base_ign_head2, weld_init)
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             assert base_124_head2 == git_rev_parse('HEAD')

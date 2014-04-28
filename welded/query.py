@@ -14,20 +14,19 @@ def query_base(spec, base_name):
     """
     # Find the last merge. This returns (None, None, []) if there wasn't one
     merge_id, base_merge_id, seams = headers.query_last_merge(spec.base_dir, base_name)
-    if merge_id is None:
-        # There was no previous merge - fall back to the Init state
-        merge_id = git.query_init(spec.base_dir)
+    init_id = git.query_init(spec.base_dir)
     # Find the last push. Similar things happen if there wasn't one
     push_id, base_push_id, seams = headers.query_last_push(spec.base_dir, base_name)
     b = spec.query_base(base_name)
     ops.update_base(spec, b)
     current_base_id = ops.query_head_of_base(spec, b)
     print "Base %s"%base_name
-    print "  last merge %s"%merge_id
-    print "  base merge %s"%base_merge_id
-    print "  last push  %s"%push_id
-    print "  base push  %s"%base_push_id
+    print "  last merge, weld %s"%merge_id
+    print "              base %s"%base_merge_id
+    print "  last push,  weld %s"%push_id
+    print "              base %s"%base_push_id
     print "  base HEAD  %s"%current_base_id
+    print "  weld Init  %s"%init_id
 
 def query_bases(spec):
     """Report on the bases we have, and their seams.
@@ -44,7 +43,7 @@ def query_seam_changes(spec, base_name):
     # Find the last merge. This returns (None, None, []) if there wasn't one
     (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base_name)
     if commit_id is None:
-        # There was no previous merge - fall back to the Init state
+        # There was no previous merge - fall back to changes since Init
         commit_id = git.query_init(spec.base_dir)
     b = spec.query_base(base_name)
     ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.get_seams())
