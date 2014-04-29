@@ -58,8 +58,8 @@ def header_init():
 def header_grep_merge(base):
     return "^X-Weld-State: Merged %s/"%base
 
-def header_grep_pull(base):
-    return "^X-Weld-State: Pulled %s/"%base
+def header_grep_push(base):
+    return "^X-Weld-State: Pushed %s/"%base
 
 def header_grep_init():
     return "^X-Weld-State: Init"
@@ -129,7 +129,7 @@ def query_last_push(where, base_name):
     If base 'base_name' has never been merged, then we return (None, None, []),
     and the caller will probably have to make do with the Init commit.
     """
-    commit_id = git.query_pull(where, base_name)
+    commit_id = git.query_push(where, base_name)
     if commit_id is None:
         return (None, None, [])
     log_entry = git.log(where, commit_id)
@@ -143,7 +143,7 @@ def query_last_push(where, base_name):
             if (base_name == in_base_name):
                 return (commit_id, cid, seams)
 
-    raise GiveUp('Unable to find"X-Weld-State: Merged" data in merge commit\n'
+    raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
                  'In base %s, id %s\n%s'%(base_name, commit_id,
                      '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 

@@ -226,6 +226,206 @@ def current_branch():
             return f[1]
     return "master"
 
+# If we have a Merge and a Push, we can use "git merge-base" to
+# determine which is the earlier (i.e., the first common ancestor,
+# which in our case should be one of the two), and we can then use the
+# other.
+def later_of_two_commits(a, b):
+    """Return the later of two commits on the same "path".
+
+    * If 'a' and 'b' are the same, return 'a' immediately (even if
+      both are None).
+    * If exactly one of 'a' and 'b' is None, return the other
+    * If 'a' is an ancestor of 'b', return 'b'.
+    * If 'b' is an ancestor of 'a', return 'a'.
+    * Otherwise, we don't know, so we raise a GiveUp exception.
+    """
+    if a == b:
+        return a
+    elif a is None:
+        return b
+    elif b is None:
+        return a
+    else:
+        result = shell_get_output('git merge-base %s %s'%(a, b))
+        if result == a:
+            return b
+        elif result == b:
+            return a
+        else:
+            raise GiveUp('Commits %s and %s do not appear to share a'
+                         ' common ancestor, unable to find out which'
+                         ' is later'%(a[:10], b[:10]))
+
+def print_sha1_ids(last_merge, base_merge, last_push, base_push, base_head, weld_init):
+    if last_merge is None:
+        print 'last merge, weld  None'
+    else:
+        print 'last merge, weld ', last_merge[:10]
+    if base_merge is None:
+        print '            base  None'
+    else:
+        print '            base ', base_merge[:10]
+    if last_push is None:
+        print 'last push,  weld  None'
+    else:
+        print 'last push,  weld ', last_push[:10]
+    if base_push is None:
+        print '            base  None'
+    else:
+        print '            base ', base_push[:10]
+    print 'base HEAD  ', base_head[:10]
+    print 'weld Init  ', weld_init[:10]
+
+
+def trim_states(lines):
+    """Return only those lines that do not say "X-Weld-State:"
+
+    (that is, remove any weld state lines)
+    """
+    new = []
+    for line in lines:
+        words = line.split()
+        if words[1] != 'X-Weld-State:':
+            new.append(line)
+    return new
+
+import tempfile
+def push_base(weld_name, base_name, seams):
+    banner('Push %s'%base_name)
+    orig_branch = current_branch()
+
+    print 'Determining last push for %s:'%base_name
+    (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
+            base_head, weld_init) = weld_query_base(base_name)
+    print_sha1_ids(last_weld_merge, last_base_merge, last_weld_push,
+                   last_base_push, base_head, weld_init)
+    print "So, with weld's"
+    print '  last push ', last_weld_push
+    latest_sync = last_weld_push
+    if latest_sync is None:
+        print 'Which was None, so using Init'
+        latest_sync = weld_init
+
+    print
+    print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
+    directories = [d for s, d in seams]
+    base_changes = git_log_for(latest_sync, 'HEAD', directories)
+    print '\n'.join(base_changes)
+
+    print
+    print 'And trim out any X-Weld-State items'
+    base_changes = trim_states(base_changes)
+    print '\n'.join(base_changes)
+
+    print
+
+    # To make it obvious what we are doing:
+    # XXX Obviously only works once!
+    git('tag last-%s-sync-%s %s'%(base_name, latest_sync[:10], latest_sync))
+    # XXX
+
+    # So, what are the differences for our seams?
+    # (Remember that this may include changes to other seams or the
+    # main weld itself, as well - we'll deal with that later on)
+    # Use --relative to make the changes relative to the named directory,
+    # so that we don't end up with the seam directory name embedded in
+    # the difference header.
+    diffs = []
+    for seam_dir, local_dir in seams:
+        if seam_dir is None:
+            seam_dir = '.'
+
+        for change in base_changes:
+            words = change.split()
+            sha1 = words[0]
+            diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir, sha1))
+            print diff
+            if diff:
+                diffs.append( (seam_dir, local_dir, diff) )
+
+    ##for seam_dir, local_dir in seams:
+    ##    if seam_dir is None:
+    ##        seam_dir = '.'
+    ##    diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir,
+    ##        latest_sync))
+    ##    print diff
+    ##    if diff:
+    ##        diffs.append( (seam_dir, local_dir, diff) )
+
+    # Some of those differences are things we've to push, but some are
+    # probably things we already pulled
+
+    with Directory(os.path.join('.weld', 'bases', base_name)):
+
+        print "So, with %s's"%base_name
+        print '  last push ', last_base_push
+        latest_base_sync = last_base_push
+        if latest_base_sync is None:
+            print 'Which was None, so using HEAD'
+            latest_base_sync = base_head
+
+        working_branch = 'working-branch-%s'%latest_base_sync[:10] # XXX Obviously need a better name !!!
+
+        git('checkout %s'%latest_base_sync)
+        git('checkout -b %s'%working_branch)
+
+        for seam_dir, local_dir, diff in reversed(diffs):
+            f = tempfile.NamedTemporaryFile(delete=False)
+            f.write(diff)
+            f.close()
+            # Make sure the patch is applied to the index as well,
+            # so we don't need to "add" the files changed to the index
+            # later on
+            if seam_dir == '.':
+                shell('git apply --index %s'%(f.name))
+            else:
+                shell('git apply --index --directory=%r %s'%(seam_dir, f.name))
+            os.unlink(f.name)
+
+        # Prepare our (default) commit message
+        f = tempfile.NamedTemporaryFile(delete=False)
+        f.write('X-Weld-State: Pushed %s from weld %s\n\n'%(base_name, weld_name))
+        # Theses lines are of the form "<short-sha1> <first-line>" - do we
+        # want the SHA1 entry? Is it really of use?
+        f.write('\n'.join(trim_states(base_changes)))
+        f.close()
+        # Allow an empty commit, so we still end up with a place marker
+        # for our action
+        # Maybe give the user the option to edit the commit message before
+        # we actually use it - we'd use the "--template <file>" switch
+        # instead of "--file <file>"
+        shell('git commit -a --allow-empty --file %s'%f.name)
+        os.unlink(f.name)
+
+        # In weld, use git.query_current_commit_id
+        head_base_commit = shell_get_output('git log -n 1 --format=format:%H').strip()
+
+        # Merge master onto this branch - this should be trivial
+        git('merge %s --ff-only'%orig_branch)
+
+        # And then merge *that* back into the original branch
+        git('checkout %s'%orig_branch)
+        git('merge %s --ff-only'%working_branch)
+
+        # And finally push the lot to our remote
+        git('push')
+
+    # And now mark the weld with where/when the push happened
+    import json
+    seam_str = json.dumps(seams)
+    f = tempfile.NamedTemporaryFile(delete=False)
+    f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
+        head_base_commit, seam_str))
+    f.close()
+    # Allow an empty commit, so we still end up with a place marker
+    # for our action
+    shell('git commit -a --allow-empty --file %s'%f.name)
+    os.unlink(f.name)
+
+
+
+
 def test():
     """Our main test script
     """
@@ -610,26 +810,6 @@ def test():
     # try pulling it? It is under git control, as is the top-level
     # .gitignore)
 
-    def print_sha1_ids(last_merge, base_merge, last_push, base_push, base_head, weld_init):
-        if last_merge is None:
-            print 'last merge, weld  None'
-        else:
-            print 'last merge, weld ', last_merge[:10]
-        if base_merge is None:
-            print '            base  None'
-        else:
-            print '            base ', base_merge[:10]
-        if last_push is None:
-            print 'last push,  weld  None'
-        else:
-            print 'last push,  weld ', last_push[:10]
-        if base_push is None:
-            print '            base  None'
-        else:
-            print '            base ', base_push[:10]
-        print 'base HEAD  ', base_head[:10]
-        print 'weld Init  ', weld_init[:10]
-
     # But this time, delibarately don't alter anything else
     with Directory(fromble_test.where):
         # Querying base project124 will update .weld/bases/project124
@@ -783,14 +963,6 @@ def test():
         # We know we didn't have any Push events in our past, so we will be
         # falling back to the Init event, which is the same for everyone
 
-        def trim_states(lines):
-            new = []
-            for line in lines:
-                words = line.split()
-                if words[1] != 'X-Weld-State:':
-                    new.append(line)
-            return new
-
         print
         print 'fromble test: What changed for everyone from Init to HEAD'
         all_changes = git_log_for(weld_init, 'HEAD')
@@ -835,213 +1007,90 @@ def test():
             print '  %s: %s%s'%(sha1, files, ' and also %s'%other_also if other_also else '')
         print
 
-        # Note that some of the above is done by "weld query seam-changes"
-        # - investigate exactly what
-
-        # So, in general, we have a commit, or several commits, that impact one
-        # or more seams, and maybe the weld as a whole. We want to abstract the
-        # patch that applies to the particular base (or just the weld).
-        #
-        # So presumably we want to:
-        #
-        #    * if it is easy to do (?) insist that the user has done a
-        #      "weld pull" of whatever we're trying to "weld push" - this is
-        #      perhaps a bit restrictive, but probably sensible at first (?) so
-        #      that we don't get problems when we eventually finish and do our
-        #      push to the remote repositories.
-
-        #    * definitely insist on no local changes (git.has_local_changes)
-
-        #    * determine the commits that have not been propagated (as above)
-        #      since the last X-Weld-State: Push (or Init if there was no Push)
-        #      - these are the changes we need to propagate
-
-        #    * branch from the last synchronisation with the far end - so
-        #      the most recent X-Weld-State: Merge, Push or Init.
-
-        # If we have a Merge and a Push, we can use "git merge-base" to
-        # determine which is the earlier (i.e., the first common ancestor,
-        # which in our case should be one of the two), and we can then use the
-        # other.
-        def later_of_two_commits(a, b):
-            """Return the later of two commits on the same "path".
-
-            * If 'a' and 'b' are the same, return 'a' immediately (even if
-              both are None).
-            * If exactly one of 'a' and 'b' is None, return the other
-            * If 'a' is an ancestor of 'b', return 'b'.
-            * If 'b' is an ancestor of 'a', return 'a'.
-            * Otherwise, we don't know, so we raise a GiveUp exception.
-            """
-            if a == b:
-                return a
-            elif a is None:
-                return b
-            elif b is None:
-                return a
-            else:
-                result = shell_get_output('git merge-base %s %s'%(a, b))
-                if result == a:
-                    return b
-                elif result == b:
-                    return a
-                else:
-                    raise GiveUp('Commits %s and %s do not appear to share a'
-                                 ' common ancestor, unable to find out which'
-                                 ' is later'%(a[:10], b[:10]))
-
-        import tempfile
-        def push_base(weld_name, base_name, seams):
-            banner('Push %s'%base_name)
-            orig_branch = current_branch()
-
-            print 'Determining last push for %s:'%base_name
-            (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
-                    base_head, weld_init) = weld_query_base(base_name)
-            print_sha1_ids(last_weld_merge, last_base_merge, last_weld_push,
-                           last_base_push, base_head, weld_init)
-            print "So, with weld's"
-            print '  last push ', last_weld_push
-            latest_sync = last_weld_push
-            if latest_sync is None:
-                print 'Which was None, so using Init'
-                latest_sync = weld_init
-
-            print
-            print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
-            directories = [d for s, d in seams]
-            base_changes = git_log_for(latest_sync, 'HEAD', directories)
-            print '\n'.join(base_changes)
-
-            print
-            print 'And trim out any X-Weld-State items'
-            base_changes = trim_states(base_changes)
-            print '\n'.join(base_changes)
-
-            print
-
-            # To make it obvious what we are doing:
-            # XXX Obviously only works once!
-            git('tag last-%s-sync %s'%(base_name, latest_sync))
-            # XXX
-
-            # So, what are the differences for our seams?
-            # (Remember that this may include changes to other seams or the
-            # main weld itself, as well - we'll deal with that later on)
-            # Use --relative to make the changes relative to the named directory,
-            # so that we don't end up with the seam directory name embedded in
-            # the difference header.
-            diffs = []
-            for seam_dir, local_dir in seams:
-                if seam_dir is None:
-                    seam_dir = '.'
-
-                for change in base_changes:
-                    words = change.split()
-                    sha1 = words[0]
-                    diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir, sha1))
-                    print diff
-                    if diff:
-                        diffs.append( (seam_dir, local_dir, diff) )
-
-            ##for seam_dir, local_dir in seams:
-            ##    if seam_dir is None:
-            ##        seam_dir = '.'
-            ##    diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir,
-            ##        latest_sync))
-            ##    print diff
-            ##    if diff:
-            ##        diffs.append( (seam_dir, local_dir, diff) )
-
-            # Some of those differences are things we've to push, but some are
-            # probably things we already pulled
-
-            with Directory(os.path.join('.weld', 'bases', base_name)):
-
-                print "So, with %s's"%base_name
-                print '  last push ', last_base_push
-                latest_base_sync = last_base_push
-                if latest_base_sync is None:
-                    print 'Which was None, so using HEAD'
-                    latest_base_sync = base_head
-
-                working_branch = 'fred'     # XXX Obviously need a better name !!!
-
-                git('checkout %s'%latest_base_sync)
-                git('checkout -b %s'%working_branch)
-
-                for seam_dir, local_dir, diff in reversed(diffs):
-                    f = tempfile.NamedTemporaryFile(delete=False)
-                    f.write(diff)
-                    f.close()
-                    # Make sure the patch is applied to the index as well,
-                    # so we don't need to "add" the files changed to the index
-                    # later on
-                    if seam_dir == '.':
-                        shell('git apply --index %s'%(f.name))
-                    else:
-                        shell('git apply --index --directory=%r %s'%(seam_dir, f.name))
-                    os.unlink(f.name)
-
-                # Prepare our (default) commit message
-                f = tempfile.NamedTemporaryFile(delete=False)
-                f.write('X-Weld-State: Pushed %s from weld %s\n\n'%(base_name, weld_name))
-                # Theses lines are of the form "<short-sha1> <first-line>" - do we
-                # want the SHA1 entry? Is it really of use?
-                f.write('\n'.join(trim_states(base_changes)))
-                f.close()
-                # Allow an empty commit, so we still end up with a place marker
-                # for our action
-                # Maybe give the user the option to edit the commit message before
-                # we actually use it - we'd use the "--template <file>" switch
-                # instead of "--file <file>"
-                shell('git commit -a --allow-empty --file %s'%f.name)
-                os.unlink(f.name)
-
-                # In weld, use git.query_current_commit_id
-                head_base_commit = shell_get_output('git log -n 1 --format=format:%H').strip()
-
-                # Merge master onto this branch - this should be trivial
-                git('merge %s --ff-only'%orig_branch)
-
-                # And then merge *that* back into the original branch
-                git('checkout %s'%orig_branch)
-                git('merge %s --ff-only'%working_branch)
-
-                # And finally push the lot to our remote
-                git('push')
-
-            # And now mark the weld with where/when the push happened
-            f = tempfile.NamedTemporaryFile(delete=False)
-            f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
-                head_base_commit, seams))
-            f.close()
-            # Allow an empty commit, so we still end up with a place marker
-            # for our action
-            shell('git commit -a --allow-empty --file %s'%f.name)
-            os.unlink(f.name)
-
-        # Let's look at igniting_duck
+        # Let's push for the first time
         push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
         push_base('fromble', 'project124', [[None, '124']])
 
-        #    * determine the changes that we care about for this base (or the
-        #      weld) and create a sequence of patches that just takes account
-        #      of them (if a base has more than one seam, we'll probably need a
-        #      patch for each seam)
+    banner('Amend the checked out sources AGAIN')
+    with Directory(fromble_test.where):
+        with Directory('124'):
+            with Directory('four'):
+                touch('four-and-a-bit.c',
+                      '#include "stdio.h"\n\nmain()\n{\n  printf("Hello world,'
+                      ' this is 123/4-and-a-bit\\n");\n  return 0;\n}\n')
+                append('Makefile',
+                       '\nfour-and-a-bit: four-and-a-bit.c\n\n')
+                git('add four-and-a-bit.c Makefile')
+                git('commit -m "124: Add four-and-a-bit"')
+        with Directory('one-duck'):
+            append('Makefile', '\n# Look, this comment does nothing')
+            git('add Makefile')
+            git('commit -m "One-duck: Add a comment to the end of the Makefile"')
+            append('Makefile', '\none-duck: one.c\n\t$(CC) -o one-duck one.c\n')
+            git('add Makefile')
+            git('commit -m "One-duck: Also build one-duck, same as one"')
 
-        #    * apply that patch to the base (or weld) in .weld, with some
-        #      appropriate commit message (including an X-Weld-State:
-        #      PortedCommit or somesuch tag? - should we re-use PortedCommit
-        #      for this purpose?) (this leaves the user working in the
-        #      .weld/bases directory to fix any problems, which is not perfect,
-        #      but I'm not sure we have any other way to do it)
+        # Let's also make a (trivial) change to the welded.xml file
+        # - we shall be careful not to change anything significant
+        with Directory('.weld'):
+            append('welded.xml', '<!-- A second insignificant comment -->\n')
+            git('commit welded.xml -m "Fromble: Add a second insignificant coment"')
 
-        #    * push to the far repository
+        # And, to be cruel, a change across everything...
+        append('.gitignore', '# a trailing comment\n')
+        append(os.path.join('124', 'three', 'Makefile'), '# another trailing comment\n')
+        append(os.path.join('two-duck', 'Makefile'), '# a trailing comment\n')
+        git('commit -a -m "Add trailing comments across the bases and to the weld"')
 
-        #    * add an "X-Weld-State: Pushed" commit to the weld
+        # And try a second set of pushing
+        push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+        push_base('fromble', 'project124', [[None, '124']])
 
-        # NB: Preferably name our "temporary" branches in a more unique manner
+
+    # NOTES FROM EARLIER
+    # ==================
+    # Note that some of the above is done by "weld query seam-changes"
+    # - investigate exactly what
+
+    # So, in general, we have a commit, or several commits, that impact one
+    # or more seams, and maybe the weld as a whole. We want to abstract the
+    # patch that applies to the particular base (or just the weld).
+    #
+    # So presumably we want to:
+    #
+    #    * if it is easy to do (?) insist that the user has done a
+    #      "weld pull" of whatever we're trying to "weld push" - this is
+    #      perhaps a bit restrictive, but probably sensible at first (?) so
+    #      that we don't get problems when we eventually finish and do our
+    #      push to the remote repositories.
+
+    #    * definitely insist on no local changes (git.has_local_changes)
+
+    #    * determine the commits that have not been propagated (as above)
+    #      since the last X-Weld-State: Push (or Init if there was no Push)
+    #      - these are the changes we need to propagate
+
+    #    * branch from the last synchronisation with the far end - so
+    #      the most recent X-Weld-State: Merge, Push or Init.
+
+
+    #    * determine the changes that we care about for this base (or the
+    #      weld) and create a sequence of patches that just takes account
+    #      of them (if a base has more than one seam, we'll probably need a
+    #      patch for each seam)
+
+    #    * apply that patch to the base (or weld) in .weld, with some
+    #      appropriate commit message (including an X-Weld-State:
+    #      PortedCommit or somesuch tag? - should we re-use PortedCommit
+    #      for this purpose?) (this leaves the user working in the
+    #      .weld/bases directory to fix any problems, which is not perfect,
+    #      but I'm not sure we have any other way to do it)
+
+    #    * push to the far repository
+
+    #    * add an "X-Weld-State: Pushed" commit to the weld
+
+    # NB: Preferably name our "temporary" branches in a more unique manner
 
 def main(args):
 

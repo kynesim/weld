@@ -109,15 +109,15 @@ def query_merge(where, base):
     else:
         return None
 
-def query_pull(where, base):
-    """Return the id of the last commit which contained a pull for this 'base'
+def query_push(where, base):
+    """Return the id of the last commit which contained a push of this 'base'
 
-    Finds the last "X-Weld-State: Pulled <base>" commit, and returns its
+    Finds the last "X-Weld-State: Pushed <base>" commit, and returns its
     SHA1 id.
 
     If there wasn't one, return None.
     """
-    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_pull(base)),
+    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_push(base)),
                             "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
