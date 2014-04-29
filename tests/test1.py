@@ -18,7 +18,7 @@ class GiveUp(Exception):
 weld_xml_file = """\
 <?xml version="1.0" ?>
 <weld name="frank">
-  <origin uri="file://{testdir}/fromble" />
+  <origin uri="file://{repo_base}/fromble" />
 
   <!-- The original had a branch, a revision and a tag.
        My testing isn't working with branches yet, and the implementation
@@ -30,12 +30,12 @@ weld_xml_file = """\
        it refused the weld file in this case (although note that muddle also
        has something of this problem).
 
-  <base name="project124" uri="file://{testdir}/project124" branch="b" rev=".." tag=".."/>
+  <base name="project124" uri="file://{repo_base}/project124" branch="b" rev=".." tag=".."/>
   -->
 
-  <base name="project124" uri="file://{testdir}/project124"/>
+  <base name="project124" uri="file://{repo_base}/project124"/>
     <seam base="project124" dest="124" />
-  <base name="igniting_duck" uri="file://{testdir}/igniting_duck" />
+  <base name="igniting_duck" uri="file://{repo_base}/igniting_duck" />
     <seam base="igniting_duck" source="one" dest="one-duck" />
     <seam base="igniting_duck" source="two" dest="two-duck" />
 </weld>
@@ -432,7 +432,12 @@ def test():
     # Set up our (empty) repositories
     banner('Setting up empty repositories')
     with NewDirectory('repos') as repo_base:
-        # Our normal "source" repositories are normal bare repositories
+        # Note that where we create our weld repository MUST match what
+        # it says in the weld XML file - this feels a bit awkward and
+        # self-referential...
+        # XXX Check how this actually works within weld
+        with NewDirectory('fromble') as weld_repo:
+            git('init --bare')
         with NewDirectory('project124') as project124_repo:
             git('init --bare')
         with NewDirectory('igniting_duck') as igniting_duck_repo:
@@ -455,11 +460,9 @@ def test():
         make_and_run_all(project124, project124_dirs)
         make_and_run_all(igniting_duck, igniting_duck_dirs)
 
-    banner('Creating "source" weld')
-    with Directory(repo_base.where):
-        touch('weld.xml', weld_xml_file.format(testdir=repo_base.where))
+        banner('Creating "source" weld')
+        touch('weld.xml', weld_xml_file.format(repo_base=repo_base.where))
 
-        # A weld is actually a source (not bare) repository
         with NewDirectory('fromble') as fromble_base:
             weld('init ../weld.xml')
             compare_dir(fromble_base.where,
@@ -486,6 +489,7 @@ def test():
                         '    Makefile',
                         '    two.c',
                         ])
+            git('push origin master')
 
     # So, can we clone our weld?
     # This is how we are meant to get a copy of the weld to work on
@@ -498,7 +502,8 @@ def test():
         # it suggests. If we use this, then we won't get the "weld-"
         # branches from the original weld repository copied over, which
         # leads to a neater appearance in gitk (!)
-        git('clone --single-branch %s'%fromble_base.where)
+        ##git('clone --single-branch %s'%fromble_base.where)
+        git('clone %s'%weld_repo.where)
         # Remember that our weld.xml does redirect some of the "internal"
         # directories (in particular, of igniting_duck) so they get put
         # somewhere else in our source tree.
