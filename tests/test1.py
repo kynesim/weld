@@ -215,6 +215,17 @@ def first_path_item(path):
         path, rest = os.path.split(path)
     return rest
 
+# Taken from welded/git.py (and modified slightly)
+def current_branch():
+    out = shell_get_output('git branch -v')
+    lines = out.splitlines()
+    for l in lines:
+        l = l.strip()
+        f = l.split(' ')
+        if (f[0] == '*'):
+            return f[1]
+    return "master"
+
 def test():
     """Our main test script
     """
@@ -882,6 +893,8 @@ def test():
         import tempfile
         def push_base(weld_name, base_name, seams):
             banner('Push %s'%base_name)
+            orig_branch = current_branch()
+
             print 'Determining last push for %s:'%base_name
             (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
                     base_head, weld_init) = weld_query_base(base_name)
@@ -951,8 +964,11 @@ def test():
                 if latest_base_sync is None:
                     print 'Which was None, so using HEAD'
                     latest_base_sync = base_head
+
+                working_branch = 'fred'     # XXX Obviously need a better name !!!
+
                 git('checkout %s'%latest_base_sync)
-                git('checkout -b fred')         # XXX Obviously need a better name !!!
+                git('checkout -b %s'%working_branch)
 
                 for seam_dir, local_dir, diff in reversed(diffs):
                     f = tempfile.NamedTemporaryFile(delete=False)
@@ -985,6 +1001,14 @@ def test():
                 # In weld, use git.query_current_commit_id
                 head_base_commit = shell_get_output('git log -n 1 --format=format:%H').strip()
 
+                # Merge master onto this branch - this should be trivial
+                git('merge %s --ff-only'%orig_branch)
+
+                # And then merge *that* back into the original branch
+                git('checkout %s'%orig_branch)
+                git('merge %s --ff-only'%working_branch)
+
+                # And finally push the lot to our remote
                 git('push')
 
             # And now mark the weld with where/when the push happened
