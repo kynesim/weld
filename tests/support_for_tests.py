@@ -50,11 +50,12 @@ class ShellError(GiveUp):
         msg = "Shell command %r failed with retcode %d"%(cmd, retcode)
         if text:
             parts = [msg]
-            text = text.splitlines()
-            parts.extend(['  {}'.format(x) for x in text])
+            lines = text.splitlines()
+            parts.extend(['  {}'.format(x) for x in lines])
             msg = '\n'.join(parts)
         super(GiveUp, self).__init__(msg)
         self.retcode=retcode
+        self.text = text
 
 def shell(cmd, verbose=True):
     """Run a command in the shell

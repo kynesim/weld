@@ -181,13 +181,13 @@ def git_log_for(from_id, to_id, paths=None):
     changes = shell_get_output(cmd)
     return changes.splitlines()
 
-def compare_dir(where, content_list):
+def compare_dir(where, content_list, fold_dirs=['.git', '.weld']):
     """Compare the content of 'where' against 'content_list'.
 
     Folds .git and .weld
     """
     print 'Comparing directory tree', normalise_path(where)
-    dt = DirTree(where, fold_dirs=['.git', '.weld'])
+    dt = DirTree(where, fold_dirs=fold_dirs)
     dt.assert_same_as_list(content_list, 'expected', onedown=True)
 
 def first_path_item(path):
@@ -291,7 +291,7 @@ def trim_states(lines):
     return new
 
 import tempfile
-def push_base(weld_name, base_name, seams):
+def weld_push_base(weld_name, base_name, seams):
     banner('Push %s'%base_name)
     orig_branch = current_branch()
 
@@ -423,7 +423,178 @@ def push_base(weld_name, base_name, seams):
     shell('git commit -a --allow-empty --file %s'%f.name)
     os.unlink(f.name)
 
+from filecmp import dircmp
 
+def diff_matches(d):
+    """If the difference matches, return True, else report and return False
+    """
+    if d.left_only or d.right_only or d.diff_files or d.funny_files:
+        print 'Mismatch for %s and %s'%(d.left, d.right)
+        if d.left_only:   print 'Left only:', d.left_only
+        if d.right_only:  print 'Right only:', d.right_only
+        if d.diff_files:  print 'Different:', d.diff_files
+        if d.funny_files: print 'Funny:', d.funny_files
+        return False
+    else:
+        return True
+
+def same_files(this_dir, that_dir):
+    """Check that the same files are present, with some standard exclusions
+
+    We ignore .git directories (and their contents).
+
+    We ignore .weld/bases directories (and ditto).
+
+    Because of that last, it turns out to be difficult to use GNU diff, since
+    it doesn't support ignoring other than a base directory name (possibly
+    wildcarded). However, Python to the rescue.
+    """
+    # Note that this defaults to a "shallow" comparison - two files of the
+    # same name with the same os.stat data will be considered identical,
+    # without *actually* checking their content. For our purposes this is
+    # sufficient, as non-identical files should have different sizes.
+
+    same = True
+
+    # Compare the top-level directory
+    d = dircmp(this_dir, that_dir)
+    if not diff_matches(d):
+        same = False
+
+    # And similarly, compare the top-level of the .weld directory
+    this_subdir = os.path.join(this_dir, '.weld')
+    that_subdir = os.path.join(that_dir, '.weld')
+    d = dircmp(this_subdir, that_subdir)
+    if not diff_matches(d):
+        same = False
+
+    # Compare other directories
+    this_files = os.listdir(this_dir)
+    that_files = os.listdir(that_dir)
+
+    this_dirs = set(f for f in this_files if os.path.isdir(os.path.join(this_dir, f)))
+    that_dirs = set(f for f in that_files if os.path.isdir(os.path.join(that_dir, f)))
+    dirs = this_dirs | that_dirs
+
+    def recursive_same(d):
+        same = True
+        if not diff_matches(d):
+            same = False
+        for dirname in d.common_dirs:
+            if not recursive_same(d.subdirs[dirname]):
+                same = False
+        return same
+
+    for dirname in sorted(dirs):
+        if dirname in ('.weld', '.git'):
+            continue
+        this_subdir = os.path.join(this_dir, dirname)
+        if not os.path.exists(this_subdir):
+            print 'Directory %s does not exist'%this_subdir
+            same = False
+            continue
+        that_subdir = os.path.join(that_dir, dirname)
+        if not os.path.exists(that_subdir):
+            print 'Directory %s does not exist'%that_subdir
+            mismatch = True
+            continue
+        # Compare the two recursively
+        d = dircmp(this_subdir, that_subdir, ignore=[])
+        if not recursive_same(d):
+            same = False
+
+    return same
+
+def should_we_pull(remote_name='origin', branch_name='master', verbose=True):
+    """Is there something to pull from the given remote?
+    """
+    if verbose:
+        print 'Should we pull?'
+    # Get the HEAD of that branch on our remote
+    line = shell_get_output('git ls-remote %s %s'%(remote_name, branch_name),
+                            verbose=verbose)
+    words = line.split()
+    remote_head = words[0]
+    if verbose:
+        print 'The HEAD of %s/%s is %s'%(remote_name, branch_name, remote_head[:10])
+
+    # Does that exist here? If not, we presumably need to pull...
+    try:
+        # Is the given SHA1 a known commit object?
+        # Find out by asking what (local) branch it is on...
+        # We don't allow "verbose" to be true because if it "goes wrong" it
+        # output the appropriate error diagnostic followed by a help message
+        # on how to use "git branch", which is a bit distracting...
+        shell_get_output('git branch --contains %s'%remote_head, verbose=False)
+        if verbose:
+            # Repeat the command to show the branch name...
+            shell('git branch --contains %s'%remote_head, verbose=True)
+            print 'No, we already know that commit'
+        return False
+    except ShellError as e:
+        # Let's assume that there's only one reason for this...
+        if verbose:
+            print e.text.splitlines()[0]
+            print 'Yes, we do not know that commit'
+        return True
+
+# XXX There is a case for combining should_we_pull and should_we_push into
+# XXX a single function, returning two values, which would allow us to do
+# XXX
+# XXX       True,  None             - need to pull, don't push yet(!)
+# XXX       False, True             - need to push
+# XXX       False, False            - neither is necessary
+# XXX
+# XXX which is arguably safer. And, of course, that None in the first pair
+# XXX will compare as "False" for many purposes, which is (sort of) the right
+# XXX thing to do
+
+def should_we_push(remote_name='origin', branch_name='master', verbose=True):
+    """Is there something to push to the given remote?
+
+    Note that if we should pull (see 'should_we_pull') and thus don't recognise
+    the HEAD of the remote, we will return None - this is a compromise over
+    actually raising some sort of exception, and assumes that the caller will
+    call 'should_we_pull' first...
+    """
+    if verbose:
+        print 'Should we push?'
+    # Get the HEAD of that branch on our remote
+    line = shell_get_output('git ls-remote %s %s'%(remote_name, branch_name),
+                            verbose=verbose)
+    words = line.split()
+    remote_head = words[0]
+    if verbose:
+        print 'The HEAD of %s/%s is %s'%(remote_name, branch_name, remote_head[:10])
+
+    # Assuming that exists here (i.e., that we don't need to pull), does
+    # it match our HEAD?
+    local_head = shell_get_output('git rev-parse %s'%branch_name,
+                                  verbose=verbose).strip()
+    if remote_head == local_head:
+        if verbose:
+            print 'No, remote HEAD matches local HEAD'
+        return False
+
+    # Out of curiousity, how far behind are we?
+    try:
+        lines = shell_get_output('git rev-list %s..%s'%(remote_head, branch_name),
+                                 verbose=verbose)
+    except ShellError:
+        # It presumably wasn't an ancestor commit - oh dear
+        print '%s does not appear to be an ancestor of HEAD of %s'%(remote_head[:10],
+                branch_name)
+        # XXX Consider whether this is wise, or whether we should raise GiveUp
+        if verbose:
+            print 'No, we should not push, because we probably need to pull'
+        return None         # see docstring above
+
+    if verbose:
+        count = len(lines.splitlines())
+        print 'Local %s is %d commit%s ahead of %s/%s'%(branch_name,
+                count, '' if count==1 else 's', remote_name, branch_name)
+        print 'Yes'
+    return True
 
 
 def test():
@@ -436,15 +607,15 @@ def test():
         # it says in the weld XML file - this feels a bit awkward and
         # self-referential...
         # XXX Check how this actually works within weld
-        with NewDirectory('fromble') as weld_repo:
+        with NewDirectory('fromble') as fromble_repo:
             git('init --bare')
         with NewDirectory('project124') as project124_repo:
             git('init --bare')
         with NewDirectory('igniting_duck') as igniting_duck_repo:
             git('init --bare')
 
-    # Create some original content
-    banner('Creating content')
+    # Create some original content, and push it to those repositories
+    banner('Creating content for those repositories')
     with NewDirectory('original') as orig_dir:
 
         # Source packages
@@ -463,15 +634,15 @@ def test():
         banner('Creating "source" weld')
         touch('weld.xml', weld_xml_file.format(repo_base=repo_base.where))
 
-        with NewDirectory('fromble') as fromble_base:
+        with NewDirectory('fromble') as fromble_orig:
             weld('init ../weld.xml')
-            compare_dir(fromble_base.where,
+            compare_dir(fromble_orig.where,
                        ['  .git/...',
                         '  .gitignore',
                         '  .weld/...',
                        ])
             weld('pull _all')
-            compare_dir(fromble_base.where,
+            compare_dir(fromble_orig.where,
                        ['  .git/...',
                         '  .gitignore',
                         '  .weld/...',
@@ -502,8 +673,7 @@ def test():
         # it suggests. If we use this, then we won't get the "weld-"
         # branches from the original weld repository copied over, which
         # leads to a neater appearance in gitk (!)
-        ##git('clone --single-branch %s'%fromble_base.where)
-        git('clone %s'%weld_repo.where)
+        git('clone %s'%fromble_repo.where)
         # Remember that our weld.xml does redirect some of the "internal"
         # directories (in particular, of igniting_duck) so they get put
         # somewhere else in our source tree.
@@ -548,12 +718,55 @@ def test():
             git('add .gitignore')
             git('commit -m "Fromble: Ignore executables"')
 
-            # And we can then update the "internal" copies of the source
-            # repositories we are using, via:
+            # At which point:
+            need_to_pull = should_we_pull()
+            assert need_to_pull == False
+            need_to_push = should_we_push()
+            assert need_to_push == True
+
+            # If we wish our "weld pull _all" to give us a weld that is
+            # compatible with the rest of the world and their idea of this
+            # weld, then we need to tell that rest of the world about our
+            # change to the weld now, before we do the "weld pull"
+            git('push origin master')
+
+            # And we can then update our bases
+            # This should be a no-op as far as the "main" weld directories
+            # are concerned (because we only just cloned them, apart from
+            # the .gitignore file which we've push) - so it should just be
+            # altering the content of .weld/bases
+            compare_dir('.weld', ['  counter',
+                                  '  welded.xml',
+                                  ], fold_dirs=[])  # don't fold .weld!
+
             weld('pull _all')
             # This is the same sort of downloading that "weld query base"
             # would have to do on an individual base-at-a-time basis -
             # we're doing it all at once
+
+            # The weld itself hasn't changed...
+            compare_dir('.',
+                        ['  .git/...',
+                         '  .gitignore',
+                         '  .weld/...',
+                         '  124/',
+                         '    one/',
+                         '      Makefile',
+                         '      one*',
+                         '      one.c',
+                         '    two/',
+                         '      Makefile',
+                         '      two*',
+                         '      two.c',
+                         '  one-duck/',
+                         '    Makefile',
+                         '    one*',
+                         '    one.c',
+                         '  two-duck/',
+                         '    Makefile',
+                         '    two*',
+                         '    two.c',
+                         ])
 
             # Whilst it's not really something one is meant to do, we can
             # then demonstrate that those *are* the source repositories
@@ -588,6 +801,13 @@ def test():
                     os.unlink(os.path.join('igniting_duck', 'two', 'two'))
 
             fromble_test_first_pull_id = git_rev_parse('HEAD')
+
+            # At which point we don't need to pull (with "git pull")
+            need_to_pull = should_we_pull()
+            assert need_to_pull == False
+            # nor do we have anything to push
+            need_to_push = should_we_push()
+            assert need_to_push == False
 
     # Alter (update) project124 in its repository
     banner('Alter original and repository for project124')
@@ -650,10 +870,19 @@ def test():
                      '      two.c',
                      ])
 
-    # *However* this does not update the "intermediate" weld repository
-    # that we first cloned
+        # Since we've altered our weld, it's ahead of the far weld repo
+        need_to_pull = should_we_pull()
+        assert need_to_pull == False
+        need_to_push = should_we_push()
+        assert need_to_push == True
+
+        git('push origin master')
+
+
+    # *However* this does not update the source weld repository, the one
+    # that we first created. So we'll need to pull into that by hand.
     banner('Pull into source weld')
-    with Directory(fromble_base.where):
+    with Directory(fromble_orig.where):
         compare_dir('.',
                     ['  .git/...',
                      '  .gitignore',
@@ -673,9 +902,34 @@ def test():
                      '    two.c',
                      ])
 
-        # So we need to do:
+        # Just to review where we are
+        with Directory(fromble_test.where) as x:
+            print
+            print 'TEST', x.where
+            git('--no-pager log --oneline')
+
+        with Directory(fromble_repo.where) as x:
+            print
+            print 'REPO', x.where
+            git('--no-pager log --oneline')
+
+        with Directory(fromble_orig.where) as x:
+            print
+            print 'ORIG', x.where
+            git('--no-pager log --oneline')
+
+        print
+
+        need_to_pull = should_we_pull()
+        assert need_to_pull == True
+        need_to_push = should_we_push()
+        assert need_to_push == None
+
+        # So let's pull
+        git('pull origin master')
+
+        # If we do a "weld pull" now, that should only affect the .weld/bases
         weld('pull _all')
-        # here as well, and then:
         compare_dir('.',
                     ['  .git/...',
                      '  .gitignore',
@@ -697,6 +951,11 @@ def test():
                      '    Makefile',
                      '    two.c',
                      ])
+
+        need_to_pull = should_we_pull()
+        assert need_to_pull == False
+        need_to_push = should_we_push()
+        assert need_to_push == False
 
     banner('Amend the checked out sources')
     with Directory(fromble_test.where):
@@ -889,6 +1148,12 @@ def test():
         os.unlink(os.path.join('124', 'three', 'three-and-a-bit'))
         os.unlink(os.path.join('two-duck', 'two-duck'))
 
+        # So, what is our state with respect to our weld's remote repository?
+        need_to_pull = should_we_pull()
+        assert need_to_pull == False
+        need_to_push = should_we_push()
+        assert need_to_push == True
+
         # At which point we can do a "weld pull _all" to update our world...
         weld('pull _all')
 
@@ -1013,8 +1278,8 @@ def test():
         print
 
         # Let's push for the first time
-        push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-        push_base('fromble', 'project124', [[None, '124']])
+        weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+        weld_push_base('fromble', 'project124', [[None, '124']])
 
     banner('Amend the checked out sources AGAIN')
     with Directory(fromble_test.where):
@@ -1048,8 +1313,37 @@ def test():
         git('commit -a -m "Add trailing comments across the bases and to the weld"')
 
         # And try a second set of pushing
-        push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-        push_base('fromble', 'project124', [[None, '124']])
+        weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+        weld_push_base('fromble', 'project124', [[None, '124']])
+
+        # And we can also push our weld...
+        need_to_pull = should_we_pull()
+        assert need_to_pull == False
+        need_to_push = should_we_push()
+        assert need_to_push == True
+
+        # So let's do so
+        git('push')
+
+    # If we then pull it into the original, we should get the same answer...
+    with Directory(fromble_orig.where):
+        need_to_pull = should_we_pull()
+        assert need_to_pull == True
+        need_to_push = should_we_push()
+        assert need_to_push == None
+
+        git('pull origin master')
+
+    print 'Checking fromble test and fromble original match'
+    # Before comparing directories, remove the executables we built
+    with Directory(fromble_test.where):
+        os.unlink(os.path.join('124', 'one', 'one'))
+        os.unlink(os.path.join('124', 'two', 'two'))
+        os.unlink(os.path.join('one-duck', 'one'))
+        os.unlink(os.path.join('two-duck', 'two'))
+
+    if not same_files(fromble_test.where, fromble_orig.where):
+        raise GiveUp('Test directory doesn not match source directory')
 
 
     # NOTES FROM EARLIER
