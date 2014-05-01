@@ -320,6 +320,10 @@ def weld_push_base(weld_name, base_name, seams):
 
     print
 
+    if len(base_changes) == 0:
+        print 'There were no changes to base %s, nothing to push'%base_name
+        return
+
     # To make it obvious what we are doing:
     # XXX Obviously only works once!
     git('tag last-%s-sync-%s %s'%(base_name, latest_sync[:10], latest_sync))
@@ -1326,6 +1330,7 @@ def test():
         git('push')
 
     # If we then pull it into the original, we should get the same answer...
+    banner('Pull into original should match')
     with Directory(fromble_orig.where):
         need_to_pull = should_we_pull()
         assert need_to_pull == True
@@ -1345,6 +1350,11 @@ def test():
     if not same_files(fromble_test.where, fromble_orig.where):
         raise GiveUp('Test directory doesn not match source directory')
 
+    # If there aren't any changes, we shouldn't do anything(!)
+    banner('A push of nothing should do nothing')
+    with Directory(fromble_test.where):
+        weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+        weld_push_base('fromble', 'project124', [[None, '124']])
 
     # NOTES FROM EARLIER
     # ==================
