@@ -1401,6 +1401,9 @@ def test():
 
     # NB: Preferably name our "temporary" branches in a more unique manner
 
+    # XXX Check that if we do "weld pull <base-name>" and then immediately
+    # XXX do the same again, it does nothing...
+
 def main(args):
 
     keep = False

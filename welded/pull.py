@@ -20,7 +20,7 @@ def sync_and_rebase(spec, base):
 
     Now find the last commit-id for the base, by looking for 
     """
-    # Make sure we have no unstaged changes.less 
+    # Make sure we have no unstaged changes.
     if (git.has_local_changes(spec.base_dir)):
         raise utils.GiveUp("You have local changes; please commit or stash them.")
 
@@ -152,7 +152,7 @@ def abort(spec, branch_name, current_branch):
     """
     Abort a merge
     """
-    git.abort_rebase(spec)
+    #git.abort_rebase(spec)
     git.switch_branch(spec, current_branch)
     git.remove_branch(spec, branch_name)
 
