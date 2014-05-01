@@ -12,13 +12,12 @@ import os
 import os.path
 import sys
 
-def sync_and_rebase(spec, base):
-    """
-    Rebase a single base.
+def pull_base(spec, base):
+    """Pull a single base.
 
-    Find the current branch. Stash the name.
+    'spec' is the Weld that contains this base.
 
-    Now find the last commit-id for the base, by looking for 
+    'base' is the name of the base.
     """
     # Make sure we have no unstaged changes.
     if (git.has_local_changes(spec.base_dir)):

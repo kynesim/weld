@@ -144,7 +144,7 @@ class Pull(Command):
         if (opts.verbose):
             print("Pulling repos: %s"%(to_pull))
         for p in to_pull:
-            rv = pull.sync_and_rebase(self.spec, p)
+            rv = pull.pull_base(self.spec, p)
             if rv != 0:
                 return rv
         
