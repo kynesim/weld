@@ -366,6 +366,7 @@ Given the name of a base:
       should be changing the weld whilst we're busy)
    e. commits this whole operation using an appropriate ``X-Weld-State: Merged
       <base-name>`` message.
+   f. deletes the ``finish.py`` and ``abort.py`` scripts
 
    At the moment, this doesn't delete the temporary/working branch (which will
    show as a loop if you look in gitk). Future versions of weld may do so
@@ -378,6 +379,7 @@ Given the name of a base:
 
    * switches back to the original branch
    * deletes the temporary/working branch
+   * deletes the ``finish.py`` and ``abort.py`` scripts
 
 Also note that the "weld-" branches are always meant to be local to the
 current repository - they're not meant to be pushed anywhere else.
@@ -401,5 +403,100 @@ specific branch).
 
 Of course, unfortunately, if you later do a ``git pull``, then the branches
 will be fetched for you at that stage, so it's not a perfect solution.
+
+How "weld push" should work
+---------------------------
+Again, we're only going to look at doing "weld push" on a single base - the
+command line will (probably) take more than one base name, pr the magic
+``_all``, but we'll ignore that here.
+
+  *This is still to be implemented as a "weld push" command*
+
+So doing ``weld push`` for a given base name works as follows:
+
+#. The seams for the base are looked up, and thus the individual seam
+   directories identified.
+
+#. The original branch (of the weld) is remembered.
+
+#. The commit id of the last push for the given base-name (i.e., the last
+   commit with an ``X-Weld-State: Pushed <base-name>`` message) is located. If
+   there isn't one, the ``X-Weld-State: Init`` commit is used.
+
+#. ``git log`` is used to determine what commits have happened between that
+   last push and HEAD. Then all the ``X-Weld-State`` commits are removed from
+   the list.
+
+   If that leaves an empty list of commits, then nothing needs to be pushed
+   for this base name, and we are finished.
+
+#. At the moment, in the development version of the code, a tag may be put at
+   the last-Pushed (or Init) commit. This is not required by anything else,
+   and just serves to make it more obvious how ``weld push`` works.
+
+#. For each seam in this base, the changes for each commit in the list are
+   calculated, using ``git diff``, and remembered.
+
+      I am assuming that they are saved to a file with a name of the form
+      something like
+      ``.weld/pushing/<base-name>/<seam-name>/<index>-diff.txt``
+      where ``<index>`` retains the appropriate order of the differences.
+
+      This means that ``.weld/pushing`` needs adding to the default
+      ``.gitignore`` file that ``weld init`` creates.
+
+#. Two script files, ``.weld/continue.py`` and ``.weld/abort.py``, are
+   written.
+
+#. The base is branched, so that our amendments to it can be done on that
+   branch.
+
+#. The ``continue.py`` script is run.
+
+   This applies the patches for each seam in the appropriate ``pushing``
+   directory *in the reverse order* - i.e., it:
+
+   a. takes the last patch from the first available ``<seam-name>`` directory
+   b. uses ``git apply`` to apply it
+   c. deletes the patch file
+   d. if that leaves the directory empty, deletes the ``<seam-name>``
+      directory
+
+#. If the ``git apply`` succeeded, it then:
+  
+   * goes on to the next (well, previous) patch file for that seam, or starts
+     on the next ``<seam-name>`` directory, and so on, until there are no
+     ``<seam-name>`` directories left,
+   * at which point it deletes ``pushing/<branch-name>`` directory, and also
+   * deletes the ``continue.py`` and ``abort.py`` scripts
+
+   It then:
+
+   * commits the changes to the base with a message of the form
+     ``X-Weld-State: Pushed <base-name> from weld <weld-name>``, and summary
+     lines for the actual changes we've folded in.
+   * merges the branch back onto the base's original branch (using a
+     fast-forward only merge)
+   * does a ``git push`` of the base to its remote
+
+   Given a ``weld pull`` before this final ``git push``, this should succeed
+   because the base was up-to-date before the push.
+
+   Then, back in the weld, it adds an empty commit containg the message
+   ``X-Weld-State: Pushed <base-name>/<commit-id> <seams>``, so that we have a
+   record of where the push was done from (for use in future ``weld push``
+   commands).
+
+   Note that this means you should consider doing a ``git push`` of your weld
+   after any ``weld pull`` command.
+
+#. If a problem occurred with the ``git apply``, then the user is expected to
+   fix it, and then issue a ``weld continue`` command (which just re-runs the
+   ``continue.py`` script, so behaves as described above), or to issue a
+   ``weld abort`` command, which:
+
+   * deletes the working branch on the base
+   * deletes the ``pushing/<base-name>`` directory
+   * deletes the ``continue.py`` and ``abort.py`` scripts
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
