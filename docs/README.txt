@@ -8,11 +8,11 @@ repository for a project which could track back to other repositories.
 
 weld is the tool which makes that possible.
 
-weld uses a directory, .welded, inside your git repository to store
+weld uses a directory, ``.weld``, inside your git repository to store
 meta-information about which repositories you use and where they 
 come from.
 
-Because all the best shell scripts parse XML, the files inside .welded
+Because all the best shell scripts parse XML, the files inside ``.weld``
 are written in XML. We did consider using Python, but felt that given
 the highly declarative nature of the information described, the 
 number of opportunities for self-mutilation was just too high.
@@ -21,17 +21,18 @@ number of opportunities for self-mutilation was just too high.
 Files in .welded
 ================
 
- .welded/weld.xml 
-   This is a top-level file that describes this weld.
+ .weld/welded.xml 
+   This is the file that describes this weld. It is a copy of the XML file
+   given to weld init.
 
- .welded/completion
+ .weld/completion
    A set of instructions for weld finish to perform once you have
-   completed your merge.
+   completed your merge (i.e., "weld pull")
 
- .welded/bases/ ..
+ .weld/bases/ ..
    Copies of all your bases.
 
- .welded/counter
+ .weld/counter
    Counts upward; this is used to force changes so we never have
    empty commits - git commit --allow-empty doesn't really work and
    can easily lose commits.
@@ -39,11 +40,11 @@ Files in .welded
 bases and seams
 ===============
 
- A base is a git repository (and branch) from which one pulls seams and to which
-   they are pushed.
+A **base** is a git repository (and branch) from which one pulls seams and to
+which they are pushed.
 
- A seam is a mapping from a directory in a git repository to a directory in the 
-   weld in which it will appear.
+A **seam** is a mapping from a directory in a git repository to a directory in
+the weld in which it will appear.
 
 weld.xml
 ========
@@ -62,7 +63,8 @@ A typical weld.xml::
 
 This file tells weld:
 
-   * This weld is called frank - this name is used when upstreaming.
+   * This weld is called frank. This name is not used for anything at the
+     moment (caveat: It may be used in the "X-Weld-State: Pushed" markers)
    * The origin for this weld is at ssh://git@home.example.com/ribbit/fromble.
    * This weld draws from two bases: project124 and igniting_duck
    * project124 turns up in a directory in the weld called flibble.
@@ -130,67 +132,110 @@ It *is* intended that two bases with diffferent names be regarded as
 different, although what happens if that is the only difference between them
 is not defined.
 
-TO BE CLARIFIED/CHECKED:
-
   *Do not cross the streams.* Specifically, no two different seams should have
-  the same destination, lest weld get terribly confused. This *may* also mean
+  the same destination, lest weld get terribly confused. This also means
   that destinations that "nest" - e.g., ``src/fred`` and ``src/fred/jim`` -
-  are regarded as "the same" for this purpose.
+  are forbidden.
 
 Going behind weld's back
 ========================
 
 As with muddle, weld attempts to support you going behind its back. This
 mainluy means assuming that you're going to use git to do stuff regardless.
+Indeed, we shall see that using git directly is integral to the correct use of
+welds.
 
+A summary of weld commands  
+==========================
 
-Using weld   
-==========
-
-weld init weld.xml
+weld init <weld-xml-file>
   
-   This command takes a weld.xml that you have written and creates a git 
-   repository for it, including writing you a .git/info/sparse-checkout file.
+   This command takes a <weld-xml-file> that you have written and creates a git 
+   repository for it.
 
-**The following are wrong. For the moment, use "weld help" to find out its
-commands, and this section will be updated later on.***
+   The XML file is written to ``.weld/welded.xml``.
 
-weld import
+   An initial ``.gitignore`` file is created, which tells git to ignore
+   various weld working files, including ``.weld/bases``.
 
-   This command imports any missing repos into the weld. If any branches have
-   changed, 
+weld pull <base-name>
 
-weld upstream <base>
+   The special "name" ``_all`` means "pull all bases".
 
-  Here is where the magic happens. Weld collects all the diffs that might affect
-  <base> and ports them (individually) upstream to that base. Weld axdds a
-  Welded-From: <name>/<commit-id> to each comment.
+weld finish
 
-weld sync <URI>
+   Finish a weld pull that had problems (indicating that the problems were
+   fixed).
 
-  Weld will check out the .weld from <URI> and synchronise with it -
-  this is largely a clone, but because weld will write a sparse-checkout file
-  you do not need to check out any parts of the repository which are not 
-  currently in the weld.
+weld abort
+
+   Abort a weld pull that had problems (thus discarding it)
+
+weld query bases
+
+   List the bases, and their seams
+
+weld query base <base-name>
+
+   Report on the current state of the named base.
+
+weld query seam-changes <base-name>
+
+   Report on the seam changes for the named base.
 
 Headers that weld introduces
 ============================
 
 Weld will occasionally leave commits containing messages to itself.
-It is important that you do not start any legitimate commit messages
-with:
+It is important that you do not start any other commit messages
+with ``X-Weld-State``
 
-X-Weld-State:
-
- The messages it leaves are:
-
-X-Weld-State: Merged/[base]:[commit-id]  [src]:[dest] ...
-
- Indicates that it merged [base]:[commit-id] with the following seams.
+The messages it leaves are:
 
 X-Weld-State: Init
 
  Indicates that the weld started here (with nothing merged)
+
+X-Weld-State: PortedCommit <base-name>/<commit-id> [<seams>]
+
+ Indicates that it ...
+
+X-Weld-State: Seam-Added <base-name>/<commit-id> [<seams>]
+
+ Indicates that it ...
+
+X-Weld-State: Seam-Deleted <base-name>/<commit-id> [<seams>]
+
+ Indicates that it ...
+
+X-Weld-State: Seam-Changed <base-name>/<commit-id> [<seams>]
+
+ Indicates that it ...
+
+X-Weld-State: Merged <base-name>/<commit-id> [<seams>]
+
+ Indicates that it merged <base-name> <commit-id> with the following seams.
+
+X-Weld-State: Pushed  <base-name>/<commit-id> [<seams>]
+
+ Indicates that it ...
+
+In the base repositories, it can also leave a commit message of the
+form::
+
+  X-Weld-State: Pushed <base-name> from weld <weld-name>
+
+This commit will then contain a sequence of lines, each of which is
+(currently) the "short" SHA1 id for a squashed component commit, followed by
+its one line summary - so for instance::
+
+    X-Weld-State: Pushed igniting_duck from weld fromble
+    
+    e8addb1 Add trailing comments across the bases and to the weld
+    7eaa68a One-duck: Also build one-duck, same as one
+    f589384 One-duck: Add a comment to the end of the Makefile
+
+The format of this message may change in the future.
 
 Using the weld command line tool
 ================================
@@ -224,6 +269,9 @@ later, but he doesn't want to lose...
 
 How "weld pull" does its stuff
 ------------------------------
+
+*This changed, so needs checking/updating*
+
 So we're pulling a base.
 
   (pulling an individual seam would in theory be possible, but rather fiddly,
