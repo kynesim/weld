@@ -329,6 +329,10 @@ def weld_push_base(weld_name, base_name, seams):
     git('tag last-%s-sync-%s %s'%(base_name, latest_sync[:10], latest_sync))
     # XXX
 
+    # We want the changes in the opposite order, so that we apply the oldest
+    # change first. For simplicity, then, sort that out now
+    base_changes.reverse()
+
     # So, what are the differences for our seams?
     # (Remember that this may include changes to other seams or the
     # main weld itself, as well - we'll deal with that later on)
@@ -343,6 +347,9 @@ def weld_push_base(weld_name, base_name, seams):
         for change in base_changes:
             words = change.split()
             sha1 = words[0]
+            # "<commit-id>^!" is a really useful notation, as I found out at
+            # http://stackoverflow.com/questions/436362. It is (very briefly)
+            # documented in "git help gitrevisions" (near the end)
             diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir, sha1))
             print diff
             if diff:
@@ -365,7 +372,7 @@ def weld_push_base(weld_name, base_name, seams):
         git('checkout %s'%latest_base_sync)
         git('checkout -b %s'%working_branch)
 
-        for seam_dir, local_dir, diff in reversed(diffs):
+        for seam_dir, local_dir, diff in diffs:
             f = tempfile.NamedTemporaryFile(delete=False)
             f.write(diff)
             f.close()
@@ -380,10 +387,13 @@ def weld_push_base(weld_name, base_name, seams):
 
         # Prepare our (default) commit message
         f = tempfile.NamedTemporaryFile(delete=False)
-        f.write('X-Weld-State: Pushed %s from weld %s\n\n'%(base_name, weld_name))
+        f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, weld_name))
+        f.write('\n')
+        f.write('Changes were (in summary, earliest first)\n')
+        f.write('\n')
         # Theses lines are of the form "<short-sha1> <first-line>" - do we
         # want the SHA1 entry? Is it really of use?
-        f.write('\n'.join(trim_states(base_changes)))
+        f.write('\n'.join(base_changes))
         f.close()
         # Allow an empty commit, so we still end up with a place marker
         # for our action
@@ -391,7 +401,11 @@ def weld_push_base(weld_name, base_name, seams):
         # we actually use it - we'd use the "--template <file>" switch
         # instead of "--file <file>"
         shell('git commit -a --allow-empty --file %s'%f.name)
-        os.unlink(f.name)
+        print 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        print 'Commit file is %s'%f.name
+        print 'base_changes are:', base_changes
+        print 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        #os.unlink(f.name)
 
         # In weld, use git.query_current_commit_id
         head_base_commit = shell_get_output('git log -n 1 --format=format:%H').strip()
@@ -1229,7 +1243,17 @@ def test():
         append('.gitignore', '# a trailing comment\n')
         append(os.path.join('124', 'three', 'Makefile'), '# another trailing comment\n')
         append(os.path.join('two-duck', 'Makefile'), '# a trailing comment\n')
-        git('commit -a -m "Add trailing comments across the bases and to the weld"')
+        git('commit -a -m "Add more trailing comments across the bases and to the weld"')
+
+        # And finally, an order-dependent change
+        # - this should enable us to tell that we're re-applying changes
+        # in the correct order
+        with Directory('two-duck'):
+            with open('Makefile') as fd:
+                lines = fd.readlines()
+            with open('Makefile', 'w') as fd:
+                fd.writelines(lines[:-1])
+            git('commit Makefile -m "Remove the earlier trailing comment"')
 
         # And try a second set of pushing
         weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
