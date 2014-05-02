@@ -348,15 +348,6 @@ def weld_push_base(weld_name, base_name, seams):
             if diff:
                 diffs.append( (seam_dir, local_dir, diff) )
 
-    ##for seam_dir, local_dir in seams:
-    ##    if seam_dir is None:
-    ##        seam_dir = '.'
-    ##    diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir,
-    ##        latest_sync))
-    ##    print diff
-    ##    if diff:
-    ##        diffs.append( (seam_dir, local_dir, diff) )
-
     # Some of those differences are things we've to push, but some are
     # probably things we already pulled
 
@@ -509,96 +500,26 @@ def same_files(this_dir, that_dir):
 
     return same
 
-def should_we_pull(remote_name='origin', branch_name='master', verbose=True):
-    """Is there something to pull from the given remote?
+def weld_status(verbose=True):
+    """Run "weld status" and report on its results.
+
+    We return:
+
+      * True,  None             - need to pull, don't push yet(!)
+      * False, True             - need to push
+      * False, False            - neither is necessary
+
     """
+    output = shell_get_output('%s status %s --tuple'%(WELD_CMD,
+                                           '--verbose' if verbose else ''))
     if verbose:
-        print 'Should we pull?'
-    # Get the HEAD of that branch on our remote
-    line = shell_get_output('git ls-remote %s %s'%(remote_name, branch_name),
-                            verbose=verbose)
-    words = line.split()
-    remote_head = words[0]
-    if verbose:
-        print 'The HEAD of %s/%s is %s'%(remote_name, branch_name, remote_head[:10])
-
-    # Does that exist here? If not, we presumably need to pull...
-    try:
-        # Is the given SHA1 a known commit object?
-        # Find out by asking what (local) branch it is on...
-        # We don't allow "verbose" to be true because if it "goes wrong" it
-        # output the appropriate error diagnostic followed by a help message
-        # on how to use "git branch", which is a bit distracting...
-        shell_get_output('git branch --contains %s'%remote_head, verbose=False)
-        if verbose:
-            # Repeat the command to show the branch name...
-            shell('git branch --contains %s'%remote_head, verbose=True)
-            print 'No, we already know that commit'
-        return False
-    except ShellError as e:
-        # Let's assume that there's only one reason for this...
-        if verbose:
-            print e.text.splitlines()[0]
-            print 'Yes, we do not know that commit'
-        return True
-
-# XXX There is a case for combining should_we_pull and should_we_push into
-# XXX a single function, returning two values, which would allow us to do
-# XXX
-# XXX       True,  None             - need to pull, don't push yet(!)
-# XXX       False, True             - need to push
-# XXX       False, False            - neither is necessary
-# XXX
-# XXX which is arguably safer. And, of course, that None in the first pair
-# XXX will compare as "False" for many purposes, which is (sort of) the right
-# XXX thing to do
-
-def should_we_push(remote_name='origin', branch_name='master', verbose=True):
-    """Is there something to push to the given remote?
-
-    Note that if we should pull (see 'should_we_pull') and thus don't recognise
-    the HEAD of the remote, we will return None - this is a compromise over
-    actually raising some sort of exception, and assumes that the caller will
-    call 'should_we_pull' first...
-    """
-    if verbose:
-        print 'Should we push?'
-    # Get the HEAD of that branch on our remote
-    line = shell_get_output('git ls-remote %s %s'%(remote_name, branch_name),
-                            verbose=verbose)
-    words = line.split()
-    remote_head = words[0]
-    if verbose:
-        print 'The HEAD of %s/%s is %s'%(remote_name, branch_name, remote_head[:10])
-
-    # Assuming that exists here (i.e., that we don't need to pull), does
-    # it match our HEAD?
-    local_head = shell_get_output('git rev-parse %s'%branch_name,
-                                  verbose=verbose).strip()
-    if remote_head == local_head:
-        if verbose:
-            print 'No, remote HEAD matches local HEAD'
-        return False
-
-    # Out of curiousity, how far behind are we?
-    try:
-        lines = shell_get_output('git rev-list %s..%s'%(remote_head, branch_name),
-                                 verbose=verbose)
-    except ShellError:
-        # It presumably wasn't an ancestor commit - oh dear
-        print '%s does not appear to be an ancestor of HEAD of %s'%(remote_head[:10],
-                branch_name)
-        # XXX Consider whether this is wise, or whether we should raise GiveUp
-        if verbose:
-            print 'No, we should not push, because we probably need to pull'
-        return None         # see docstring above
-
-    if verbose:
-        count = len(lines.splitlines())
-        print 'Local %s is %d commit%s ahead of %s/%s'%(branch_name,
-                count, '' if count==1 else 's', remote_name, branch_name)
-        print 'Yes'
-    return True
+        print output
+    lines = output.splitlines()
+    words = lines[-1].split(', ')
+    values = [True  if w=='True'  else
+              False if w=='False' else
+              None  if w=='None'  else '???' for w in words]
+    return values[-2:]
 
 
 def test():
@@ -723,9 +644,8 @@ def test():
             git('commit -m "Fromble: Ignore executables"')
 
             # At which point:
-            need_to_pull = should_we_pull()
+            need_to_pull, need_to_push = weld_status()
             assert need_to_pull == False
-            need_to_push = should_we_push()
             assert need_to_push == True
 
             # If we wish our "weld pull _all" to give us a weld that is
@@ -806,11 +726,10 @@ def test():
 
             fromble_test_first_pull_id = git_rev_parse('HEAD')
 
-            # At which point we don't need to pull (with "git pull")
-            need_to_pull = should_we_pull()
-            assert need_to_pull == False
+            # At which point we don't need to pull (with "git pull"),
             # nor do we have anything to push
-            need_to_push = should_we_push()
+            need_to_pull, need_to_push = weld_status()
+            assert need_to_pull == False
             assert need_to_push == False
 
     # Alter (update) project124 in its repository
@@ -875,9 +794,8 @@ def test():
                      ])
 
         # Since we've altered our weld, it's ahead of the far weld repo
-        need_to_pull = should_we_pull()
+        need_to_pull, need_to_push = weld_status()
         assert need_to_pull == False
-        need_to_push = should_we_push()
         assert need_to_push == True
 
         git('push origin master')
@@ -924,9 +842,8 @@ def test():
 
         print
 
-        need_to_pull = should_we_pull()
+        need_to_pull, need_to_push = weld_status()
         assert need_to_pull == True
-        need_to_push = should_we_push()
         assert need_to_push == None
 
         # So let's pull
@@ -956,9 +873,8 @@ def test():
                      '    two.c',
                      ])
 
-        need_to_pull = should_we_pull()
+        need_to_pull, need_to_push = weld_status()
         assert need_to_pull == False
-        need_to_push = should_we_push()
         assert need_to_push == False
 
     banner('Amend the checked out sources')
@@ -1153,9 +1069,8 @@ def test():
         os.unlink(os.path.join('two-duck', 'two-duck'))
 
         # So, what is our state with respect to our weld's remote repository?
-        need_to_pull = should_we_pull()
+        need_to_pull, need_to_push = weld_status()
         assert need_to_pull == False
-        need_to_push = should_we_push()
         assert need_to_push == True
 
         # At which point we can do a "weld pull _all" to update our world...
@@ -1321,9 +1236,8 @@ def test():
         weld_push_base('fromble', 'project124', [[None, '124']])
 
         # And we can also push our weld...
-        need_to_pull = should_we_pull()
+        need_to_pull, need_to_push = weld_status()
         assert need_to_pull == False
-        need_to_push = should_we_push()
         assert need_to_push == True
 
         # So let's do so
@@ -1332,9 +1246,8 @@ def test():
     # If we then pull it into the original, we should get the same answer...
     banner('Pull into original should match')
     with Directory(fromble_orig.where):
-        need_to_pull = should_we_pull()
+        need_to_pull, need_to_push = weld_status()
         assert need_to_pull == True
-        need_to_push = should_we_push()
         assert need_to_push == None
 
         git('pull origin master')

@@ -29,8 +29,12 @@ import query
 import git
 
 main_parser = OptionParser(usage = __doc__)
-main_parser.add_option("--verbose", action="store_true", 
-                       dest = "verbose", default = False)
+main_parser.add_option("-v", "--verbose", action="store_true",
+                       dest="verbose", default = False,
+                       help="report extra information, if appropriate")
+main_parser.add_option("-t", "--tuple", action="store_true",
+                       dest="as_tuple", default = False,
+                       help="also report information as a tuple, if appropriate")
 
 # CommandName -> CommandClass
 g_command_dict = { }
@@ -123,7 +127,7 @@ class Init(Command):
     """
 
     def syntax(self):
-        return "init <weld-xml-file>]"
+        return "init <weld-xml-file>"
 
     def go(self, opts, args):
         if (len(args) != 1):
@@ -219,7 +223,6 @@ class Status(Command):
     """
     Report on the weld status.
 
-      weld status
       weld status [<remote-name>]
 
     If we are part-way through a "weld pull" or "weld push", then say so.
@@ -232,12 +235,26 @@ class Status(Command):
     If <remote-name> is not given, "origin" is assumed.
 
     Only the current branch is considered.
+
+    If you specify --verbose (-v) then an explanation of why "git pull" or "git
+    push" are/are not needed will be given.
+
+    If you specify --tuple (-t), then an additional last line will be output,
+    of the form:
+
+        <in-weld-pull>, <in-weld-push>, <should-pull>, <should-push>
+
+    where each term is either True or False, or None (undecidable) - if an
+    early term is True, later terms may be None because we either haven't
+    checked, or because (in the case of "git push") it can actually be
+    undecidable until a "git pull" has been done.
     """
     def go(self, opts, args):
         if len(args) > 1:
             raise utils.Giveup('Too many arguments - "weld status [<remote-name>]"')
 
         verbose = opts.verbose
+        output_tuple = opts.as_tuple
         where = self.spec.base_dir
 
         if args:
@@ -250,6 +267,8 @@ class Status(Command):
         if os.path.exists(layout.completion_file(where)):
             print 'Part way through "weld pull"'
             print 'Fix any problems and then "weld finish", or give up using "weld abort"'
+            if output_tuple:
+                print 'True, None, None, None'
             return 0
         elif verbose:
             print 'There is no current "weld pull"'
@@ -257,6 +276,8 @@ class Status(Command):
         if os.path.exists(layout.continue_file(where)):
             print 'Part way through "weld push"'
             print 'Fix any problems and then "weld continue", or give up using "weld abort"'
+            if output_tuple:
+                print 'False, True, None, None'
             return 0
         elif verbose:
             print 'There is no current "weld push"'
@@ -269,5 +290,8 @@ class Status(Command):
 
         if verbose and not should_pull and not should_push:
             print 'No need to "git pull" or "git push"'
+
+        if output_tuple:
+            print 'False, False, %s, %s'%(should_pull, should_push)
 
 # End file.
