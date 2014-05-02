@@ -529,7 +529,7 @@ def weld_status(verbose=True):
     if verbose:
         print output
     lines = output.splitlines()
-    words = lines[-1].split(', ')
+    words = lines[-1].split()
     values = [True  if w=='True'  else
               False if w=='False' else
               None  if w=='None'  else '???' for w in words]

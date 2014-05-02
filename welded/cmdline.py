@@ -27,6 +27,7 @@ import layout
 import ops
 import query
 import git
+import status
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("-v", "--verbose", action="store_true",
@@ -71,7 +72,10 @@ def go(args):
     if (cmd in g_command_dict):
         obj = g_command_dict[cmd]()
         if (obj.needs_weld()):
-            obj.set_weld_dir(utils.find_weld_dir(os.getcwd()))
+            try:
+                obj.set_weld_dir(utils.find_weld_dir(os.getcwd()))
+            except Exception as e:
+                raise utils.GiveUp('Cannot find .weld directory\n%s: %s'%(e.__class__.__name__, e))
         return obj.go(opts, args[1:])
     else:
         raise utils.GiveUp('Unrecognised command %r'%cmd)
@@ -242,7 +246,7 @@ class Status(Command):
     If you specify --tuple (-t), then an additional last line will be output,
     of the form:
 
-        <in-weld-pull>, <in-weld-push>, <should-pull>, <should-push>
+        <in-weld-pull> <in-weld-push> <should-pull> <should-push>
 
     where each term is either True or False, or None (undecidable) - if an
     early term is True, later terms may be None because we either haven't
@@ -260,38 +264,36 @@ class Status(Command):
         if args:
             remote_name = args[0]
         else:
-            remote_name = 'origin'
+            remote_name = None
 
-        branch_name = git.current_branch(where, verbose=verbose)
+        in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
+                status.get_status(where, remote_name=remote_name, verbose=verbose)
 
-        if os.path.exists(layout.completion_file(where)):
+        if verbose:
+            print
+
+        if in_weld_pull:
             print 'Part way through "weld pull"'
             print 'Fix any problems and then "weld finish", or give up using "weld abort"'
-            if output_tuple:
-                print 'True, None, None, None'
-            return 0
         elif verbose:
-            print 'There is no current "weld pull"'
+            print 'Not part way through a "weld pull"'
 
-        if os.path.exists(layout.continue_file(where)):
+        if in_weld_push:
             print 'Part way through "weld push"'
             print 'Fix any problems and then "weld continue", or give up using "weld abort"'
-            if output_tuple:
-                print 'False, True, None, None'
-            return 0
         elif verbose:
-            print 'There is no current "weld push"'
+            print 'Not part way through a "weld push"'
 
-        should_pull, should_push = git.should_we_pull_or_push(remote_name,
-                branch_name, cwd=where, verbose=verbose)
+        if should_git_pull: print 'You should do "git pull"'
+        if should_git_push: print 'You should do "git push"'
 
-        if should_pull: print 'You should do "git pull"'
-        if should_push: print 'You should do "git push"'
-
-        if verbose and not should_pull and not should_push:
-            print 'No need to "git pull" or "git push"'
+        if verbose:
+            if should_git_pull is None and should_git_push is None:
+                print 'No need to "git pull" or "git push", there is no remote'
+            elif not should_git_pull and not should_git_push:
+                print 'No need to "git pull" or "git push"'
 
         if output_tuple:
-            print 'False, False, %s, %s'%(should_pull, should_push)
+            print in_weld_pull, in_weld_push, should_git_pull, should_git_push
 
 # End file.

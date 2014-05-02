@@ -2,15 +2,16 @@
 pull.py - Pull a repo from upstream
 """
 
+import os
+import sys
+
 import git
 import utils
 import db
 import headers
 import ops
 import layout
-import os
-import os.path
-import sys
+import status
 
 def pull_base(spec, base):
     """Pull a single base.
@@ -23,8 +24,30 @@ def pull_base(spec, base):
     if (git.has_local_changes(spec.base_dir)):
         raise utils.GiveUp("You have local changes; please commit or stash them.")
 
-    print("Pulling %s .. \n"%(base))
     current_branch = git.current_branch(spec.base_dir)
+
+    # Make sure we aren't part way through something...
+    #
+    # TODO NB: we are defaulting our remote to 'origin' - but that seems to be
+    # TODO an assumption being made anyway...
+    in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
+            status.get_status(spec.base_dir, branch_name=current_branch,
+                              verbose=True)
+    if in_weld_pull:
+        raise utils.GiveUp('Part way through an earlier "weld pull"\n'
+                'Fix any problems and then "weld finish", or give up using "weld abort"')
+    if in_weld_push:
+        raise utils.GiveUp('Part way through an earlier "weld push"\n'
+                'Fix any problems and then "weld continue", or give up using "weld abort"')
+    if should_git_pull:
+        # Our weld is not up-to-date. This means that if we do a "weld pull"
+        # and it updates our seams, 
+        raise utils.GiveUp('The weld is not up-to-date\n'
+                'You should do "git pull" before doing a "weld pull"')
+    # We don't care if "git push" would update the weld's remote, since we
+    # are about to change it anyway...
+
+    print("Pulling %s .. \n"%(base))
     current_commit = git.query_current_commit_id(spec.base_dir)
 
     if (current_branch[:5] == "weld-"):

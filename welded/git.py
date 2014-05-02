@@ -254,6 +254,7 @@ def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None,
 
     Returns one of:
 
+    * None, None  - there is no remote
     * True,  None - we need to pull, don't push yet
     * False, True - we need to push
     * False, False - neither is necessary
@@ -262,6 +263,11 @@ def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None,
     # Get the HEAD of that branch on our remote
     rv, line = run_silently(['git', 'ls-remote', remote_name, branch_name],
                             cwd=cwd, verbose=verbose)
+    if line == '':
+        # There is no remote, so we can't see its HEAD(!)
+        if verbose:
+            print 'There is no remote, so we cannot pull or push'
+            return None, None
     words = line.split()
     remote_head = words[0]
     if verbose:
