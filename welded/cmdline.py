@@ -1,7 +1,7 @@
 """
 Syntax: weld <options> [command]
- 
-Do 
+
+Do
 
 $ weld help
 
@@ -14,7 +14,9 @@ For more detail.
 import errno
 import os
 import subprocess
+
 from optparse import OptionParser
+
 import welded.utils as utils
 import utils
 import db
@@ -24,6 +26,7 @@ import pull
 import layout
 import ops
 import query
+import git
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("--verbose", action="store_true", 
@@ -120,11 +123,11 @@ class Init(Command):
     """
 
     def syntax(self):
-        return "init [weld.xml]"
+        return "init <weld-xml-file>]"
 
     def go(self, opts, args):
         if (len(args) != 1):
-            raise utils.GiveUp("Missing weld.xml")
+            raise utils.GiveUp("Missing <weld-xml-file>")
         
         p = parser.Parser()
         weld = p.parse(args[0])
@@ -210,5 +213,61 @@ class Query(Command):
             query.query_seam_changes(self.spec, args[1])
         else:
             raise utils.GiveUp("No query subcommand '%s'"%cmd)
+
+@command('status')
+class Status(Command):
+    """
+    Report on the weld status.
+
+      weld status
+      weld status [<remote-name>]
+
+    If we are part-way through a "weld pull" or "weld push", then say so.
+
+    Otherwise, report on whether we should do a "git pull" or "git push" of
+    our weld. This is intended to be useful before doing a "weld pull" or
+    "weld push" of our bases. Note that it queries the remote to determine
+    the HEAD of the branch on the remote.
+
+    If <remote-name> is not given, "origin" is assumed.
+
+    Only the current branch is considered.
+    """
+    def go(self, opts, args):
+        if len(args) > 1:
+            raise utils.Giveup('Too many arguments - "weld status [<remote-name>]"')
+
+        verbose = opts.verbose
+        where = self.spec.base_dir
+
+        if args:
+            remote_name = args[0]
+        else:
+            remote_name = 'origin'
+
+        branch_name = git.current_branch(where, verbose=verbose)
+
+        if os.path.exists(layout.completion_file(where)):
+            print 'Part way through "weld pull"'
+            print 'Fix any problems and then "weld finish", or give up using "weld abort"'
+            return 0
+        elif verbose:
+            print 'There is no current "weld pull"'
+
+        if os.path.exists(layout.continue_file(where)):
+            print 'Part way through "weld push"'
+            print 'Fix any problems and then "weld continue", or give up using "weld abort"'
+            return 0
+        elif verbose:
+            print 'There is no current "weld push"'
+
+        should_pull, should_push = git.should_we_pull_or_push(remote_name,
+                branch_name, cwd=where, verbose=verbose)
+
+        if should_pull: print 'You should do "git pull"'
+        if should_push: print 'You should do "git push"'
+
+        if verbose and not should_pull and not should_push:
+            print 'No need to "git pull" or "git push"'
 
 # End file.

@@ -24,5 +24,15 @@ def base_repo(base_dir, base):
 def count_file(base_dir):
     return os.path.join(base_dir, ".weld", "counter")
 
+def continue_file(base_dir):
+    return os.path.join(base_dir, ".weld", "continue.py")
+
+def pushing_dir(base_dir, base=None, seam=None):
+    if seam:
+        return os.path.join(base_dir, '.weld', 'pushing', base. seam)
+    elif base:
+        return os.path.join(base_dir, '.weld', 'pushing', base)
+    else:
+        return os.path.join(base_dir, '.weld', 'pushing')
 
 # End file.

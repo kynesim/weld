@@ -67,8 +67,8 @@ def commit(where, comment, headers):
     run_silently(["git", "commit", "--allow-empty", "-F", n], cwd=where)
     os.unlink(n)
 
-def current_branch(where):
-    rv, out = run_silently(["git", "branch", "-v"], cwd=where)
+def current_branch(where, verbose=True):
+    rv, out = run_silently(["git", "branch", "-v"], cwd=where, verbose=verbose)
     lines = out.splitlines()
     for l in lines:
         l = l.strip()
@@ -247,5 +247,86 @@ def set_remote(where, name, origin):
     """
     run_silently(["git", "remote", "rm", name], allowFailure=True, cwd=where)
     run_silently(["git", "remote", "add", name, origin], cwd=where)
+
+
+def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None, verbose=False):
+    """Is there something to pull from/push to our remote?
+
+    Returns one of:
+
+    * True,  None - we need to pull, don't push yet
+    * False, True - we need to push
+    * False, False - neither is necessary
+    """
+
+    # Get the HEAD of that branch on our remote
+    rv, line = run_silently(['git', 'ls-remote', remote_name, branch_name],
+                            cwd=cwd, verbose=verbose)
+    words = line.split()
+    remote_head = words[0]
+    if verbose:
+        print 'The HEAD of %s/%s is %s'%(remote_name, branch_name, remote_head[:10])
+
+    if verbose:
+        print 'Should we pull?'
+
+    # Does that exist here? If not, we presumably need to pull...
+    try:
+        # Is the given SHA1 a known commit object?
+        # Find out by asking what (local) branch it is on...
+        # We don't allow "verbose" to be true because if it "goes wrong" it
+        # output the appropriate error diagnostic followed by a help message
+        # on how to use "git branch", which is a bit distracting...
+        run_silently(['git', 'branch', '--contains', remote_head],
+                     cwd=cwd, verbose=False)
+        if verbose:
+            # Repeat the command to show the branch name...
+            run_to_stdout(['git', 'branch', '--contains', remote_head],
+                          cwd=cwd, verbose=True)
+            print 'No, because we already know that commit'
+        should_pull = False
+    except GiveUp as e:
+        # Let's assume that there's only one reason for this...
+        if verbose:
+            print e.message.splitlines()[0]
+            print 'Yes, because we do not know that commit'
+        should_pull = True
+
+    if verbose:
+        print 'Should we push?'
+
+    should_push = None
+
+    # Assuming that exists here (i.e., that we don't need to pull), does
+    # it match our HEAD?
+    rv, local_head = run_silently(['git', 'rev-parse', branch_name],
+                                  cwd=cwd, verbose=verbose)
+    local_head = local_head.strip()
+    if remote_head == local_head:
+        should_push = False
+        if verbose:
+            print local_head
+            print 'No, because remote HEAD matches local HEAD'
+    else:
+        should_push = True
+        # How far behind are we?
+        try:
+            rv, lines = run_silently(['git', 'rev-list', '%s..%s'%(remote_head, branch_name)],
+                                     cwd=cwd, verbose=verbose)
+        except GiveUp:
+            # It presumably wasn't an ancestor commit - oh dear
+            if verbose:
+                print '%s does not appear to be an ancestor of HEAD of %s'%(remote_head[:10],
+                        branch_name)
+                print 'No, we should not push, because we probably need to pull'
+            should_push = None         # see docstring above
+
+        if should_push is not None and verbose:
+            count = len(lines.splitlines())
+            print 'Local %s is %d commit%s ahead of %s/%s'%(branch_name,
+                    count, '' if count==1 else 's', remote_name, branch_name)
+            print 'Yes'
+
+    return should_pull, should_push
 
 # End file.
