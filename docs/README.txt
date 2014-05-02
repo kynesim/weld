@@ -183,6 +183,14 @@ weld query seam-changes <base-name>
 
    Report on the seam changes for the named base.
 
+weld status
+
+   If we are part way through a ``weld pull`` or ``weld push`` say so.
+
+   Otherwise, report on whether we should do a ``git pull`` or ``git push`` of
+   our weld. This is intended to be useful before doing a ``weld pull`` or
+   ``weld push`` of our bases.
+
 Headers that weld introduces
 ============================
 
@@ -440,7 +448,9 @@ So doing ``weld push`` for a given base name works as follows:
       I am assuming that they are saved to a file with a name of the form
       something like
       ``.weld/pushing/<base-name>/<seam-name>/<index>-diff.txt``
-      where ``<index>`` retains the appropriate order of the differences.
+      where ``<index>`` retains the appropriate order of the differences
+      (which is, carefully, the correct order to apply them in, the reverse
+      of the order of the commit ids we found in our ``git log`` list).
 
       This means that ``.weld/pushing`` needs adding to the default
       ``.gitignore`` file that ``weld init`` creates.
@@ -454,9 +464,9 @@ So doing ``weld push`` for a given base name works as follows:
 #. The ``continue.py`` script is run.
 
    This applies the patches for each seam in the appropriate ``pushing``
-   directory *in the reverse order* - i.e., it:
+   directory - i.e., it:
 
-   a. takes the last patch from the first available ``<seam-name>`` directory
+   a. takes the first patch from the first available ``<seam-name>`` directory
    b. uses ``git apply`` to apply it
    c. deletes the patch file
    d. if that leaves the directory empty, deletes the ``<seam-name>``
@@ -464,9 +474,9 @@ So doing ``weld push`` for a given base name works as follows:
 
 #. If the ``git apply`` succeeded, it then:
   
-   * goes on to the next (well, previous) patch file for that seam, or starts
-     on the next ``<seam-name>`` directory, and so on, until there are no
-     ``<seam-name>`` directories left,
+   * goes on to the next patch file for that seam, or starts on the next
+     ``<seam-name>`` directory, and so on, until there are no ``<seam-name>``
+     directories left,
    * at which point it deletes ``pushing/<branch-name>`` directory, and also
    * deletes the ``continue.py`` and ``abort.py`` scripts
 

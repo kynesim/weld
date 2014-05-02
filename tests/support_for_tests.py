@@ -41,6 +41,7 @@ def get_parent_dir(this_file=None):
 
 THIS_DIR = get_this_dir()
 PARENT_DIR = get_parent_dir()
+WELD_CMD = os.path.join(PARENT_DIR, 'weld')
 
 class GiveUp(Exception):
     pass
@@ -92,7 +93,7 @@ def weld(cmd, verbose=True):
 
     E.g., weld('init weld.xml')
     """
-    shell('%s %s'%(os.path.join(PARENT_DIR, 'weld'), cmd))
+    shell('%s %s'%(WELD_CMD, cmd))
 
 def weld_get_output(cmd, verbose=True):
     """Run a weld command in the shell and get its output
