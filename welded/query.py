@@ -22,12 +22,10 @@ def query_base_commits(spec, base_name):
     return (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
             base_head, weld_init)
 
-def query_base(spec, base_name):
-    """
-    What is the latest commit on a given base?
-    """
-    (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
-            base_head, weld_init) = query_base_commits(spec, base_name)
+def print_sha1_ids(base_name,
+                   last_weld_merge, last_base_merge,
+                   last_weld_push,  last_base_push,
+                   base_head, weld_init):
     print "Base %s"%base_name
     print "  last merge, weld %s"%last_weld_merge
     print "              base %s"%last_base_merge
@@ -35,6 +33,16 @@ def query_base(spec, base_name):
     print "              base %s"%last_base_push
     print "  base HEAD  %s"%base_head
     print "  weld Init  %s"%weld_init
+
+def query_base(spec, base_name):
+    """
+    What is the latest commit on a given base?
+    """
+    (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
+            base_head, weld_init) = query_base_commits(spec, base_name)
+    print_sha1_ids(base_name,
+            last_weld_merge, last_base_merge, last_weld_push, last_base_push,
+            base_head, weld_init)
 
 def query_bases(spec):
     """Report on the bases we have, and their seams.

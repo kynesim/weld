@@ -133,15 +133,6 @@ def pull_base(spec, base):
     ops.do_finish(spec)
     return 0
 
-def spurious_modification(w):
-    """
-    Spuriously modify a weld and git add it so that your
-    commit is never empty
-    """
-    a_file = layout.count_file(w.base_dir)
-    utils.count(a_file)
-    git.add(w.base_dir, [ a_file ] )
-
 def finish(spec, base_name, current_branch, current_commit, branch_name, base_commit, 
            current_base_commit_id):
     """
@@ -169,7 +160,7 @@ def finish(spec, base_name, current_branch, current_commit, branch_name, base_co
     os.unlink(n)
     git.add_in_subdir(spec.base_dir, ".")
     # Spurious mod just in case ..
-    spurious_modification(spec)
+    ops.spurious_modification(spec)
     # .. and commit.
     git.commit(spec.base_dir, hdr, [ ])
 

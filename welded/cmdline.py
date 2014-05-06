@@ -23,6 +23,7 @@ import db
 import parser
 import init
 import pull
+import push
 import layout
 import ops
 import query
@@ -148,18 +149,39 @@ class Init(Command):
 @command('pull')
 class Pull(Command):
     """
-    Pull bases. If _all is given, pulls all bases.
+    Pull the named base(s).
+
+    If more than one base name is given, pull each base in turn.
+
+    If _all is given, pull all bases.
     """
     def go(self,opts,args):
         to_pull = self.base_set_from_args(args)
-        if (opts.verbose):
-            print("Pulling repos: %s"%(to_pull))
+        if opts.verbose:
+            print("Pulling bases: %s"%(to_pull))
         for p in to_pull:
             rv = pull.pull_base(self.spec, p)
             if rv != 0:
                 return rv
-        
-        
+
+@command('push')
+class Push(Command):
+    """
+    Push the named base(s).
+
+    If more than one base name is given, push each base in turn.
+
+    If _all is given, push all bases.
+    """
+    def go(self,opts,args):
+        to_push = self.base_set_from_args(args)
+        if opts.verbose:
+            print("Pushing bases: %s"%(to_push))
+        for p in to_push:
+            rv = push.push_base(self.spec, p, verbose=opts.verbose)
+            if rv != 0:
+                return rv
+
 @command('help')
 class Help(Command):
     """

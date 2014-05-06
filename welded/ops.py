@@ -246,7 +246,7 @@ def do_finish(spec):
         os.remove(c)
         os.remove(layout.abort_file(spec.base_dir))
     else:
-        raise utils.GiveUp("No pending command to complete")
+        raise utils.GiveUp('No pending "weld pull" to complete')
 
 def do_continue(spec):
     c = layout.continue_push_file(spec.base_dir)
@@ -256,7 +256,7 @@ def do_continue(spec):
         os.remove(c)
         os.remove(layout.abort_file(spec.base_dir))
     else:
-        raise utils.GiveUp("No pending command to complete")
+        raise utils.GiveUp('No pending "weld push" to continue')
 
 def do_abort(spec):
     c  = layout.abort_file(spec.base_dir)
@@ -266,7 +266,29 @@ def do_abort(spec):
         os.remove(c)
         os.remove(layout.complete_pull_file(spec.base_dir))
     else:
-        raise utils.GiveUp("No pending command to abort")
+        raise utils.GiveUp('No pending "weld pull" or "weld push" to abort')
 
+def count(filename):
+    contents = ""
+    try:
+        with open(filename, 'rb') as fin:
+            contents = fin.read().trim()
+    except:
+        pass
+    contents = contents + "1\n"
+    try:
+        with open(filename, 'wb') as fout:
+            fout.write("%s"%contents)
+    except Exception as e:
+        traceback.print_exc()
+        raise GiveUp("Cannot increment counter in %s - %s"%(filename, e))
+
+def spurious_modification(w):
+    """
+    Spuriously modify a weld and git add it so that your commit is never empty
+    """
+    a_file = layout.count_file(w.base_dir)
+    count(a_file)
+    git.add(w.base_dir, [ a_file ] )
 
 # End file.

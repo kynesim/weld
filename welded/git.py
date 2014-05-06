@@ -85,6 +85,18 @@ def log(where, commit_id):
                        cwd=where)
     return out
 
+def log_between(where, from_id, to_id, paths=None, verbose=False):
+    """Do a git log for "<from_id>..<to_id> -- <paths>"
+
+    Returns a sequence of lines.
+    """
+    cmd = ['git', '--no-pager', 'log', '--oneline', '%s..%s'%(from_id, to_id)]
+    if paths:
+        cmd += ['--'] + paths
+    rv, changes = run_silently(cmd, cwd=where, verbose=verbose)
+    return changes.splitlines()
+
+
 def query_current_commit_id(where):
     """
     Retrieve the commit id for the current point in where
@@ -274,7 +286,7 @@ def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None,
         print 'The HEAD of %s/%s is %s'%(remote_name, branch_name, remote_head[:10])
 
     if verbose:
-        print 'Should we pull?'
+        print 'Should we "git pull"?'
 
     # Does that exist here? If not, we presumably need to pull...
     try:
@@ -299,7 +311,7 @@ def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None,
         should_pull = True
 
     if verbose:
-        print 'Should we push?'
+        print 'Should we "git push"?'
 
     should_push = None
 

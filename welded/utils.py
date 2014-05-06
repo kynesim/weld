@@ -164,21 +164,6 @@ def classify_seams(old_seams, new_seams):
             created_in_new.append(y)
     return (deleted_in_new, changed, created_in_new)
 
-def count(filename):
-    contents = ""
-    try:
-        with open(filename, 'rb') as fin:
-            contents = fin.read().trim()
-    except:
-        pass
-    contents = contents + "1\n"
-    try:
-        with open(filename, 'wb') as fout:
-            fout.write("%s"%contents)
-    except Exception as e:
-        traceback.print_exc()
-        raise GiveUp("Cannot increment counter in %s - %s"%(filename, e))
-
 def dynamic_load(filename, no_pyc=False):
     try:
         try:

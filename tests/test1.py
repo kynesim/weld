@@ -215,17 +215,6 @@ def first_path_item(path):
         path, rest = os.path.split(path)
     return rest
 
-# Taken from welded/git.py (and modified slightly)
-def current_branch(where):
-    out = shell_get_output('git branch -v', cwd=where)
-    lines = out.splitlines()
-    for l in lines:
-        l = l.strip()
-        f = l.split(' ')
-        if (f[0] == '*'):
-            return f[1]
-    return "master"
-
 # If we have a Merge and a Push, we can use "git merge-base" to
 # determine which is the earlier (i.e., the first common ancestor,
 # which in our case should be one of the two), and we can then use the
@@ -289,260 +278,6 @@ def trim_states(lines):
         if words[1] != 'X-Weld-State:':
             new.append(line)
     return new
-
-import math
-import tempfile
-
-def weld_write_patchfiles(weld_root, base_name, seam_dir, diffs):
-    """Write out patchfiles for later use
-
-    'base_name' is the name of our base
-
-    'seam_dir' is the name of the relevant subdirectory in the base, in
-    which the patches should be applied. This may be None, in which case
-    we shall convert it to the reserved name '__None'.
-
-    'diffs' is the sequence of patches to apply therein, in the order they
-    must be applied.
-    """
-    banner('weld write patchfiles %s %s'%(base_name, seam_dir))
-    if seam_dir == None:
-        # We reserve the name '__None' to mean '.'
-        seam_dir = '__None'
-    width = int(math.log10(len(diffs)))+1
-    seam_pushing_dir = os.path.join(weld_root, '.weld', 'pushing', base_name, seam_dir)
-    os.makedirs(seam_pushing_dir)
-    count = 0
-    for diff in diffs:
-        filename = 'patch_%*d.diff'%(width, count)
-        filepath = os.path.join(seam_pushing_dir, filename)
-        print 'WRITING patch file',filename
-        with open(filepath, 'w') as fd:
-            fd.write(diff)
-        count += 1
-
-
-def weld_continue_patching(weld_root):
-    """Continue doing the work of a "weld push".
-
-    'weld_root' is the root of the weld directory tree, the directory that
-    contains the '.weld' directory
-
-    Finds any outstanding patches to be done in the "pushing" directory,
-    and does them. If it returns, it has finished all the patches.
-
-    If something goes wrong (i.e., a patch fails and the user needs to
-    attend to it), then it raises an exception containing some sort of
-    explanation of the problem.
-
-    The idea is that you can keep calling this until all the patches have
-    been successfully dealt with.
-    """
-    banner('weld continue patching')
-
-    dot_weld_dir = os.path.join(weld_root, '.weld')
-
-    pushing_dir = os.path.join(dot_weld_dir, 'pushing')
-    if not os.path.exists(pushing_dir):
-        print 'There is nothing to "weld push"'
-        return
-
-    # We should have one directory per base, named as the base
-    bases_to_push = os.listdir(pushing_dir)
-    # We'll deal with them in a predictable order
-    for base_name in sorted(bases_to_push):
-        print 'weld_push: base %s'%base_name
-        pushing_base_dir = os.path.join(pushing_dir, base_name)
-        base_dir = os.path.join(dot_weld_dir, 'bases', base_name)
-        # We should have one directory per seam, named as the seam's directory
-        # in the base (i.e., where we want to apply the patch). We reserve the
-        # name __None to mean "at the top level of the base"
-        seams_to_push = os.listdir(pushing_base_dir)
-        # We'll deal with them in a predictable order
-        for seam_name in sorted(seams_to_push):
-            print 'weld_push: base %s seam %s'%(base_name, seam_name)
-            pushing_seam_dir = os.path.join(pushing_base_dir, seam_name)
-            # All the files here should be patch files
-            patch_files = os.listdir(pushing_seam_dir)
-            # We deal with the files in the obvious order, because
-            # they were carefully named that way...
-            for filename in sorted(patch_files):
-                print 'weld_push: base %s seam %s patch %s'%(base_name, seam_name, filename)
-                patch_path = os.path.join(pushing_seam_dir, filename)
-                print 'APPLYING patch file',patch_path
-                if seam_name == '__None':
-                    shell('git apply --index %s'%(patch_path), cwd=base_dir)
-                else:
-                    shell('git apply --index --directory=%r %s'%(seam_name, patch_path),
-                            cwd=base_dir)
-
-                # Once a patch has been applied successfully, we can
-                # delete the patch file
-                print 'weld_push: base %s seam %s DELETE patch %s'%(base_name, seam_name, filename)
-                os.remove(patch_path)
-
-            # Once a seam directory is empty, we can delete it
-            print 'weld_push: base %s DELETE seam %s'%(base_name, seam_name)
-            os.rmdir(pushing_seam_dir)
-
-        # Once a base directory is empty, we can delete it
-        print 'weld_push: DELETE base %s'%base_name
-        os.rmdir(pushing_base_dir)
-
-    # And guess what we can do when we've finished pushing everything...
-    print 'weld_push: DELETE'
-    os.rmdir(pushing_dir)
-
-
-def weld_push_base(weld_root, weld_name, base_name, seams):
-    """Push a single base
-
-    'weld_root' is the root weld directory (the directory that contains our
-    '.weld' directory)
-
-    'weld_name' is the name of the weld, used in commit messages.
-
-    'base_name' is the name of the base to push.
-
-    'seams' is a sequence of [<base-seam-dir>, <weld-seam-dir>].
-
-    Note that we only ever push a one base at a time. Even if the user
-    requests the pushing of multiple bases, the push for one base must be
-    entirely completed before the push of the next can start.
-    """
-    banner('Push %s in %s'%(base_name, weld_root))
-    orig_branch = current_branch(weld_root)
-
-    print 'Determining last push for %s:'%base_name
-    (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
-            base_head, weld_init) = weld_query_base(weld_root, base_name)
-    print_sha1_ids(last_weld_merge, last_base_merge, last_weld_push,
-                   last_base_push, base_head, weld_init)
-    print "So, with weld's"
-    print '  last push ', last_weld_push
-    latest_sync = last_weld_push
-    if latest_sync is None:
-        print 'Which was None, so using Init'
-        latest_sync = weld_init
-
-    print
-    print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
-    directories = [d for (s, d) in seams]
-    base_changes = git_log_for(weld_root, latest_sync, 'HEAD', directories)
-    print '\n'.join(base_changes)
-
-    print
-    print 'And trim out any X-Weld-State items'
-    base_changes = trim_states(base_changes)
-    print '\n'.join(base_changes)
-
-    print
-
-    if len(base_changes) == 0:
-        print 'There were no changes to base %s, nothing to push'%base_name
-        return
-
-    # To make it obvious what we are doing:
-    # XXX Obviously only works once!
-    git('tag last-%s-sync-%s %s'%(base_name, latest_sync[:10], latest_sync),
-            cwd=weld_root)
-    # XXX
-
-    # We want the changes in the opposite order, so that we apply the oldest
-    # change first. For simplicity, then, sort that out now
-    base_changes.reverse()
-
-    # So, what are the differences for our seams?
-    # (Remember that this may include changes to other seams or the
-    # main weld itself, as well - we'll deal with that later on)
-    # Use --relative to make the changes relative to the named directory,
-    # so that we don't end up with the seam directory name embedded in
-    # the difference header.
-    ##diffs = []
-    diff_dict = {}      # seam_dir -> list of patches
-    for seam_dir, local_dir in seams:
-        for change in base_changes:
-            words = change.split()
-            sha1 = words[0]
-            # "<commit-id>^!" is a really useful notation, as I found out at
-            # http://stackoverflow.com/questions/436362. It is (very briefly)
-            # documented in "git help gitrevisions" (near the end)
-            diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir, sha1),
-                    cwd=weld_root)
-            print diff
-            if diff:
-                ##diffs.append( (seam_dir, local_dir, diff) )
-
-                if seam_dir in diff_dict:
-                    diff_dict[seam_dir].append(diff)
-                else:
-                    diff_dict[seam_dir] = [diff]
-
-    for seam_dir, diff_list in diff_dict.items():
-        weld_write_patchfiles(weld_root, base_name, seam_dir, diff_list)
-
-    # Some of those differences are things we've to push, but some are
-    # probably things we already pulled
-
-    base_dir = os.path.join(weld_root, '.weld', 'bases', base_name)
-
-    print "So, with %s's"%base_name
-    print '  last push ', last_base_push
-    latest_base_sync = last_base_push
-    if latest_base_sync is None:
-        print 'Which was None, so using HEAD'
-        latest_base_sync = base_head
-
-    working_branch = 'working-branch-%s'%latest_base_sync[:10] # XXX Obviously need a better name !!!
-
-    git('checkout %s'%latest_base_sync, cwd=base_dir)
-    git('checkout -b %s'%working_branch, cwd=base_dir)
-
-    weld_continue_patching(weld_root)
-
-    # Prepare our (default) commit message
-    f = tempfile.NamedTemporaryFile(delete=False)
-    f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, weld_name))
-    f.write('\n')
-    f.write('Changes were (in summary, earliest first)\n')
-    f.write('\n')
-    # Theses lines are of the form "<short-sha1> <first-line>" - do we
-    # want the SHA1 entry? Is it really of use?
-    f.write('\n'.join(base_changes))
-    f.close()
-    # Allow an empty commit, so we still end up with a place marker
-    # for our action
-    # Maybe give the user the option to edit the commit message before
-    # we actually use it - we'd use the "--template <file>" switch
-    # instead of "--file <file>"
-    shell('git commit -a --allow-empty --file %s'%f.name, cwd=base_dir)
-    os.remove(f.name)
-
-    # In the weld program, use git.query_current_commit_id
-    head_base_commit = shell_get_output('git log -n 1 --format=format:%H',
-            cwd=base_dir).strip()
-
-    # Merge master onto this branch - this should be trivial
-    git('merge %s --ff-only'%orig_branch, cwd=base_dir)
-
-    # And then merge *that* back into the original branch
-    git('checkout %s'%orig_branch, cwd=base_dir)
-    git('merge %s --ff-only'%working_branch, cwd=base_dir)
-
-    # And finally push the lot to our remote
-    git('push', cwd=base_dir)
-
-    # And now mark the weld with where/when the push happened
-    import json
-    seam_str = json.dumps(seams)
-    f = tempfile.NamedTemporaryFile(delete=False)
-    f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
-        head_base_commit, seam_str))
-    f.close()
-    # Allow an empty commit, so we still end up with a place marker
-    # for our action
-    shell('git commit -a --allow-empty --file %s'%f.name, cwd=weld_root)
-    os.remove(f.name)
 
 from filecmp import dircmp
 
@@ -1323,10 +1058,11 @@ def test():
         print
 
     # Let's push for the first time
-    weld_push_base(fromble_test.where,
-            'fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-    weld_push_base(fromble_test.where,
-            'fromble', 'project124', [[None, '124']])
+    banner('WELD PUSH for the first time')
+    banner('weld push igniting_duck')
+    weld('push -v igniting_duck', cwd=fromble_test.where)
+    banner('weld push project124')
+    weld('push -v project124', cwd=fromble_test.where)
 
     banner('Amend the checked out sources AGAIN')
     with Directory(fromble_test.where):
@@ -1370,10 +1106,11 @@ def test():
             git('commit Makefile -m "Remove the earlier trailing comment"')
 
         # And try a second set of pushing
-        weld_push_base(fromble_test.where,
-                'fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-        weld_push_base(fromble_test.where,
-                'fromble', 'project124', [[None, '124']])
+        banner('WELD PUSH for the second time')
+        banner('weld push igniting_duck')
+        weld('push igniting_duck', cwd=fromble_test.where)
+        banner('weld push project124')
+        weld('push project124', cwd=fromble_test.where)
 
         # And we can also push our weld...
         need_to_pull, need_to_push = weld_status()
@@ -1405,10 +1142,10 @@ def test():
 
     # If there aren't any changes, we shouldn't do anything(!)
     banner('A push of nothing should do nothing')
-    weld_push_base(fromble_test.where,
-            'fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-    weld_push_base(fromble_test.where,
-            'fromble', 'project124', [[None, '124']])
+    banner('weld push igniting_duck')
+    weld('push igniting_duck', cwd=fromble_test.where)
+    banner('weld push project124')
+    weld('push project124', cwd=fromble_test.where)
 
     # NOTES FROM EARLIER
     # ==================
