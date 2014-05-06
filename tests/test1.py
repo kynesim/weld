@@ -117,7 +117,7 @@ def muddle(cmd, verbose=True):
     MUDDLE = normalise_dir('~tibs/sw/muddle/muddle')    # XXX NOT PORTABLE!!!
     shell('%s %s'%(MUDDLE, cmd))
 
-def weld_query_base(base_name):
+def weld_query_base(weld_root, base_name):
     """Run "weld query base 'base_name'" and dissect its results
 
     Returns a six-tuple, containing:
@@ -130,7 +130,7 @@ def weld_query_base(base_name):
     merge or push (respectively) - we expect both the merge and/or both the
     push values to be None if either is.
     """
-    text = weld_get_output('query base %s'%base_name)
+    text = weld_get_output('query base %s'%base_name, cwd=weld_root)
     lines = text.splitlines()
     last_merge_weld_line = lines[-6]
     last_merge_base_line = lines[-5]
@@ -168,7 +168,7 @@ def git_rev_parse(what):
     text = shell_get_output('git rev-parse %s'%what, verbose=False)
     return text.strip()
 
-def git_log_for(from_id, to_id, paths=None):
+def git_log_for(where, from_id, to_id, paths=None):
     """Do a git log for "<from_id>..<to_id> -- <paths>"
 
     Returns a sequence of lines.
@@ -178,7 +178,7 @@ def git_log_for(from_id, to_id, paths=None):
                 ' '.join(repr(x) for x in paths))
     else:
         cmd = 'git --no-pager log --oneline %s..%s'%(from_id, to_id)
-    changes = shell_get_output(cmd)
+    changes = shell_get_output(cmd, cwd=where)
     return changes.splitlines()
 
 def compare_dir(where, content_list, fold_dirs=['.git', '.weld']):
@@ -216,8 +216,8 @@ def first_path_item(path):
     return rest
 
 # Taken from welded/git.py (and modified slightly)
-def current_branch():
-    out = shell_get_output('git branch -v')
+def current_branch(where):
+    out = shell_get_output('git branch -v', cwd=where)
     lines = out.splitlines()
     for l in lines:
         l = l.strip()
@@ -290,14 +290,117 @@ def trim_states(lines):
             new.append(line)
     return new
 
+import math
 import tempfile
-def weld_push_base(weld_name, base_name, seams):
-    banner('Push %s'%base_name)
-    orig_branch = current_branch()
+
+def weld_write_patchfiles(weld_root, base_name, seam_dir, diffs):
+    """Write out patchfiles for later use
+
+    'base_name' is the name of our base
+
+    'seam_dir' is the name of the relevant subdirectory in the base, in
+    which the patches should be applied. This may be None, in which case
+    we shall convert it to the reserved name '__None'.
+
+    'diffs' is the sequence of patches to apply therein, in the order they
+    must be applied.
+    """
+    banner('weld write patchfiles %s %s'%(base_name, seam_dir))
+    if seam_dir == None:
+        # We reserve the name '__None' to mean '.'
+        seam_dir = '__None'
+    width = int(math.log10(len(diffs)))+1
+    seam_pushing_dir = os.path.join(weld_root, '.weld', 'pushing', base_name, seam_dir)
+    os.makedirs(seam_pushing_dir)
+    count = 0
+    for diff in diffs:
+        filename = 'patch_%*d.diff'%(width, count)
+        filepath = os.path.join(seam_pushing_dir, filename)
+        print 'WRITING patch file',filename
+        with open(filepath, 'w') as fd:
+            fd.write(diff)
+        count += 1
+
+
+def weld_continue_patching(weld_root):
+    """Continue doing the work of a "weld push".
+
+    'weld_root' is the root of the weld directory tree, the directory that
+    contains the '.weld' directory
+
+    Finds any outstanding patches to be done in the "pushing" directory,
+    and does them. If it returns, it has finished all the patches.
+
+    If something goes wrong (i.e., a patch fails and the user needs to
+    attend to it), then it raises an exception containing some sort of
+    explanation of the problem.
+
+    The idea is that you can keep calling this until all the patches have
+    been successfully dealt with.
+    """
+    banner('weld continue patching')
+
+    dot_weld_dir = os.path.join(weld_root, '.weld')
+
+    pushing_dir = os.path.join(dot_weld_dir, 'pushing')
+    if not os.path.exists(pushing_dir):
+        print 'There is nothing to "weld push"'
+        return
+
+    # We should have one directory per base, named as the base
+    bases_to_push = os.listdir(pushing_dir)
+    # We'll deal with them in a predictable order
+    for base_name in sorted(bases_to_push):
+        print 'weld_push: base %s'%base_name
+        pushing_base_dir = os.path.join(pushing_dir, base_name)
+        base_dir = os.path.join(dot_weld_dir, 'bases', base_name)
+        # We should have one directory per seam, named as the seam's directory
+        # in the base (i.e., where we want to apply the patch). We reserve the
+        # name __None to mean "at the top level of the base"
+        seams_to_push = os.listdir(pushing_base_dir)
+        # We'll deal with them in a predictable order
+        for seam_name in sorted(seams_to_push):
+            print 'weld_push: base %s seam %s'%(base_name, seam_name)
+            pushing_seam_dir = os.path.join(pushing_base_dir, seam_name)
+            # All the files here should be patch files
+            patch_files = os.listdir(pushing_seam_dir)
+            # We deal with the files in the obvious order, because
+            # they were carefully named that way...
+            for filename in sorted(patch_files):
+                print 'weld_push: base %s seam %s patch %s'%(base_name, seam_name, filename)
+                patch_path = os.path.join(pushing_seam_dir, filename)
+                print 'APPLYING patch file',patch_path
+                if seam_name == '__None':
+                    shell('git apply --index %s'%(patch_path), cwd=base_dir)
+                else:
+                    shell('git apply --index --directory=%r %s'%(seam_name, patch_path),
+                            cwd=base_dir)
+
+                # Once a patch has been applied successfully, we can
+                # delete the patch file
+                print 'weld_push: base %s seam %s DELETE patch %s'%(base_name, seam_name, filename)
+                os.remove(patch_path)
+
+            # Once a seam directory is empty, we can delete it
+            print 'weld_push: base %s DELETE seam %s'%(base_name, seam_name)
+            os.rmdir(pushing_seam_dir)
+
+        # Once a base directory is empty, we can delete it
+        print 'weld_push: DELETE base %s'%base_name
+        os.rmdir(pushing_base_dir)
+
+    # And guess what we can do when we've finished pushing everything...
+    print 'weld_push: DELETE'
+    os.rmdir(pushing_dir)
+
+
+def weld_push_base(weld_root, weld_name, base_name, seams):
+    banner('Push %s in %s'%(base_name, weld_root))
+    orig_branch = current_branch(weld_root)
 
     print 'Determining last push for %s:'%base_name
     (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
-            base_head, weld_init) = weld_query_base(base_name)
+            base_head, weld_init) = weld_query_base(weld_root, base_name)
     print_sha1_ids(last_weld_merge, last_base_merge, last_weld_push,
                    last_base_push, base_head, weld_init)
     print "So, with weld's"
@@ -309,8 +412,8 @@ def weld_push_base(weld_name, base_name, seams):
 
     print
     print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
-    directories = [d for s, d in seams]
-    base_changes = git_log_for(latest_sync, 'HEAD', directories)
+    directories = [d for (s, d) in seams]
+    base_changes = git_log_for(weld_root, latest_sync, 'HEAD', directories)
     print '\n'.join(base_changes)
 
     print
@@ -326,7 +429,8 @@ def weld_push_base(weld_name, base_name, seams):
 
     # To make it obvious what we are doing:
     # XXX Obviously only works once!
-    git('tag last-%s-sync-%s %s'%(base_name, latest_sync[:10], latest_sync))
+    git('tag last-%s-sync-%s %s'%(base_name, latest_sync[:10], latest_sync),
+            cwd=weld_root)
     # XXX
 
     # We want the changes in the opposite order, so that we apply the oldest
@@ -339,86 +443,79 @@ def weld_push_base(weld_name, base_name, seams):
     # Use --relative to make the changes relative to the named directory,
     # so that we don't end up with the seam directory name embedded in
     # the difference header.
-    diffs = []
+    ##diffs = []
+    diff_dict = {}      # seam_dir -> list of patches
     for seam_dir, local_dir in seams:
-        if seam_dir is None:
-            seam_dir = '.'
-
         for change in base_changes:
             words = change.split()
             sha1 = words[0]
             # "<commit-id>^!" is a really useful notation, as I found out at
             # http://stackoverflow.com/questions/436362. It is (very briefly)
             # documented in "git help gitrevisions" (near the end)
-            diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir, sha1))
+            diff = shell_get_output('git diff --relative=%r %s^!'%(local_dir, sha1),
+                    cwd=weld_root)
             print diff
             if diff:
-                diffs.append( (seam_dir, local_dir, diff) )
+                ##diffs.append( (seam_dir, local_dir, diff) )
+
+                if seam_dir in diff_dict:
+                    diff_dict[seam_dir].append(diff)
+                else:
+                    diff_dict[seam_dir] = [diff]
+
+    for seam_dir, diff_list in diff_dict.items():
+        weld_write_patchfiles(weld_root, base_name, seam_dir, diff_list)
 
     # Some of those differences are things we've to push, but some are
     # probably things we already pulled
 
-    with Directory(os.path.join('.weld', 'bases', base_name)):
+    base_dir = os.path.join(weld_root, '.weld', 'bases', base_name)
 
-        print "So, with %s's"%base_name
-        print '  last push ', last_base_push
-        latest_base_sync = last_base_push
-        if latest_base_sync is None:
-            print 'Which was None, so using HEAD'
-            latest_base_sync = base_head
+    print "So, with %s's"%base_name
+    print '  last push ', last_base_push
+    latest_base_sync = last_base_push
+    if latest_base_sync is None:
+        print 'Which was None, so using HEAD'
+        latest_base_sync = base_head
 
-        working_branch = 'working-branch-%s'%latest_base_sync[:10] # XXX Obviously need a better name !!!
+    working_branch = 'working-branch-%s'%latest_base_sync[:10] # XXX Obviously need a better name !!!
 
-        git('checkout %s'%latest_base_sync)
-        git('checkout -b %s'%working_branch)
+    git('checkout %s'%latest_base_sync, cwd=base_dir)
+    git('checkout -b %s'%working_branch, cwd=base_dir)
 
-        for seam_dir, local_dir, diff in diffs:
-            f = tempfile.NamedTemporaryFile(delete=False)
-            f.write(diff)
-            f.close()
-            # Make sure the patch is applied to the index as well,
-            # so we don't need to "add" the files changed to the index
-            # later on
-            if seam_dir == '.':
-                shell('git apply --index %s'%(f.name))
-            else:
-                shell('git apply --index --directory=%r %s'%(seam_dir, f.name))
-            os.unlink(f.name)
+    weld_continue_patching(weld_root)
 
-        # Prepare our (default) commit message
-        f = tempfile.NamedTemporaryFile(delete=False)
-        f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, weld_name))
-        f.write('\n')
-        f.write('Changes were (in summary, earliest first)\n')
-        f.write('\n')
-        # Theses lines are of the form "<short-sha1> <first-line>" - do we
-        # want the SHA1 entry? Is it really of use?
-        f.write('\n'.join(base_changes))
-        f.close()
-        # Allow an empty commit, so we still end up with a place marker
-        # for our action
-        # Maybe give the user the option to edit the commit message before
-        # we actually use it - we'd use the "--template <file>" switch
-        # instead of "--file <file>"
-        shell('git commit -a --allow-empty --file %s'%f.name)
-        print 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-        print 'Commit file is %s'%f.name
-        print 'base_changes are:', base_changes
-        print 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-        #os.unlink(f.name)
+    # Prepare our (default) commit message
+    f = tempfile.NamedTemporaryFile(delete=False)
+    f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, weld_name))
+    f.write('\n')
+    f.write('Changes were (in summary, earliest first)\n')
+    f.write('\n')
+    # Theses lines are of the form "<short-sha1> <first-line>" - do we
+    # want the SHA1 entry? Is it really of use?
+    f.write('\n'.join(base_changes))
+    f.close()
+    # Allow an empty commit, so we still end up with a place marker
+    # for our action
+    # Maybe give the user the option to edit the commit message before
+    # we actually use it - we'd use the "--template <file>" switch
+    # instead of "--file <file>"
+    shell('git commit -a --allow-empty --file %s'%f.name, cwd=base_dir)
+    os.remove(f.name)
 
-        # In weld, use git.query_current_commit_id
-        head_base_commit = shell_get_output('git log -n 1 --format=format:%H').strip()
+    # In the weld program, use git.query_current_commit_id
+    head_base_commit = shell_get_output('git log -n 1 --format=format:%H',
+            cwd=base_dir).strip()
 
-        # Merge master onto this branch - this should be trivial
-        git('merge %s --ff-only'%orig_branch)
+    # Merge master onto this branch - this should be trivial
+    git('merge %s --ff-only'%orig_branch, cwd=base_dir)
 
-        # And then merge *that* back into the original branch
-        git('checkout %s'%orig_branch)
-        git('merge %s --ff-only'%working_branch)
+    # And then merge *that* back into the original branch
+    git('checkout %s'%orig_branch, cwd=base_dir)
+    git('merge %s --ff-only'%working_branch, cwd=base_dir)
 
-        # And finally push the lot to our remote
-        git('push')
+    # And finally push the lot to our remote
+    git('push', cwd=base_dir)
 
     # And now mark the weld with where/when the push happened
     import json
@@ -429,8 +526,8 @@ def weld_push_base(weld_name, base_name, seams):
     f.close()
     # Allow an empty commit, so we still end up with a place marker
     # for our action
-    shell('git commit -a --allow-empty --file %s'%f.name)
-    os.unlink(f.name)
+    shell('git commit -a --allow-empty --file %s'%f.name, cwd=weld_root)
+    os.remove(f.name)
 
 from filecmp import dircmp
 
@@ -733,10 +830,10 @@ def test():
                     make_and_run_all('project124', ['one', 'two'])
                     make_and_run_all('igniting_duck', ['one', 'two'])
                     # ...and since we weren't meant to do that, tidy up
-                    os.unlink(os.path.join('project124', 'one', 'one'))
-                    os.unlink(os.path.join('project124', 'two', 'two'))
-                    os.unlink(os.path.join('igniting_duck', 'one', 'one'))
-                    os.unlink(os.path.join('igniting_duck', 'two', 'two'))
+                    os.remove(os.path.join('project124', 'one', 'one'))
+                    os.remove(os.path.join('project124', 'two', 'two'))
+                    os.remove(os.path.join('igniting_duck', 'one', 'one'))
+                    os.remove(os.path.join('igniting_duck', 'two', 'two'))
 
             fromble_test_first_pull_id = git_rev_parse('HEAD')
 
@@ -1015,13 +1112,13 @@ def test():
         # last commit we merged from it. It won't, of course, update
         # our checked out 124 directory.
         (last_124_merge1, base_124_merge1, last_124_push1, base_124_push1,
-                base_124_head1, weld_init) = weld_query_base('project124')
+                base_124_head1, weld_init) = weld_query_base('.', 'project124')
         print_sha1_ids(last_124_merge1, base_124_merge1, last_124_push1,
                        base_124_push1, base_124_head1, weld_init)
 
         # Similarly for igniting_duck
         (last_ign_merge1, base_ign_merge1, last_ign_push1, base_ign_push1,
-                base_ign_head1, weld_init) = weld_query_base('igniting_duck')
+                base_ign_head1, weld_init) = weld_query_base('.', 'igniting_duck')
         print_sha1_ids(last_ign_merge1, base_ign_merge1, last_ign_push1,
                        base_ign_push1, base_ign_head1, weld_init)
 
@@ -1051,36 +1148,36 @@ def test():
 
         print
         print 'fromble test: What changed from last merge with project124 to HEAD'
-        lines = git_log_for(last_124_merge1, 'HEAD', ['124'])
+        lines = git_log_for('.', last_124_merge1, 'HEAD', ['124'])
         print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
             print 'base project124: What changed from last merge to its HEAD'
-            lines = git_log_for(base_124_merge1, 'HEAD')
+            lines = git_log_for('.', base_124_merge1, 'HEAD')
             print '\n'.join(lines)
             print
 
         print
         print 'fromble test: What changed from last merge with igniting_duck to HEAD'
-        lines = git_log_for(last_ign_merge1, 'HEAD', ['one-duck', 'two-duck'])
+        lines = git_log_for('.', last_ign_merge1, 'HEAD', ['one-duck', 'two-duck'])
         print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
             print 'base igniting_duck: What changed from last merge to its HEAD'
-            lines = git_log_for(base_ign_merge1, 'HEAD')
+            lines = git_log_for('.', base_ign_merge1, 'HEAD')
             print '\n'.join(lines)
             print
 
 
         # Remove the executables that we built (which are not tracked by git,
         # and so will prevent us doing "weld pull")
-        os.unlink(os.path.join('124', 'three', 'three'))
-        os.unlink(os.path.join('124', 'three', 'three-and-a-bit'))
-        os.unlink(os.path.join('two-duck', 'two-duck'))
+        os.remove(os.path.join('124', 'three', 'three'))
+        os.remove(os.path.join('124', 'three', 'three-and-a-bit'))
+        os.remove(os.path.join('two-duck', 'two-duck'))
 
         # So, what is our state with respect to our weld's remote repository?
         need_to_pull, need_to_push = weld_status()
@@ -1092,13 +1189,13 @@ def test():
 
         # And redo our various queries
         (last_124_merge2, base_124_merge2, last_124_push2, base_124_push2,
-                base_124_head2, weld_init) = weld_query_base('project124')
+                base_124_head2, weld_init) = weld_query_base('.', 'project124')
         print_sha1_ids(last_124_merge2, base_124_merge2, last_124_push2,
                        base_124_push2, base_124_head2, weld_init)
 
         # Similarly for igniting_duck
         (last_ign_merge2, base_ign_merge2, last_ign_push2, base_ign_push2,
-                base_ign_head2, weld_init) = weld_query_base('igniting_duck')
+                base_ign_head2, weld_init) = weld_query_base('.', 'igniting_duck')
         print_sha1_ids(last_ign_merge2, base_ign_merge2, last_ign_push2,
                        base_ign_push2, base_ign_head2, weld_init)
 
@@ -1128,27 +1225,27 @@ def test():
 
         print
         print 'fromble test: What changed from last merge with project124 to HEAD'
-        lines = git_log_for(last_124_merge2, 'HEAD', ['124'])
+        lines = git_log_for('.', last_124_merge2, 'HEAD', ['124'])
         print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'project124')):
             print
             print 'base project124: What changed from last merge to its HEAD'
-            lines = git_log_for(base_124_merge2, 'HEAD')
+            lines = git_log_for('.', base_124_merge2, 'HEAD')
             print '\n'.join(lines)
             print
 
         print
         print 'fromble test: What changed from last merge with igniting_duck to HEAD'
-        lines = git_log_for(last_ign_merge2, 'HEAD', ['one-duck', 'two-duck'])
+        lines = git_log_for('.', last_ign_merge2, 'HEAD', ['one-duck', 'two-duck'])
         print '\n'.join(lines)
         print
 
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             print
             print 'base igniting_duck: What changed from last merge to its HEAD'
-            lines = git_log_for(base_ign_merge2, 'HEAD')
+            lines = git_log_for('.', base_ign_merge2, 'HEAD')
             print '\n'.join(lines)
             print
 
@@ -1168,17 +1265,17 @@ def test():
 
         print
         print 'fromble test: What changed for everyone from Init to HEAD'
-        all_changes = git_log_for(weld_init, 'HEAD')
+        all_changes = git_log_for('.', weld_init, 'HEAD')
         print '\n'.join(trim_states(all_changes))
 
         print
         print 'fromble test: What changed for project124 from Init to HEAD'
-        p124_changes = git_log_for(weld_init, 'HEAD', ['124'])
+        p124_changes = git_log_for('.', weld_init, 'HEAD', ['124'])
         print '\n'.join(trim_states(p124_changes))
 
         print
         print 'fromble test: What changed for igniting_duck from Init to HEAD'
-        pign_changes = git_log_for(weld_init, 'HEAD', ['one-duck', 'two-duck'])
+        pign_changes = git_log_for('.', weld_init, 'HEAD', ['one-duck', 'two-duck'])
         print '\n'.join(trim_states(pign_changes))
 
         print
@@ -1210,9 +1307,11 @@ def test():
             print '  %s: %s%s'%(sha1, files, ' and also %s'%other_also if other_also else '')
         print
 
-        # Let's push for the first time
-        weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-        weld_push_base('fromble', 'project124', [[None, '124']])
+    # Let's push for the first time
+    weld_push_base(fromble_test.where,
+            'fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+    weld_push_base(fromble_test.where,
+            'fromble', 'project124', [[None, '124']])
 
     banner('Amend the checked out sources AGAIN')
     with Directory(fromble_test.where):
@@ -1256,8 +1355,10 @@ def test():
             git('commit Makefile -m "Remove the earlier trailing comment"')
 
         # And try a second set of pushing
-        weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-        weld_push_base('fromble', 'project124', [[None, '124']])
+        weld_push_base(fromble_test.where,
+                'fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+        weld_push_base(fromble_test.where,
+                'fromble', 'project124', [[None, '124']])
 
         # And we can also push our weld...
         need_to_pull, need_to_push = weld_status()
@@ -1279,19 +1380,20 @@ def test():
     print 'Checking fromble test and fromble original match'
     # Before comparing directories, remove the executables we built
     with Directory(fromble_test.where):
-        os.unlink(os.path.join('124', 'one', 'one'))
-        os.unlink(os.path.join('124', 'two', 'two'))
-        os.unlink(os.path.join('one-duck', 'one'))
-        os.unlink(os.path.join('two-duck', 'two'))
+        os.remove(os.path.join('124', 'one', 'one'))
+        os.remove(os.path.join('124', 'two', 'two'))
+        os.remove(os.path.join('one-duck', 'one'))
+        os.remove(os.path.join('two-duck', 'two'))
 
     if not same_files(fromble_test.where, fromble_orig.where):
         raise GiveUp('Test directory doesn not match source directory')
 
     # If there aren't any changes, we shouldn't do anything(!)
     banner('A push of nothing should do nothing')
-    with Directory(fromble_test.where):
-        weld_push_base('fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
-        weld_push_base('fromble', 'project124', [[None, '124']])
+    weld_push_base(fromble_test.where,
+            'fromble', 'igniting_duck', [['one', 'one-duck'], ['two', 'two-duck']])
+    weld_push_base(fromble_test.where,
+            'fromble', 'project124', [[None, '124']])
 
     # NOTES FROM EARLIER
     # ==================

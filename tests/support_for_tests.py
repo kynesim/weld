@@ -58,7 +58,7 @@ class ShellError(GiveUp):
         self.retcode=retcode
         self.text = text
 
-def shell(cmd, verbose=True):
+def shell(cmd, verbose=True, cwd=None):
     """Run a command in the shell
 
     'cmd' is the comamnd to run, e.g., "weld init".
@@ -67,11 +67,11 @@ def shell(cmd, verbose=True):
     """
     if verbose:
         print '>> %s'%cmd
-    retcode = subprocess.call(cmd, shell=True)
+    retcode = subprocess.call(cmd, shell=True, cwd=cwd)
     if retcode:
         raise ShellError(cmd, retcode)
 
-def shell_get_output(cmd, verbose=True):
+def shell_get_output(cmd, verbose=True, cwd=None):
     """Run a command in the shell and get its output
 
     'cmd' is the comamnd to run, e.g., "weld init".
@@ -83,19 +83,19 @@ def shell_get_output(cmd, verbose=True):
     if verbose:
         print '>> %s'%cmd
     try:
-        return subprocess.check_output(cmd, shell=True,
+        return subprocess.check_output(cmd, shell=True, cwd=cwd,
                                        stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         raise ShellError(cmd, retcode=e.returncode, text=e.output)
 
-def weld(cmd, verbose=True):
+def weld(cmd, verbose=True, cwd=None):
     """Run our local 'weld', with the given arguments
 
     E.g., weld('init weld.xml')
     """
-    shell('%s %s'%(WELD_CMD, cmd))
+    shell('%s %s'%(WELD_CMD, cmd), cwd=cwd)
 
-def weld_get_output(cmd, verbose=True):
+def weld_get_output(cmd, verbose=True, cwd=None):
     """Run a weld command in the shell and get its output
 
     'cmd' is the weld comamnd to run, e.g., "init".
@@ -108,19 +108,19 @@ def weld_get_output(cmd, verbose=True):
     if verbose:
         print '>> %s'%cmd
     try:
-        return subprocess.check_output(cmd, shell=True,
+        return subprocess.check_output(cmd, shell=True, cwd=cwd,
                                        stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         raise ShellError(cmd, retcode=e.returncode, text=e.output)
 
-def git(cmd, verbose=True):
+def git(cmd, verbose=True, cwd=None):
     """Run 'git', with the given arguments
 
     E.g., git('add fred.c')
     """
-    shell('git %s'%cmd)
+    shell('git %s'%cmd, cwd=cwd)
 
-def captured_cmd_seq(cmd_seq, verbose=True):
+def captured_cmd_seq(cmd_seq, verbose=True, cwd=None):
     """Grab the exit code and output from a command.
 
     'cmd_seq' is a command as an array of "words" - e.g., ['weld', 'init']
@@ -136,7 +136,8 @@ def captured_cmd_seq(cmd_seq, verbose=True):
     env = os.environ
     env['PYTHONUNBUFFERED'] = 'anything'
     try:
-        output = subprocess.check_output(cmd_seq, env=env, stderr=subprocess.STDOUT)
+        output = subprocess.check_output(cmd_seq, env=env, cwd=cwd,
+                                         stderr=subprocess.STDOUT)
         return 0, output
     except subprocess.CalledProcessError as e:
         return e.returncode, e.output
