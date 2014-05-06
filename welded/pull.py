@@ -54,7 +54,9 @@ def pull_base(spec, base):
     print("Pulling %s .. \n"%(base))
     current_commit = git.query_current_commit_id(spec.base_dir)
 
-    if (current_branch[:5] == "weld-"):
+    if current_branch.startswith("weld-"):
+        raise GiveUp("You are currently on a branch used by weld (%s) - please"
+                " get off it before trying to use weld."%(current_branch))
         print("You are currently on a branch used by weld (%s) - please get off it before"
               " trying to use weld."%(current_branch))
         return 1
