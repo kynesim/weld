@@ -113,7 +113,7 @@ def pull_base(spec, base):
     ops.add_seams(spec, b, added_in_new, current_base_commit_id)
     
     # Write some stuff to the completion file.
-    ops.write_completion(spec, 
+    ops.write_finish_pull(spec, 
                          " pull.finish(spec, '%s', '%s', '%s', '%s', '%s', '%s')"%
                          (b.name, current_branch, current_commit, branch_name, 
                           base_commit_id, current_base_commit_id),
@@ -130,7 +130,7 @@ def pull_base(spec, base):
         return 1
 
     print("Rebase succeeded. Committing .. \n")
-    ops.do_completion(spec)
+    ops.do_finish(spec)
     return 0
 
 def spurious_modification(w):

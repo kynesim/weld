@@ -27,7 +27,9 @@ def init_weld(weld, where):
     # Create a .gitignore
     f = open(os.path.join(where, ".gitignore"), "wb+")
     f.write(".weld/complete.*\n")
+    f.write(".weld/continue.*\n")
     f.write(".weld/abort.*\n")
+    f.write(".weld/pushing\n")
     f.write(".weld/bases\n")
     # In case you edit stuff.
     f.write(".weld/*~\n")

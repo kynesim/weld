@@ -210,29 +210,29 @@ def add_seams(spec, base_obj, seams, base_commit):
     hdrs = headers.seam_op(headers.SEAM_VERB_ADDED, base_obj, seams, base_commit)
     git.commit(spec.base_dir, hdrs, [] )
 
-COMPLETION_PREFIX="import pull\n" + \
+FINISH_PULL_PREFIX="import pull\n" + \
     "def go(spec):"
-COMPLETION_SUFFIX="\n"
+FINISH_PULL_SUFFIX="\n"
 
-def write_completion(spec, cmds_ok, cmds_abort):
-    f = open(layout.completion_file(spec.base_dir), "w+")
-    f.write(COMPLETION_PREFIX)
+def write_finish_pull(spec, cmds_ok, cmds_abort):
+    f = open(layout.complete_pull_file(spec.base_dir), "w+")
+    f.write(FINISH_PULL_PREFIX)
     f.write(cmds_ok)
-    f.write(COMPLETION_SUFFIX)
+    f.write(FINISH_PULL_SUFFIX)
     f.close()
     f = open(layout.abort_file(spec.base_dir), "w+")
-    f.write(COMPLETION_PREFIX)
+    f.write(FINISH_PULL_PREFIX)
     f.write(cmds_abort)
-    f.write(COMPLETION_SUFFIX)
+    f.write(FINISH_PULL_SUFFIX)
     f.close()
 
-def done_completion(spec):
-    os.unlink(layout.completion_file(spec.base_dir))
+def done_finish_pull(spec):
+    os.unlink(layout.complete_pull_file(spec.base_dir))
     os.unlink(layout.abort_file(spec.base_dir))
 
 
-def do_completion(spec):
-    c = layout.completion_file(spec.base_dir)
+def do_finish(spec):
+    c = layout.complete_pull_file(spec.base_dir)
     if (os.path.exists(c)):
         f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
@@ -247,7 +247,7 @@ def do_abort(spec):
         f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.unlink(c)
-        os.unlink(layout.completion_file(spec.base_dir))
+        os.unlink(layout.complete_pull_file(spec.base_dir))
     else:
         raise utils.GiveUp("No pending command to abort")
 

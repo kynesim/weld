@@ -395,6 +395,21 @@ def weld_continue_patching(weld_root):
 
 
 def weld_push_base(weld_root, weld_name, base_name, seams):
+    """Push a single base
+
+    'weld_root' is the root weld directory (the directory that contains our
+    '.weld' directory)
+
+    'weld_name' is the name of the weld, used in commit messages.
+
+    'base_name' is the name of the base to push.
+
+    'seams' is a sequence of [<base-seam-dir>, <weld-seam-dir>].
+
+    Note that we only ever push a one base at a time. Even if the user
+    requests the pushing of multiple bases, the push for one base must be
+    entirely completed before the push of the next can start.
+    """
     banner('Push %s in %s'%(base_name, weld_root))
     orig_branch = current_branch(weld_root)
 

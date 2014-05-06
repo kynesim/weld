@@ -185,7 +185,7 @@ class Finish(Command):
     """
     def go(self, opts, args):
         spec = self.spec
-        ops.do_completion(spec)
+        ops.do_finish(spec)
 
 @command('abort')
 class Abort(Command):
