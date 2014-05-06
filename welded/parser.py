@@ -11,8 +11,7 @@ class Parser:
         self.weld = None
 
     def parse(self, name):
-        data = open(name)
-        dom = xml.dom.minidom.parse(data)
+        dom = xml.dom.minidom.parse(name)
         return self.parse_dom(dom)
     
     def parse_dom(self, dom):

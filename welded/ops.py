@@ -138,7 +138,7 @@ def modify_seams(spec, base_obj, changes, old_commit, new_commit):
         temp2.close()
         if (are_any):
             git.apply(spec.base_dir, temp2.name)
-        os.unlink(n)
+        os.remove(n)
         print("W: Add .. \n")
         for s in changes:
             git.add_in_subdir(spec.base_dir, os.path.join(spec.base_dir, s.get_dest()))
@@ -214,40 +214,57 @@ FINISH_PULL_PREFIX="import pull\n" + \
     "def go(spec):"
 FINISH_PULL_SUFFIX="\n"
 
+FINISH_PUSH_PREFIX="import push\n" + \
+    "def go(spec):"
+FINISH_PUSH_SUFFIX="\n"
+
 def write_finish_pull(spec, cmds_ok, cmds_abort):
-    f = open(layout.complete_pull_file(spec.base_dir), "w+")
-    f.write(FINISH_PULL_PREFIX)
-    f.write(cmds_ok)
-    f.write(FINISH_PULL_SUFFIX)
-    f.close()
-    f = open(layout.abort_file(spec.base_dir), "w+")
-    f.write(FINISH_PULL_PREFIX)
-    f.write(cmds_abort)
-    f.write(FINISH_PULL_SUFFIX)
-    f.close()
+    with open(layout.complete_pull_file(spec.base_dir), "w+") as f:
+        f.write(FINISH_PULL_PREFIX)
+        f.write(cmds_ok)
+        f.write(FINISH_PULL_SUFFIX)
+    with open(layout.abort_file(spec.base_dir), "w+") as f:
+        f.write(FINISH_PULL_PREFIX)
+        f.write(cmds_abort)
+        f.write(FINISH_PULL_SUFFIX)
 
-def done_finish_pull(spec):
-    os.unlink(layout.complete_pull_file(spec.base_dir))
-    os.unlink(layout.abort_file(spec.base_dir))
-
+def write_finish_push(spec, cmds_ok, cmds_abort):
+    with open(layout.continue_push_file(spec.base_dir), "w+") as f:
+        f.write(FINISH_PUSH_PREFIX)
+        f.write(cmds_ok)
+        f.write(FINISH_PUSH_SUFFIX)
+    with open(layout.abort_file(spec.base_dir), "w+") as f:
+        f.write(FINISH_PUSH_PREFIX)
+        f.write(cmds_abort)
+        f.write(FINISH_PUSH_SUFFIX)
 
 def do_finish(spec):
     c = layout.complete_pull_file(spec.base_dir)
     if (os.path.exists(c)):
         f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
-        os.unlink(c)
-        os.unlink(layout.abort_file(spec.base_dir))
+        os.remove(c)
+        os.remove(layout.abort_file(spec.base_dir))
     else:
         raise utils.GiveUp("No pending command to complete")
-    
+
+def do_continue(spec):
+    c = layout.continue_push_file(spec.base_dir)
+    if (os.path.exists(c)):
+        f = utils.dynamic_load(c, no_pyc=True)
+        f.go(spec)
+        os.remove(c)
+        os.remove(layout.abort_file(spec.base_dir))
+    else:
+        raise utils.GiveUp("No pending command to complete")
+
 def do_abort(spec):
     c  = layout.abort_file(spec.base_dir)
     if (os.path.exists(c)):
         f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
-        os.unlink(c)
-        os.unlink(layout.complete_pull_file(spec.base_dir))
+        os.remove(c)
+        os.remove(layout.complete_pull_file(spec.base_dir))
     else:
         raise utils.GiveUp("No pending command to abort")
 

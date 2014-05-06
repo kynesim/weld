@@ -163,10 +163,9 @@ class Weld:
         return self.bases[n]
 
     def write(self, where_to):
-        f = open(where_to, "wb+")
-        f.write("<?xml version='1.0' ?>\n")
-        f.write(self.__repr__())
-        f.close()
+        with open(where_to, "wb+") as f:
+            f.write("<?xml version='1.0' ?>\n")
+            f.write(self.__repr__())
 
     def __str__(self):
         return self.__repr__()
