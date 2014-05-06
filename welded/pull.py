@@ -41,11 +41,15 @@ def pull_base(spec, base):
                 'Fix any problems and then "weld continue", or give up using "weld abort"')
     if should_git_pull:
         # Our weld is not up-to-date. This means that if we do a "weld pull"
-        # and it updates our seams, 
+        # and it updates our seams, life may get confusing. So for the moment,
+        # we shall require the "git pull" first.
+        #
+        # TODO Consider if this really is a requirement, or just the user
+        # TODO being a little reckless
         raise utils.GiveUp('The weld is not up-to-date\n'
                 'You should do "git pull" before doing a "weld pull"')
     # We don't care if "git push" would update the weld's remote, since we
-    # are about to change it anyway...
+    # are about to change it locally anyway...
 
     print("Pulling %s .. \n"%(base))
     current_commit = git.query_current_commit_id(spec.base_dir)
