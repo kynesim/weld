@@ -154,6 +154,14 @@ class Pull(Command):
     If more than one base name is given, pull each base in turn.
 
     If _all is given, pull all bases.
+
+    If pulling a base fails (typically because human intervention is needed
+    to sort out a merge), then either use "weld abort" to give up on the
+    operation, or fix the merge and use "weld finish" to finish the operation.
+
+    If you specify multiple bases to "weld pull", and have to "weld finish" or
+    "weld abort" one of them, the "weld pull" will not continue on to the next
+    base; you will have to reissue the command again.
     """
     def go(self,opts,args):
         to_pull = self.base_set_from_args(args)
@@ -172,6 +180,15 @@ class Push(Command):
     If more than one base name is given, push each base in turn.
 
     If _all is given, push all bases.
+
+    If pushing a base fails (typically because human intervention is needed
+    to sort out a merge), then either use "weld abort" to give up on the
+    operation, or fix the merge and use "weld continue" to continue with
+    any remaining patches.
+
+    If you specify multiple bases to "weld push", and have to "weld continue"
+    or "weld abort" one of them, the "weld push" will not continue on to the
+    next base; you will have to reissue the command again.
     """
     def go(self,opts,args):
         to_push = self.base_set_from_args(args)
