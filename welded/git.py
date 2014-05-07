@@ -48,10 +48,17 @@ def pull(dir_into, remote, from_branch, from_tag, from_rev):
         cmd.append("master")
     run_to_stdout(cmd, cwd=dir_into)
 
-def commit(where, comment, headers):
+def push(where, verbose=True):
+    """Push.
+
+    - 'where' is the directory to run the command in.
     """
-    Do a git commit with a given set of headers - headers is a list of pairs in the
-    usual way
+    run_silently(['git', 'push'], cwd=where, verbose=verbose)
+
+def commit(where, comment, headers):
+    """Do a git commit with a given set of headers.
+
+    'headers' is a list of pairs in the usual way
     """
     res = ""
     for h in headers:
@@ -64,8 +71,41 @@ def commit(where, comment, headers):
     t.write(res)
     n = t.name
     t.close()
-    run_silently(["git", "commit", "--allow-empty", "-F", n], cwd=where)
+    commit_using_file(where, n)
     os.unlink(n)
+
+def commit_using_file(where, commit_file, all=False, verbose=True):
+    """Commit with the message contained in 'commit_file'.
+
+    If 'all' is true, then add "-a" to the command, to stage any modified or
+    deleted files.
+
+    Does not delete 'commit_file'.
+    """
+    if all:
+        cmd = ["git", "commit", "--allow-empty", "--all", "--file", commit_file]
+    else:
+        cmd = ["git", "commit", "--allow-empty", "--file", commit_file]
+    run_silently(cmd, cwd=where, verbose=verbose)
+
+def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
+    """Checkout a commit, or create and checkout a branch.
+
+    If 'commit_id' is given, then checkout that commit ('commit_id' should
+    be a SHA1 id, or a branch name, or some other means of identifying the
+    commit that is wanted).
+
+    If 'new_branch_name' is given, then create and checkout that branch.
+
+    If both are given, then first checkout 'commit_id', and then create and
+    checkout the named branch.
+    """
+    if commit_id is not None:
+        run_silently(['git', 'checkout', commit_id], cwd=where, verbose=verbose)
+
+    if new_branch_name is not None:
+        run_silently(['git', 'checkout', '-b', new_branch_name], cwd=where,
+                     verbose=verbose)
 
 def current_branch(where, verbose=True):
     rv, out = run_silently(["git", "branch", "-v"], cwd=where, verbose=verbose)
@@ -168,6 +208,59 @@ def has_branch(where, branch_name):
             return True
     return False
 
+def tag(where, name, commit_id, force=True, verbose=False):
+    """Tag with the given name.
+
+    - 'where' is the directory to run the command in
+    - 'name' is the name of the tag
+    - 'commit_id' is a SHA1 commit id (a string)
+
+    If 'force', then use '--force' to allow the tag to have existed already.
+    """
+    if force:
+        cmd = ['git', 'tag', '--force', name, commit_id]
+    else:
+        cmd = ['git', 'tag', name, commit_id]
+    run_silently(cmd, cwd=where, verbose=verbose)
+
+def diff_this(where, relative_to, commit_id, verbose=False):
+    """Run "git diff" to find the changes 'commit_id' made to 'relative_to'
+
+    - 'where' is the directory to run the command in
+    - 'relative_to' is the directory we want the differences for
+    - 'commit_id' is the commit whose changes we are intereseted in
+
+    If 'verbose', prints out the command it is obeying, and also the
+    difference output.
+
+    Returns the difference output (as a string)
+
+    Raises GiveUp if the command fails.
+    """
+    rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
+        '%s^!'%commit_id], cwd=where, verbose=verbose)
+    if verbose:
+        print diff
+    return diff
+
+def apply_patch(where, patch_file, directory=None, verbose=False):
+    """Apply a patch.
+
+    - 'where' is the directory to run the command in
+    - 'patch_file' is the path to the file containing the patch to be applied
+    - if 'directory' is given, then "--directory-<directory>" is specified,
+      which prepends 'directory' to all filenames, replacing the "a" and "b"
+      in the patch description with 'directory'.
+
+    Raises GiveUp if something goes wrong with the command (i.e., git returns
+    a non-zero value)
+    """
+    if directory is None:
+        cmd = ['git', 'apply', '--index', patch_file]
+    else:
+        cmd = ['git', 'apply', '--index', '--directory=%s'%directory, patch_file]
+    run_silently(cmd, cwd=where, verbose=verbose)
+
 def abort_rebase(spec):
     run_silently([ "git", "rebase", "--abort" ], cwd=spec.base_dir)
 
@@ -202,6 +295,11 @@ def merge(spec, to_branch, from_branch, msg, squashed = False):
     cmd.extend([ "-m" , msg])
     cmd.append(from_branch)
     run_silently(cmd, cwd=spec.base_dir)
+
+def ff_merge(where, branch_name):
+    """Do a fast-forward merge of branch 'branch_name' to the current branch
+    """
+    run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where)
 
 def has_local_changes(where):
     rv, out = run_silently(["git", "status", "-s"], cwd=where)
