@@ -145,7 +145,7 @@ def push_base(spec, base_name, verbose=False):
     # Some of those differences are things we've to push, but some are
     # probably things we already pulled
 
-    base_dir = os.path.join(weld_root, '.weld', 'bases', base_name)
+    base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
 
     print "So, with %s's"%base_name
     print '  last push ', last_base_push
@@ -161,7 +161,7 @@ def push_base(spec, base_name, verbose=False):
                  new_branch_name=working_branch)
 
     # Prepare our (default) commit message
-    commit_file = os.path.join(layout.weld_dir(weld_root), 'push_commit.txt')
+    commit_file = os.path.join(layout.push_commit_file(weld_root, base_name))
     with open(commit_file, 'w') as f:
         f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
         f.write('\n')
@@ -171,24 +171,20 @@ def push_base(spec, base_name, verbose=False):
         # want the SHA1 entry? Is it really of use?
         f.write('\n'.join(base_changes))
 
-    return continue_push(spec, base_name, base_dir,
-                         orig_branch, working_branch, commit_file,
+    return continue_push(spec, base_name, orig_branch, working_branch,
                          verbose=verbose)
 
 
-def continue_push(spec, base_name, base_dir, orig_branch,
-                  working_branch, commit_file, verbose=True):
+def continue_push(spec, base_name, orig_branch, working_branch, verbose=True):
     try:
-        continue_patching(spec.base_dir, verbose=verbose)
+        continue_patching(spec, base_name, orig_branch, working_branch)
+        return 0
     except ApplyError as e:
         print str(e)
         print "Push of base %s failed"%base_name
         print "Either fix the errors and then do 'weld continue',"
         print "or do 'weld abort' to give up."
         return 1
-
-    return finish_push(spec, base_name,
-                       base_dir, orig_branch, working_branch, commit_file)
 
 def trim_states(lines):
     """Return only those lines that do not say "X-Weld-State:"
@@ -230,11 +226,8 @@ def write_patchfiles(weld_root, base_name, seam_dir, diffs):
         count += 1
 
 
-def continue_patching(weld_root, verbose=False):
+def continue_patching(spec, base_name, orig_branch, working_branch, verbose=True):
     """Continue doing the work of a "weld push".
-
-    'weld_root' is the root of the weld directory tree, the directory that
-    contains the '.weld' directory
 
     Finds any outstanding patches to be done in the "pushing" directory,
     and does them. If it returns, it has finished all the patches.
@@ -247,7 +240,10 @@ def continue_patching(weld_root, verbose=False):
     been successfully dealt with.
     """
 
-    dot_weld_dir = os.path.join(weld_root, '.weld')
+    print '### Continue patching %s'%base_name
+
+    weld_root = spec.base_dir
+    dot_weld_dir = layout.weld_dir(weld_root)
 
     pushing_dir = os.path.join(dot_weld_dir, 'pushing')
     if not os.path.exists(pushing_dir):
@@ -257,10 +253,13 @@ def continue_patching(weld_root, verbose=False):
     # We should have one directory per base, named as the base
     bases_to_push = os.listdir(pushing_dir)
     # We'll deal with them in a predictable order
-    for base_name in sorted(bases_to_push):
+    for filename in sorted(bases_to_push):
+        filepath = os.path.join(pushing_dir, filename)
+        if not os.path.isdir(filepath):
+            continue        # presumably a commit file
+        base_name = filename
+        pushing_base_dir = filepath
         print 'weld_push: base %s'%base_name
-        pushing_base_dir = os.path.join(pushing_dir, base_name)
-        base_dir = os.path.join(dot_weld_dir, 'bases', base_name)
         # We should have one directory per seam, named as the seam's directory
         # in the base (i.e., where we want to apply the patch). We reserve the
         # name __None to mean "at the top level of the base"
@@ -273,22 +272,23 @@ def continue_patching(weld_root, verbose=False):
             patch_files = os.listdir(pushing_seam_dir)
             # We deal with the files in the obvious order, because
             # they were carefully named that way...
-            for filename in sorted(patch_files):
-                print 'weld_push: base %s seam %s patch %s'%(base_name, seam_name, filename)
-                patch_path = os.path.join(pushing_seam_dir, filename)
+            for patch_file in sorted(patch_files):
+                print 'weld_push: base %s seam %s patch %s'%(base_name, seam_name, patch_file)
+                patch_path = os.path.join(pushing_seam_dir, patch_file)
                 print 'APPLYING patch file',patch_path
                 try:
                     if seam_name == '__None':
-                        git.apply_patch(base_dir, patch_path, verbose=verbose)
+                        git.apply_patch(pushing_base_dir, patch_path,
+                                        verbose=verbose)
                     else:
-                        git.apply_patch(base_dir, patch_path, verbose=verbose,
-                                        directory=seam_name)
+                        git.apply_patch(pushing_base_dir, patch_path,
+                                        verbose=verbose, directory=seam_name)
                 except GiveUp as e:
                     raise ApplyError(str(e))
 
                 # Once a patch has been applied successfully, we can
                 # delete the patch file
-                print 'weld_push: base %s seam %s DELETE patch %s'%(base_name, seam_name, filename)
+                print 'weld_push: base %s seam %s DELETE patch %s'%(base_name, seam_name, patch_file)
                 os.remove(patch_path)
 
             # Once a seam directory is empty, we can delete it
@@ -299,35 +299,41 @@ def continue_patching(weld_root, verbose=False):
         print 'weld_push: DELETE base %s'%base_name
         os.rmdir(pushing_base_dir)
 
+    # That appears to be all...
+    finish_push(spec, base_name, orig_branch, working_branch)
+
     # And guess what we can do when we've finished pushing everything...
     print 'weld_push: DELETE'
     os.rmdir(pushing_dir)
 
-def finish_push(spec, base_name, base_dir,
-                orig_branch, working_branch, commit_file):
+def finish_push(spec, base_name, orig_branch, working_branch, verbose=True):
     """Do everything necessary to finish off our "weld push".
 
     Assumes we have been doing "weld push" for the given 'base_name'.
     """
+    weld_root = spec.base_dir
+    base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
     # Allow an empty commit, so we still end up with a place marker
     # for our action
     # Maybe give the user the option to edit the commit message before
     # we actually use it - we'd use the "--template <file>" switch
     # instead of "--file <file>"
-    git.commit_using_file(base_dir, commit_file, all=True)
+    commit_file = os.path.join(layout.push_commit_file(weld_root, base_name))
+    git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
+    print 'Deleting', commit_file
     os.remove(commit_file)
 
     head_base_commit = git.query_current_commit_id(base_dir)
 
     # Merge our original branch onto this branch - this should be trivial
-    git.ff_merge(base_dir, orig_branch)
+    git.ff_merge(base_dir, orig_branch, verbose=verbose)
 
     # And then merge *that* back into the original branch
-    git.checkout(base_dir, orig_branch)
-    git.ff_merge(base_dir, working_branch)
+    git.checkout(base_dir, orig_branch, verbose=verbose)
+    git.ff_merge(base_dir, working_branch, verbose=verbose)
 
     # And finally push the lot to our remote
-    git.push(base_dir)
+    git.push(base_dir, verbose=verbose)
 
     # And now mark the weld with where/when the push happened
     base = spec.bases[base_name]
@@ -345,7 +351,7 @@ def finish_push(spec, base_name, base_dir,
 
     # Allow an empty commit, so we still end up with a place marker
     # for our action
-    git.commit_using_file(spec.base_dir, f.name, all=True)
+    git.commit_using_file(spec.base_dir, f.name, all=True, verbose=verbose)
     os.remove(f.name)
 
     return 0

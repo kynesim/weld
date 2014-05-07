@@ -296,10 +296,11 @@ def merge(spec, to_branch, from_branch, msg, squashed = False):
     cmd.append(from_branch)
     run_silently(cmd, cwd=spec.base_dir)
 
-def ff_merge(where, branch_name):
+def ff_merge(where, branch_name, verbose=False):
     """Do a fast-forward merge of branch 'branch_name' to the current branch
     """
-    run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where)
+    run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where,
+                 verbose=verbose)
 
 def has_local_changes(where):
     rv, out = run_silently(["git", "status", "-s"], cwd=where)
