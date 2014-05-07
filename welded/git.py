@@ -82,10 +82,10 @@ def commit_using_file(where, commit_file, all=False, verbose=True):
 
     Does not delete 'commit_file'.
     """
+    cmd = ["git", "commit", "--allow-empty"]
     if all:
-        cmd = ["git", "commit", "--allow-empty", "--all", "--file", commit_file]
-    else:
-        cmd = ["git", "commit", "--allow-empty", "--file", commit_file]
+        cmd.append("--all")
+    cmd += ["--file", commit_file]
     run_silently(cmd, cwd=where, verbose=verbose)
 
 def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
@@ -191,13 +191,6 @@ def query_init(where):
     raise GiveUp("Cannot find a weld init line in history")
 
 
-def create_and_switch(where, branch_name, from_commit):
-    """
-    Checkout where at from_commit, create branch_name at that point
-    and switch to it
-    """
-    rv, out = run_silently(["git", "checkout", "-b", branch_name, from_commit], cwd=where)
-
 def has_branch(where, branch_name):
     rv, out = run_silently(["git", "branch", "-v"], cwd=where)
     lines = out.split('\n')
@@ -207,6 +200,24 @@ def has_branch(where, branch_name):
         if (len(f) > 1 and f[0]== branch_name):
             return True
     return False
+
+def new_branch_name(where, base_name, commit_id=None):
+    """Construct a unique branch name given 'base_name' and 'commit_id'
+
+    If 'commit_id' is given, it should be the commit we are going to branch
+    from, and the first 10 characters of it will be used in the name.
+
+    We will prepend 'weld-', and append the commit id of the current
+    commit, as well as, if necessary, an index (to ensure it is absolutely
+    unique in this repository).
+    """
+    base_name = '%s-%s'%(base_name, commit_id[:10])
+    branch_name = base_name
+    count = 0
+    while has_branch(where, branch_name):
+        count += 1
+        branch_name = '%s-%d'%(base_name, count)
+    return branch_name
 
 def tag(where, name, commit_id, force=True, verbose=False):
     """Tag with the given name.
@@ -302,8 +313,10 @@ def ff_merge(where, branch_name, verbose=False):
     run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where,
                  verbose=verbose)
 
-def has_local_changes(where):
-    rv, out = run_silently(["git", "status", "-s"], cwd=where)
+def has_local_changes(where, verbose=False):
+    rv, out = run_silently(["git", "status", "-s"], cwd=where, verbose=verbose)
+    if verbose:
+        print out
     if (len(out.strip()) == 0):
         return False
     else:

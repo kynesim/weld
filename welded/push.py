@@ -14,13 +14,14 @@ import layout
 import ops
 import query
 import status
+import subprocess
 
 from utils import run_silently, GiveUp
 
 class ApplyError(Exception):
     pass
 
-def push_base(spec, base_name, verbose=False):
+def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     """Push a single base.
 
     'spec' is the Weld that contains this base.
@@ -35,8 +36,9 @@ def push_base(spec, base_name, verbose=False):
     weld_root = spec.base_dir
 
     # Make sure we have no unstaged changes.
-    if (git.has_local_changes(weld_root)):
-        raise GiveUp("You have local changes; please commit or stash them.")
+    if git.has_local_changes(weld_root, verbose=verbose):
+        raise GiveUp("'git status' reports that you have local changes;"
+                     " please commit or stash them.")
 
     current_branch = git.current_branch(weld_root)
 
@@ -73,36 +75,49 @@ def push_base(spec, base_name, verbose=False):
 
     orig_branch = git.current_branch(weld_root, verbose=verbose)
 
-    print 'Determining last push for %s:'%base_name
+    if verbose:
+        print 'Determining last push for %s:'%base_name
     (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
             base_head, weld_init) = query.query_base_commits(spec, base_name)
     query.print_sha1_ids(base_name, last_weld_merge, last_base_merge,
             last_weld_push, last_base_push, base_head, weld_init)
-    print "So, with weld's"
-    print '  last push ', last_weld_push
+    if verbose:
+        print "So, with weld's"
+        print '  last push ', last_weld_push
     latest_sync = last_weld_push
     if latest_sync is None:
-        print 'Which was None, so using Init'
+        if verbose:
+            print 'Which was None, so using Init'
         latest_sync = weld_init
 
     base = spec.bases[base_name]
     seams = base.get_seams()
 
-    print
-    print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
+    if verbose:
+        print
+        print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
     # Whilst seam.source may be None, seam.dest should always be a string
     directories = [s.dest for s in seams]
     base_changes = git.log_between(weld_root, latest_sync, 'HEAD', directories)
-    print '\n'.join(base_changes)
+    if base_changes:
+        if verbose:
+            print '\n'.join(base_changes)
+    else:
+        if verbose:
+            print '<Nothing>'
+        print 'There were no changes to base %s, nothing to push'%base_name
+        return 0
 
-    print
-    print 'And trim out any X-Weld-State items'
+    if verbose:
+        print
+        print 'And trim out any X-Weld-State items'
     base_changes = trim_states(base_changes)
-    print '\n'.join(base_changes)
-
-    print
-
-    if len(base_changes) == 0:
+    if base_changes:
+        if verbose:
+            print '\n'.join(base_changes)
+    else:
+        if verbose:
+            print '<Nothing>'
         print 'There were no changes to base %s, nothing to push'%base_name
         return 0
 
@@ -110,7 +125,7 @@ def push_base(spec, base_name, verbose=False):
     # We use --force so we can use the same tag again without complaint,
     # if we've been here before (or, presumably, if our 10-characters of
     # SHA1 id are not quite unique enough)
-    git.tag(weld_root, 'last-%s-sync-%s'%(base_name, latest_sync[:10]),
+    git.tag(weld_root, 'weld-last-%s-sync-%s'%(base_name, latest_sync[:10]),
             latest_sync, force=True, verbose=verbose)
 
     # We want the changes in the opposite order, so that we apply the oldest
@@ -140,28 +155,28 @@ def push_base(spec, base_name, verbose=False):
                     diff_dict[s.source] = [diff]
 
     for seam_dir, diff_list in diff_dict.items():
-        write_patchfiles(weld_root, base_name, seam_dir, diff_list)
+        write_patchfiles(weld_root, base_name, seam_dir, diff_list, verbose=verbose)
 
     # Some of those differences are things we've to push, but some are
     # probably things we already pulled
 
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
 
-    print "So, with %s's"%base_name
-    print '  last push ', last_base_push
+    if verbose:
+        print "So, with %s's"%base_name
+        print '  last push ', last_base_push
     latest_base_sync = last_base_push
     if latest_base_sync is None:
-        print 'Which was None, so using HEAD'
+        if verbose:
+            print 'Which was None, so using HEAD'
         latest_base_sync = base_head
 
-    # XXX Obviously need a better name !!!
-    working_branch = 'working-branch-%s'%latest_base_sync[:10]
-
-    git.checkout(base_dir, commit_id=latest_base_sync,
-                 new_branch_name=working_branch)
+    # Deduce a new and unique (to this repository) branch name
+    working_branch = git.new_branch_name(base_dir, 'weld-pushing', latest_base_sync)
+    git.checkout(base_dir, commit_id=latest_base_sync, new_branch_name=working_branch)
 
     # Prepare our (default) commit message
-    commit_file = os.path.join(layout.push_commit_file(weld_root, base_name))
+    commit_file = layout.push_commit_file(weld_root, base_name)
     with open(commit_file, 'w') as f:
         f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
         f.write('\n')
@@ -173,8 +188,9 @@ def push_base(spec, base_name, verbose=False):
 
     # Write out the "continue.py" and "abort.py" files
     ops.write_finish_push(spec,
-            " push.continue_push(spec, %r, %r, %r)"%(base_name, working_branch, orig_branch),
-            " push.abort_push(spec, %r, %r)"%(working_branch, orig_branch))
+            " push.continue_push(spec, %r, %r, %r, edit_commit_file=%s)"%(base_name,
+                working_branch, orig_branch, edit_commit_file),
+            " push.abort_push(spec, %r, %r, %r)"%(base_name, working_branch, orig_branch))
 
     # And then use the "continue.py" script to do the rest
     return ops.do_continue_push(spec)
@@ -191,7 +207,7 @@ def trim_states(lines):
             new.append(line)
     return new
 
-def write_patchfiles(weld_root, base_name, seam_dir, diffs):
+def write_patchfiles(weld_root, base_name, seam_dir, diffs, verbose=False):
     """Write out patchfiles for later use
 
     'base_name' is the name of our base
@@ -213,13 +229,15 @@ def write_patchfiles(weld_root, base_name, seam_dir, diffs):
     for diff in diffs:
         filename = 'patch_%*d.diff'%(width, count)
         filepath = os.path.join(seam_pushing_dir, filename)
-        print 'WRITING patch file',filename
+        if verbose:
+            print 'WRITING patch file',filename
         with open(filepath, 'w') as fd:
             fd.write(diff)
         count += 1
 
 
-def continue_patching(spec, base_name, working_branch, orig_branch, verbose=True):
+def continue_patching(spec, base_name, working_branch, orig_branch,
+                      edit_commit_file=False, verbose=True):
     """Continue doing the work of a "weld push".
 
     Finds any outstanding patches to be done in the "pushing" directory,
@@ -233,7 +251,8 @@ def continue_patching(spec, base_name, working_branch, orig_branch, verbose=True
     been successfully dealt with.
     """
 
-    print '### Continue patching %s'%base_name
+    if verbose:
+        print 'Continue patching %s'%base_name
 
     weld_root = spec.base_dir
     dot_weld_dir = layout.weld_dir(weld_root)
@@ -268,7 +287,6 @@ def continue_patching(spec, base_name, working_branch, orig_branch, verbose=True
             for patch_file in sorted(patch_files):
                 print 'weld_push: base %s seam %s patch %s'%(base_name, seam_name, patch_file)
                 patch_path = os.path.join(pushing_seam_dir, patch_file)
-                print 'APPLYING patch file',patch_path
                 try:
                     if seam_name == '__None':
                         git.apply_patch(pushing_base_dir, patch_path,
@@ -281,25 +299,63 @@ def continue_patching(spec, base_name, working_branch, orig_branch, verbose=True
 
                 # Once a patch has been applied successfully, we can
                 # delete the patch file
-                print 'weld_push: base %s seam %s DELETE patch %s'%(base_name, seam_name, patch_file)
+                if verbose:
+                    print 'weld_push: base %s seam %s DELETE patch %s'%(base_name,
+                            seam_name, patch_file)
                 os.remove(patch_path)
 
             # Once a seam directory is empty, we can delete it
-            print 'weld_push: base %s DELETE seam %s'%(base_name, seam_name)
+            if verbose:
+                print 'weld_push: base %s DELETE seam %s'%(base_name, seam_name)
             os.rmdir(pushing_seam_dir)
 
         # Once a base directory is empty, we can delete it
-        print 'weld_push: DELETE base %s'%base_name
+        if verbose:
+            print 'weld_push: DELETE base %s'%base_name
         os.rmdir(pushing_base_dir)
 
     # That appears to be all...
-    finish_push(spec, base_name, working_branch, orig_branch)
+    finish_push(spec, base_name, working_branch, orig_branch,
+                edit_commit_file=edit_commit_file, verbose=verbose)
 
     # And guess what we can do when we've finished pushing everything...
-    print 'weld_push: DELETE'
+    if verbose:
+        print 'weld_push: DELETE'
     os.rmdir(pushing_dir)
 
-def finish_push(spec, base_name, working_branch, orig_branch, verbose=True):
+def edit_file(filename):
+    """Allow the user to edit the given file.
+    """
+    with open(filename) as fd:
+        text = fd.read()
+    f = tempfile.NamedTemporaryFile(delete=False)
+    f.write(text)
+    f.close()
+    if 'GIT_EDITOR' in os.environ:
+        editor = os.environ['GIT_EDITOR']
+    elif 'VISUAL' in os.environ:
+        editor = os.environ['VISUAL']
+    elif 'EDITOR' in os.environ:
+        editor = os.environ['EDITOR']
+    else:
+        editor = 'vi'
+
+    print 'Editing file %s (copy of %s)'%(f.name, filename)
+    rv = subprocess.call([editor, f.name])
+    if rv != 0:
+        raise GiveUp('Editor returned %d, giving up'%rv)
+
+    with open(f.name) as fd:
+        text2 = fd.read()
+
+    if text != text2:
+        print 'Text changed - updating %s'%filename
+        os.rename(f.name, filename)
+    else:
+        print 'Text was not changed'
+
+def finish_push(spec, base_name, working_branch, orig_branch,
+                edit_commit_file=False, verbose=True):
     """Do everything necessary to finish off our "weld push".
 
     Assumes we have been doing "weld push" for the given 'base_name'.
@@ -311,9 +367,15 @@ def finish_push(spec, base_name, working_branch, orig_branch, verbose=True):
     # Maybe give the user the option to edit the commit message before
     # we actually use it - we'd use the "--template <file>" switch
     # instead of "--file <file>"
-    commit_file = os.path.join(layout.push_commit_file(weld_root, base_name))
-    git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
-    print 'Deleting', commit_file
+    commit_file = layout.push_commit_file(weld_root, base_name)
+
+    if edit_commit_file:
+        edit_file(commit_file)
+
+    git.commit_using_file(base_dir, commit_file, all=True,
+                          verbose=verbose)
+    if verbose:
+        print 'Deleting', commit_file
     os.remove(commit_file)
 
     head_base_commit = git.query_current_commit_id(base_dir)
@@ -349,9 +411,11 @@ def finish_push(spec, base_name, working_branch, orig_branch, verbose=True):
 
     return 0
 
-def continue_push(spec, base_name, working_branch, orig_branch, verbose=True):
+def continue_push(spec, base_name, working_branch, orig_branch,
+                  edit_commit_file=False, verbose=True):
     try:
-        continue_patching(spec, base_name, working_branch, orig_branch)
+        continue_patching(spec, base_name, working_branch, orig_branch,
+                          edit_commit_file=edit_commit_file)
         return 0
     except ApplyError as e:
         print str(e)
@@ -360,11 +424,13 @@ def continue_push(spec, base_name, working_branch, orig_branch, verbose=True):
         print "or do 'weld abort' to give up."
         return 1
 
-def abort_push(spec, working_branch, orig_branch):
+def abort_push(spec, base_name, working_branch, orig_branch):
     """
     Abort a "weld push"
     """
     git.switch_branch(spec, orig_branch)
     git.remove_branch(spec, working_branch)
+    commit_file = layout.push_commit_file(spec.base_dir, base_name)
+    os.remove(commit_file)
     shutil.rmtree(layout.pushing_dir(spec.base_dir))
 

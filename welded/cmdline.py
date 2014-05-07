@@ -37,6 +37,9 @@ main_parser.add_option("-v", "--verbose", action="store_true",
 main_parser.add_option("-t", "--tuple", action="store_true",
                        dest="as_tuple", default = False,
                        help="also report information as a tuple, if appropriate")
+main_parser.add_option("-e", "--edit", action="store_true",
+                       dest="edit_commit_file", default = False,
+                       help='edit the "weld push" commit file for each base before using it')
 
 # CommandName -> CommandClass
 g_command_dict = { }
@@ -165,8 +168,11 @@ class Pull(Command):
     """
     def go(self,opts,args):
         to_pull = self.base_set_from_args(args)
+        if len(to_pull) == 0:
+            print 'You must name a base to pull'
+            return 1
         if opts.verbose:
-            print("Pulling bases: %s"%(to_pull))
+            print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
             rv = pull.pull_base(self.spec, p)
             if rv != 0:
@@ -181,6 +187,11 @@ class Push(Command):
 
     If _all is given, push all bases.
 
+    If you specify --edit (-e) then you will be given the opportunity to
+    edit the commit file for each base. The editor to use is $GIT_EDITOR
+    (if defined), else $VISUAL (if defined), else $EDITOR (if defined),
+    and otherwise 'vi'.
+
     If pushing a base fails (typically because human intervention is needed
     to sort out a merge), then either use "weld abort" to give up on the
     operation, or fix the merge and use "weld continue" to continue with
@@ -192,10 +203,15 @@ class Push(Command):
     """
     def go(self,opts,args):
         to_push = self.base_set_from_args(args)
+        if len(to_push) == 0:
+            print 'You must name a base to push'
+            return 1
         if opts.verbose:
-            print("Pushing bases: %s"%(to_push))
-        for p in to_push:
-            rv = push.push_base(self.spec, p, verbose=opts.verbose)
+            print "Pushing bases: %s"%(', '.join(to_push))
+        for base_name in to_push:
+            rv = push.push_base(self.spec, base_name,
+                                edit_commit_file=opts.edit_commit_file,
+                                verbose=opts.verbose)
             if rv != 0:
                 return rv
 

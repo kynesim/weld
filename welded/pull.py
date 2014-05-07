@@ -13,7 +13,7 @@ import ops
 import layout
 import status
 
-def pull_base(spec, base):
+def pull_base(spec, base, verbose=False):
     """Pull a single base.
 
     'spec' is the Weld that contains this base.
@@ -21,8 +21,9 @@ def pull_base(spec, base):
     'base' is the name of the base.
     """
     # Make sure we have no unstaged changes.
-    if (git.has_local_changes(spec.base_dir)):
-        raise utils.GiveUp("You have local changes; please commit or stash them.")
+    if git.has_local_changes(spec.base_dir, verbose=verbose):
+        raise GiveUp("'git status' reports that you have local changes;"
+                     " please commit or stash them.")
 
     current_branch = git.current_branch(spec.base_dir)
 
@@ -91,16 +92,9 @@ def pull_base(spec, base):
                                                                   current_branch))
 
 
-    # No! Create a branch (and increment the counter until we 
-    #   get one that is not in use)
-    i = 0
-    while True:
-        branch_name = "weld-merge-%s-%d"%(base,i)
-        if (not git.has_branch(spec.base_dir, branch_name)):
-            break
-        i = i + 1
-
-    git.create_and_switch(spec.base_dir, branch_name, commit_id)
+    # No! Create a branch with a suitable unique name
+    branch_name = git.new_branch_name(spec.base_dir, 'weld-merge-%s'%base, commit_id)
+    git.checkout(spec.base_dir, commit_id, new_branch_name=branch_name)
 
     # First, if there are any deleted seams, use a commit to get rid of them.
     ops.delete_seams(spec, b, deleted_in_new, current_base_commit_id)
