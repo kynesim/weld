@@ -57,9 +57,6 @@ def pull_base(spec, base):
     if current_branch.startswith("weld-"):
         raise GiveUp("You are currently on a branch used by weld (%s) - please"
                 " get off it before trying to use weld."%(current_branch))
-        print("You are currently on a branch used by weld (%s) - please get off it before"
-              " trying to use weld."%(current_branch))
-        return 1
 
     # Find the last merge
     (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base)
@@ -115,12 +112,12 @@ def pull_base(spec, base):
     ops.add_seams(spec, b, added_in_new, current_base_commit_id)
     
     # Write some stuff to the completion file.
-    ops.write_finish_pull(spec, 
-                         " pull.finish(spec, '%s', '%s', '%s', '%s', '%s', '%s')"%
-                         (b.name, current_branch, current_commit, branch_name, 
+    ops.write_finish_pull(spec,
+                         " pull.finish_pull(spec, %r, %r, %r, %r, %r, %r)"%
+                         (b.name, current_branch, current_commit, branch_name,
                           base_commit_id, current_base_commit_id),
-                         " pull.abort(spec, '%s', '%s')"%(branch_name, current_branch))
-    
+                         " pull.abort_pull(spec, %r, %r)"%(branch_name, current_branch))
+
     # Now merge master into current-branch
     try:
         git.merge(spec, branch_name, current_branch, "Merging changes from %s"%current_branch)
@@ -132,11 +129,11 @@ def pull_base(spec, base):
         return 1
 
     print("Rebase succeeded. Committing .. \n")
-    ops.do_finish(spec)
+    ops.do_finish_pull(spec)
     return 0
 
-def finish(spec, base_name, current_branch, current_commit, branch_name, base_commit, 
-           current_base_commit_id):
+def finish_pull(spec, base_name, current_branch, current_commit, branch_name,
+                base_commit, current_base_commit_id):
     """
     Finish a merge.
     """
@@ -167,7 +164,7 @@ def finish(spec, base_name, current_branch, current_commit, branch_name, base_co
     git.commit(spec.base_dir, hdr, [ ])
 
 
-def abort(spec, branch_name, current_branch):
+def abort_pull(spec, branch_name, current_branch):
     """
     Abort a merge
     """
@@ -176,6 +173,3 @@ def abort(spec, branch_name, current_branch):
     git.remove_branch(spec, branch_name)
 
 # end file.
-    
-
-    

@@ -238,7 +238,7 @@ def write_finish_push(spec, cmds_ok, cmds_abort):
         f.write(cmds_abort)
         f.write(FINISH_PUSH_SUFFIX)
 
-def do_finish(spec):
+def do_finish_pull(spec):
     c = layout.complete_pull_file(spec.base_dir)
     if (os.path.exists(c)):
         f = utils.dynamic_load(c, no_pyc=True)
@@ -248,7 +248,7 @@ def do_finish(spec):
     else:
         raise utils.GiveUp('No pending "weld pull" to complete')
 
-def do_continue(spec):
+def do_continue_push(spec):
     c = layout.continue_push_file(spec.base_dir)
     if (os.path.exists(c)):
         f = utils.dynamic_load(c, no_pyc=True)

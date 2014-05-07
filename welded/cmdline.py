@@ -203,20 +203,26 @@ class Help(Command):
 @command('finish')
 class Finish(Command):
     """
-    Finish a pending operation
+    Finish a "weld pull" that needed user intervetion.
     """
     def go(self, opts, args):
-        spec = self.spec
-        ops.do_finish(spec)
+        ops.do_finish_pull(self.spec)
+
+@command('continue')
+class Continue(Command):
+    """
+    Finish a "weld push" that needed user intervention
+    """
+    def go(self, opts, args):
+        ops.do_continue_push(self.spec)
 
 @command('abort')
 class Abort(Command):
     """
-    Abort a pending operation
+    Abort a "weld pull" or "weld push" that needed user intervention
     """
     def go(self, opts, args):
-        spec = self.spec
-        ops.do_abort(spec)
+        ops.do_abort(self.spec)
 
 @command('query')
 class Query(Command):

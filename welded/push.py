@@ -171,20 +171,13 @@ def push_base(spec, base_name, verbose=False):
         # want the SHA1 entry? Is it really of use?
         f.write('\n'.join(base_changes))
 
-    return continue_push(spec, base_name, orig_branch, working_branch,
-                         verbose=verbose)
+    # Write out the "continue.py" and "abort.py" files
+    ops.write_finish_push(spec,
+            " push.continue_push(spec, %r, %r, %r)"%(base_name, working_branch, orig_branch),
+            " push.abort_push(spec, %r, %r)"%(working_branch, orig_branch))
 
-
-def continue_push(spec, base_name, orig_branch, working_branch, verbose=True):
-    try:
-        continue_patching(spec, base_name, orig_branch, working_branch)
-        return 0
-    except ApplyError as e:
-        print str(e)
-        print "Push of base %s failed"%base_name
-        print "Either fix the errors and then do 'weld continue',"
-        print "or do 'weld abort' to give up."
-        return 1
+    # And then use the "continue.py" script to do the rest
+    return ops.do_continue_push(spec)
 
 def trim_states(lines):
     """Return only those lines that do not say "X-Weld-State:"
@@ -226,7 +219,7 @@ def write_patchfiles(weld_root, base_name, seam_dir, diffs):
         count += 1
 
 
-def continue_patching(spec, base_name, orig_branch, working_branch, verbose=True):
+def continue_patching(spec, base_name, working_branch, orig_branch, verbose=True):
     """Continue doing the work of a "weld push".
 
     Finds any outstanding patches to be done in the "pushing" directory,
@@ -300,13 +293,13 @@ def continue_patching(spec, base_name, orig_branch, working_branch, verbose=True
         os.rmdir(pushing_base_dir)
 
     # That appears to be all...
-    finish_push(spec, base_name, orig_branch, working_branch)
+    finish_push(spec, base_name, working_branch, orig_branch)
 
     # And guess what we can do when we've finished pushing everything...
     print 'weld_push: DELETE'
     os.rmdir(pushing_dir)
 
-def finish_push(spec, base_name, orig_branch, working_branch, verbose=True):
+def finish_push(spec, base_name, working_branch, orig_branch, verbose=True):
     """Do everything necessary to finish off our "weld push".
 
     Assumes we have been doing "weld push" for the given 'base_name'.
@@ -355,6 +348,17 @@ def finish_push(spec, base_name, orig_branch, working_branch, verbose=True):
     os.remove(f.name)
 
     return 0
+
+def continue_push(spec, base_name, working_branch, orig_branch, verbose=True):
+    try:
+        continue_patching(spec, base_name, working_branch, orig_branch)
+        return 0
+    except ApplyError as e:
+        print str(e)
+        print "Push of base %s failed"%base_name
+        print "Either fix the errors and then do 'weld continue',"
+        print "or do 'weld abort' to give up."
+        return 1
 
 def abort_push(spec, working_branch, orig_branch):
     """
