@@ -171,8 +171,15 @@ def push_base(spec, base_name, verbose=False):
         # want the SHA1 entry? Is it really of use?
         f.write('\n'.join(base_changes))
 
+    return continue_push(spec, base_name, base_dir,
+                         orig_branch, working_branch, commit_file,
+                         verbose=verbose)
+
+
+def continue_push(spec, base_name, base_dir, orig_branch,
+                  working_branch, commit_file, verbose=True):
     try:
-        continue_patching(weld_root, verbose=verbose)
+        continue_patching(spec.base_dir, verbose=verbose)
     except ApplyError as e:
         print str(e)
         print "Push of base %s failed"%base_name
@@ -180,9 +187,8 @@ def push_base(spec, base_name, verbose=False):
         print "or do 'weld abort' to give up."
         return 1
 
-    return finish_push(spec, base_name, seams,
+    return finish_push(spec, base_name,
                        base_dir, orig_branch, working_branch, commit_file)
-
 
 def trim_states(lines):
     """Return only those lines that do not say "X-Weld-State:"
@@ -297,8 +303,12 @@ def continue_patching(weld_root, verbose=False):
     print 'weld_push: DELETE'
     os.rmdir(pushing_dir)
 
-def finish_push(spec, base_name, seams, base_dir,
+def finish_push(spec, base_name, base_dir,
                 orig_branch, working_branch, commit_file):
+    """Do everything necessary to finish off our "weld push".
+
+    Assumes we have been doing "weld push" for the given 'base_name'.
+    """
     # Allow an empty commit, so we still end up with a place marker
     # for our action
     # Maybe give the user the option to edit the commit message before
@@ -320,6 +330,8 @@ def finish_push(spec, base_name, seams, base_dir,
     git.push(base_dir)
 
     # And now mark the weld with where/when the push happened
+    base = spec.bases[base_name]
+    seams = base.get_seams()
     seam_str = headers.pickle_seams(seams)
     f = tempfile.NamedTemporaryFile(delete=False)
     f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
