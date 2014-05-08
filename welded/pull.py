@@ -39,7 +39,7 @@ def pull_base(spec, base, verbose=False):
                 'Fix any problems and then "weld finish", or give up using "weld abort"')
     if in_weld_push:
         raise utils.GiveUp('Part way through an earlier "weld push"\n'
-                'Fix any problems and then "weld continue", or give up using "weld abort"')
+                'Fix any problems and then "weld finish", or give up using "weld abort"')
     if should_git_pull:
         # Our weld is not up-to-date. This means that if we do a "weld pull"
         # and it updates our seams, life may get confusing. So for the moment,
@@ -114,7 +114,8 @@ def pull_base(spec, base, verbose=False):
 
     # Now merge master into current-branch
     try:
-        git.merge(spec, branch_name, current_branch, "Merging changes from %s"%current_branch)
+        git.merge(spec.base_dir, branch_name, current_branch,
+                  "Merging changes from %s"%current_branch)
     except utils.GiveUp as e:
         print str(e)
         print "Merge failed"
@@ -123,7 +124,7 @@ def pull_base(spec, base, verbose=False):
         return 1
 
     print("Rebase succeeded. Committing .. \n")
-    ops.do_finish_pull(spec)
+    ops.do_finish(spec)
     return 0
 
 def finish_pull(spec, base_name, current_branch, current_commit, branch_name,
@@ -135,7 +136,7 @@ def finish_pull(spec, base_name, current_branch, current_commit, branch_name,
     hdr = headers.merge_marker(b, b.get_seams(), current_base_commit_id)
 
     # Make sure we are merging to the right place.
-    git.switch_branch(spec, current_branch)
+    git.switch_branch(spec.base_dir, current_branch)
 
     # You can't merge a weld pull, because it will reverse the order of commits, which is
     #  quite bad, but also remove commits that didn't have any net effect - which will
@@ -164,6 +165,6 @@ def abort_pull(spec, branch_name, current_branch):
     """
     #git.abort_rebase(spec)
     git.switch_branch(spec, current_branch)
-    git.remove_branch(spec, branch_name)
+    git.remove_branch(spec.base_dir, branch_name)
 
 # end file.

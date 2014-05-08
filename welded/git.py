@@ -88,6 +88,18 @@ def commit_using_file(where, commit_file, all=False, verbose=True):
     cmd += ["--file", commit_file]
     run_silently(cmd, cwd=where, verbose=verbose)
 
+def commit_using_message(where, message, all=False, verbose=True):
+    """Commit with the message in 'message'.
+
+    If 'all' is true, then add "-a" to the command, to stage any modified or
+    deleted files.
+    """
+    cmd = ["git", "commit", "--allow-empty"]
+    if all:
+        cmd.append("--all")
+    cmd += ["-m", message]
+    run_silently(cmd, cwd=where, verbose=verbose)
+
 def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
     """Checkout a commit, or create and checkout a branch.
 
@@ -287,17 +299,26 @@ def rebase(spec, upstream, branch = None, onto = None):
         cmd.append(branch)
     run_to_stdout(cmd, cwd=spec.base_dir)
   
-def switch_branch(spec, to_branch):
-    run_silently([ "git", "checkout", to_branch ], cwd=spec.base_dir)
+def switch_branch(where, to_branch):
+    run_silently([ "git", "checkout", to_branch ], cwd=where)
 
-def remove_branch(spec, rm_branch):
-    run_silently([ "git", "branch", "-d", rm_branch ], cwd=spec.base_dir)
+def remove_branch(where, rm_branch, irrespective=False):
+    """Delete the branch 'rm_branch'
 
-def merge(spec, to_branch, from_branch, msg, squashed = False):
+    - 'where' is where to run the command
+    - 'rm_branch' is the name of the branch to delete
+    -  if 'irrespective', delete it even if it is not merged (i.e., use -D
+       rather than -d)
+    """
+    run_silently([ "git", "branch",
+                   "-D" if irrespective else "-d",
+                   rm_branch ], cwd=where)
+
+def merge(where, to_branch, from_branch, msg, squashed = False):
     """
     Note that merge leaves you on the to_branch
     """
-    switch_branch(spec, to_branch)
+    switch_branch(where, to_branch)
     cmd = [ "git", "merge" ]
     if (squashed):
         cmd.append("--squash")
@@ -305,13 +326,27 @@ def merge(spec, to_branch, from_branch, msg, squashed = False):
     # Sadly, there is no -F option
     cmd.extend([ "-m" , msg])
     cmd.append(from_branch)
-    run_silently(cmd, cwd=spec.base_dir)
+    run_silently(cmd, cwd=where)
 
 def ff_merge(where, branch_name, verbose=False):
     """Do a fast-forward merge of branch 'branch_name' to the current branch
     """
     run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where,
                  verbose=verbose)
+
+def merge_to_current(where, branch_name, squash=False, verbose=False):
+    """Do a "normal" merge of branch 'branch_name' to the current branch.
+
+    Do not commit.
+
+    If 'squash' is true, then do a squash merge with --squash.
+    """
+    cmd = ['git', 'merge', branch_name]
+    if squash:
+        cmd.append('--squash')
+    else:
+        cmd.append('--no-commit')
+    run_silently(cmd, cwd=where, verbose=verbose)
 
 def has_local_changes(where, verbose=False):
     rv, out = run_silently(["git", "status", "-s"], cwd=where, verbose=verbose)

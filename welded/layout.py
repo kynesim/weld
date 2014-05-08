@@ -9,7 +9,7 @@ import db
 def weld_dir(base_dir):
     return os.path.join(base_dir, ".weld")
 
-def complete_pull_file(base_dir):
+def complete_file(base_dir):
     return os.path.join(base_dir, ".weld", "complete.py")
 
 def abort_file(base_dir):
@@ -23,9 +23,6 @@ def base_repo(base_dir, base):
 
 def count_file(base_dir):
     return os.path.join(base_dir, ".weld", "counter")
-
-def continue_push_file(base_dir):
-    return os.path.join(base_dir, ".weld", "continue.py")
 
 def pushing_dir(base_dir, base=None, seam=None):
     if seam:

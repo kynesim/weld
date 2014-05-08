@@ -194,10 +194,10 @@ class Push(Command):
 
     If pushing a base fails (typically because human intervention is needed
     to sort out a merge), then either use "weld abort" to give up on the
-    operation, or fix the merge and use "weld continue" to continue with
+    operation, or fix the merge and use "weld finish" to continue with
     any remaining patches.
 
-    If you specify multiple bases to "weld push", and have to "weld continue"
+    If you specify multiple bases to "weld push", and have to "weld finish"
     or "weld abort" one of them, the "weld push" will not continue on to the
     next base; you will have to reissue the command again.
     """
@@ -236,18 +236,10 @@ class Help(Command):
 @command('finish')
 class Finish(Command):
     """
-    Finish a "weld pull" that needed user intervetion.
+    Finish a "weld pull" or a "weld pull" that needed user intervetion.
     """
     def go(self, opts, args):
-        ops.do_finish_pull(self.spec)
-
-@command('continue')
-class Continue(Command):
-    """
-    Finish a "weld push" that needed user intervention
-    """
-    def go(self, opts, args):
-        ops.do_continue_push(self.spec)
+        ops.do_finish(self.spec)
 
 @command('abort')
 class Abort(Command):
@@ -341,7 +333,8 @@ class Status(Command):
 
         if in_weld_push:
             print 'Part way through "weld push"'
-            print 'Fix any problems and then "weld continue", or give up using "weld abort"'
+            push.report_status(self.spec)
+            print 'Fix any problems and then "weld finish", or give up using "weld abort"'
         elif verbose:
             print 'Not part way through a "weld push"'
 

@@ -219,7 +219,7 @@ FINISH_PUSH_PREFIX="import push\n" + \
 FINISH_PUSH_SUFFIX="\n"
 
 def write_finish_pull(spec, cmds_ok, cmds_abort):
-    with open(layout.complete_pull_file(spec.base_dir), "w+") as f:
+    with open(layout.complete_file(spec.base_dir), "w+") as f:
         f.write(FINISH_PULL_PREFIX)
         f.write(cmds_ok)
         f.write(FINISH_PULL_SUFFIX)
@@ -229,7 +229,7 @@ def write_finish_pull(spec, cmds_ok, cmds_abort):
         f.write(FINISH_PULL_SUFFIX)
 
 def write_finish_push(spec, cmds_ok, cmds_abort):
-    with open(layout.continue_push_file(spec.base_dir), "w+") as f:
+    with open(layout.complete_file(spec.base_dir), "w+") as f:
         f.write(FINISH_PUSH_PREFIX)
         f.write(cmds_ok)
         f.write(FINISH_PUSH_SUFFIX)
@@ -238,25 +238,15 @@ def write_finish_push(spec, cmds_ok, cmds_abort):
         f.write(cmds_abort)
         f.write(FINISH_PUSH_SUFFIX)
 
-def do_finish_pull(spec):
-    c = layout.complete_pull_file(spec.base_dir)
+def do_finish(spec):
+    c = layout.complete_file(spec.base_dir)
     if (os.path.exists(c)):
         f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.remove(c)
         os.remove(layout.abort_file(spec.base_dir))
     else:
-        raise utils.GiveUp('No pending "weld pull" to complete')
-
-def do_continue_push(spec):
-    c = layout.continue_push_file(spec.base_dir)
-    if (os.path.exists(c)):
-        f = utils.dynamic_load(c, no_pyc=True)
-        f.go(spec)
-        os.remove(c)
-        os.remove(layout.abort_file(spec.base_dir))
-    else:
-        raise utils.GiveUp('No pending "weld push" to continue')
+        raise utils.GiveUp('No pending "weld pull" or "weld push" to complete')
 
 def do_abort(spec):
     c  = layout.abort_file(spec.base_dir)
@@ -264,7 +254,7 @@ def do_abort(spec):
         f = utils.dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.remove(c)
-        os.remove(layout.complete_pull_file(spec.base_dir))
+        os.remove(layout.complete_file(spec.base_dir))
     else:
         raise utils.GiveUp('No pending "weld pull" or "weld push" to abort')
 
