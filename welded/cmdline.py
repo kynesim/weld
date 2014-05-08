@@ -237,6 +237,11 @@ class Help(Command):
 class Finish(Command):
     """
     Finish a "weld pull" or a "weld pull" that needed user intervetion.
+
+    Remember that if you had to do "weld finish" on a "weld push", then
+    you may have updated the remote base repository in a way that is not
+    consistent with the equivalent source code in the main weld. As such,
+    you may need to do "weld pull" of the base.
     """
     def go(self, opts, args):
         ops.do_finish(self.spec)

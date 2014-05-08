@@ -1147,53 +1147,101 @@ def test():
     banner('weld push project124')
     weld('push project124', cwd=fromble_test.where)
 
-    # NOTES FROM EARLIER
-    # ==================
-    # Note that some of the above is done by "weld query seam-changes"
-    # - investigate exactly what
+    # Make inconsistent changes at each end...
+    def make_inconsistent_changes(n):
+        banner('Making inconsistent changes (%d)'%n)
+        with Directory(project124_orig):
+            with Directory('four'):
+                # Make sure it is up-to-date
+                git('pull')
+                # And make our change
+                append('Makefile', '#This is comment 1+%d\n'%n)
+                git('commit -a -m "Commit comment 1+%d"'%n)
+                git('push')
 
-    # So, in general, we have a commit, or several commits, that impact one
-    # or more seams, and maybe the weld as a whole. We want to abstract the
-    # patch that applies to the particular base (or just the weld).
-    #
-    # So presumably we want to:
-    #
-    #    * if it is easy to do (?) insist that the user has done a
-    #      "weld pull" of whatever we're trying to "weld push" - this is
-    #      perhaps a bit restrictive, but probably sensible at first (?) so
-    #      that we don't get problems when we eventually finish and do our
-    #      push to the remote repositories.
+        with Directory(fromble_test.where):
+            with Directory('124'):
+                with Directory('four'):
+                    # Make a different change
+                    append('Makefile', '#This is comment 2+%d\n'%n)
+                    git('commit -a -m "Commit comment 2+%d"'%n)
 
-    #    * definitely insist on no local changes (git.has_local_changes)
+        banner('WELD PUSH inconsistent change (%d)'%n)
+        banner('weld push project124')
+        try:
+            out = weld_get_output('push -v project124', cwd=fromble_test.where)
+            print out
+            raise GiveUp('weld did not fail, returned:\n%s'%out)
+        except ShellError as e:
+            lines = e.text.splitlines()
+            if "CONFLICT (content): Merge conflict in four/Makefile" not in e.text:
+                raise GiveUp('weld failed in an unexpected manner:\n%s'%e)
+            if not e.text.strip().endswith('and do "weld finish", or abort using "weld abort"'):
+                raise GiveUp('weld failed in an unexpected manner:\n%s'%e)
 
-    #    * determine the commits that have not been propagated (as above)
-    #      since the last X-Weld-State: Push (or Init if there was no Push)
-    #      - these are the changes we need to propagate
+    make_inconsistent_changes(1)
+    # So we failed successfully (!)
+    # Let's check we can abort
+    with Directory(fromble_test.where):
+        compare_dir('.weld',
+                    ['  abort.py',
+                     '  bases/...',
+                     '  complete.py',
+                     '  counter',
+                     '  pushing/',
+                     '    _merging_project124',
+                     '    _push_commit_project124.txt',
+                     '    project124/',             # should this be here?
+                     '  welded.xml',
+                     ], fold_dirs=['bases'])
+        weld("abort")
+        compare_dir('.weld',
+                    ['  bases/...',
+                     '  counter',
+                     '  welded.xml',
+                     ], fold_dirs=['bases'])
 
-    #    * branch from the last synchronisation with the far end - so
-    #      the most recent X-Weld-State: Merge, Push or Init.
+    make_inconsistent_changes(2)
 
+    # So we failed successfully (!)
+    # Let's see if we can fix it
+    with Directory(fromble_test.where):
+        compare_dir('.weld',
+                    ['  abort.py',
+                     '  bases/...',
+                     '  complete.py',
+                     '  counter',
+                     '  pushing/',
+                     '    _merging_project124',
+                     '    _push_commit_project124.txt',
+                     '    project124/',             # should this be here?
+                     '  welded.xml',
+                     ], fold_dirs=['bases'])
 
-    #    * determine the changes that we care about for this base (or the
-    #      weld) and create a sequence of patches that just takes account
-    #      of them (if a base has more than one seam, we'll probably need a
-    #      patch for each seam)
+        new_makefile = ('# An empty makefile\n\n'
+                        'all: four\n\n'
+                        'four: four.c\n\n'
+                        'four-and-a-bit: four-and-a-bit.c\n\n'
+                        '#This is comment 1 and 2, folded together\n')
 
-    #    * apply that patch to the base (or weld) in .weld, with some
-    #      appropriate commit message (including an X-Weld-State:
-    #      PortedCommit or somesuch tag? - should we re-use PortedCommit
-    #      for this purpose?) (this leaves the user working in the
-    #      .weld/bases directory to fix any problems, which is not perfect,
-    #      but I'm not sure we have any other way to do it)
+        with Directory(os.path.join('.weld', 'bases', 'project124', 'four')):
+            touch('Makefile', new_makefile)
+            shell('git commit -a -m "Fixed the problem"')
 
-    #    * push to the far repository
+        weld("finish")
 
-    #    * add an "X-Weld-State: Pushed" commit to the weld
+        compare_dir('.weld',
+                    ['  bases/...',
+                     '  counter',
+                     '  welded.xml',
+                     ], fold_dirs=['bases'])
 
-    # NB: Preferably name our "temporary" branches in a more unique manner
+        with Directory(os.path.join('.weld', 'bases', 'project124', 'four')):
+            with open('Makefile') as fd:
+                content = fd.read()
+            if content != new_makefile:
+                raise GiveUp('"weld finish" was not resolved as expected')
 
-    # XXX Check that if we do "weld pull <base-name>" and then immediately
-    # XXX do the same again, it does nothing...
 
 def main(args):
 

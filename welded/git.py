@@ -348,6 +348,11 @@ def merge_to_current(where, branch_name, squash=False, verbose=False):
         cmd.append('--no-commit')
     run_silently(cmd, cwd=where, verbose=verbose)
 
+def merge_abort(where, verbose=False):
+    """Abort a merge
+    """
+    run_silently(['git', 'merge', '--abort'], cwd=where, verbose=verbose)
+
 def has_local_changes(where, verbose=False):
     rv, out = run_silently(["git", "status", "-s"], cwd=where, verbose=verbose)
     if verbose:

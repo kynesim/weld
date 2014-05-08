@@ -382,7 +382,7 @@ def finish_push(spec, base_name, working_branch, orig_branch,
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
 
     pushing_dir = layout.pushing_dir(weld_root)
-    merging_indicator = os.path.join(pushing_dir, 'merging_%s'%base_name)
+    merging_indicator = os.path.join(pushing_dir, '_merging_%s'%base_name)
 
     # If the merging indicator exists, then we've at least started a merge
     # before, so we don't need to do so again
@@ -474,6 +474,14 @@ def abort_push(spec, base_name, working_branch, orig_branch):
     """
     weld_root = spec.base_dir
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
+
+    try:
+        # We might need to abort a merge before we can change branch
+        # Or we might not...
+        git.merge_abort(base_dir)
+    except GiveUp:
+        pass            # Really, ignore it
+
     git.switch_branch(base_dir, orig_branch)
     git.remove_branch(base_dir, working_branch, irrespective=True)
 
@@ -515,12 +523,12 @@ def report_status(spec):
                         applied += 1
                 print'  applied %d, failed %d, still to do %d'%(applied, failed,
                         outstanding)
-        elif filename.startswith('merging_'):
-            base_name = filename[len('merging_'):]
+        elif filename.startswith('_merging_'):
+            base_name = filename[len('_merging_'):]
             print 'Base %s has been merged, but the merge did not complete'%base_name
             base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
             print "The source code that needs fixing is in\n    %s"%base_dir
-        elif filename.startswith('push_commit_'):
+        elif filename.startswith('_push_commit_'):
             head, ext = os.path.splitext(filename)
-            base_name = head[len('push_commit_'):]
+            base_name = head[len('_push_commit_'):]
             print 'Base %s is still to be committed, using message in %s'%base_name
