@@ -65,9 +65,17 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # We don't care if "git push" would update the weld's remote, since
     # it's the bases we're about to push to...
 
+    # At some point we need to make sure that our copy of the base is
+    # up-to-date, so we can patch something that is reasonably safe to
+    # push. Let's try doing it now
+    print 'Updating base %s before our "weld push"'%base_name
+    ops.update_base(spec, spec.query_base(base_name))
+
     # XXX Here we go
 
-    print("Pushing %s .. \n"%(base_name))
+    print
+    print "Pushing %s .."%base_name
+    print
     current_commit = git.query_current_commit_id(weld_root)
 
     if current_branch.startswith("weld-"):

@@ -68,9 +68,10 @@ def query_seam_changes(spec, base_name):
     print "  C: %s"%changes
     print "  A: %s"%added_in_new
     return 1
-    
+
+def query_match(spec, base_name):
+    """Report the commit id that is the last "common point"
+    """
+    print '<Aaagh>'
 
 # End file.
-
-    
-    

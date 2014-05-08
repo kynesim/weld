@@ -1242,7 +1242,6 @@ def test():
             if content != new_makefile:
                 raise GiveUp('"weld finish" was not resolved as expected')
 
-
 def main(args):
 
     keep = False

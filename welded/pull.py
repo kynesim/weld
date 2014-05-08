@@ -52,7 +52,9 @@ def pull_base(spec, base, verbose=False):
     # We don't care if "git push" would update the weld's remote, since we
     # are about to change it locally anyway...
 
-    print("Pulling %s .. \n"%(base))
+    print
+    print "Pulling %s .."%base
+    print
     current_commit = git.query_current_commit_id(spec.base_dir)
 
     if current_branch.startswith("weld-"):
