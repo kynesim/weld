@@ -431,7 +431,7 @@ def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None,
         # There is no remote, so we can't see its HEAD(!)
         if verbose:
             print 'There is no remote, so we cannot pull or push'
-            return None, None
+        return None, None
     words = line.split()
     remote_head = words[0]
     if verbose:
