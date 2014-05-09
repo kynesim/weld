@@ -483,9 +483,9 @@ def test():
                      '    two.c',
                      ])
 
-        with Directory('fromble') as fromble_test:
+        with Directory('fromble') as fromble_test1:
 
-            fromble_test_clone_id = git_rev_parse('HEAD')
+            fromble_test1_clone_id = git_rev_parse('HEAD')
 
             # And from that we should be able to build/run
             #
@@ -585,7 +585,7 @@ def test():
                     os.remove(os.path.join('igniting_duck', 'one', 'one'))
                     os.remove(os.path.join('igniting_duck', 'two', 'two'))
 
-            fromble_test_first_pull_id = git_rev_parse('HEAD')
+            fromble_test1_first_pull_id = git_rev_parse('HEAD')
 
             # At which point we don't need to pull (with "git pull"),
             # nor do we have anything to push
@@ -602,7 +602,7 @@ def test():
 
     # And check we can pull that using weld
     banner('Pull into cloned weld')
-    with Directory(fromble_test.where):
+    with Directory(fromble_test1.where):
         weld('pull -v project124')
 
         compare_dir('.',
@@ -686,7 +686,7 @@ def test():
                      ])
 
         # Just to review where we are
-        with Directory(fromble_test.where) as x:
+        with Directory(fromble_test1.where) as x:
             print
             print 'TEST', x.where
             git('--no-pager log --oneline')
@@ -739,8 +739,8 @@ def test():
         assert need_to_push == False
 
     banner('Amend the checked out sources')
-    with Directory(fromble_test.where):
-        fromble_test_id_before_three_plus = git_rev_parse('HEAD')
+    with Directory(fromble_test1.where):
+        fromble_test1_id_before_three_plus = git_rev_parse('HEAD')
         with Directory('124'):
             with Directory('three'):
                 touch('three-and-a-bit.c',
@@ -758,7 +758,7 @@ def test():
             git('add Makefile')
             git('commit -m "Two-duck: Also build two-duck, same as two"')
 
-        fromble_test_id_after_three_plus = git_rev_parse('HEAD')
+        fromble_test1_id_after_three_plus = git_rev_parse('HEAD')
 
         make_and_run_all('124', ['one', 'two', 'three'])
         make_and_run(os.path.join('124', 'three'), 'three-and-a-bit')
@@ -856,7 +856,7 @@ def test():
     # .gitignore)
 
     # But this time, delibarately don't alter anything else
-    with Directory(fromble_test.where):
+    with Directory(fromble_test1.where):
         # Querying base project124 will update .weld/bases/project124
         # and thus reflect the difference between its HEAD and the
         # last commit we merged from it. It won't, of course, update
@@ -878,13 +878,13 @@ def test():
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             assert base_ign_head1 == git_rev_parse('HEAD')
 
-        fromble_test_head1 = git_rev_parse('HEAD')
+        fromble_test1_head1 = git_rev_parse('HEAD')
 
         print
         print 'fromble test:'
-        print '    HEAD                  ', fromble_test_head1[:10]
-        print '    before three-and-a-bit', fromble_test_id_before_three_plus[:10], '(last merge)'
-        print '    after  three-and-a-bit', fromble_test_id_after_three_plus[:10], '(local head)'
+        print '    HEAD                  ', fromble_test1_head1[:10]
+        print '    before three-and-a-bit', fromble_test1_id_before_three_plus[:10], '(last merge)'
+        print '    after  three-and-a-bit', fromble_test1_id_after_three_plus[:10], '(local head)'
         print 'project124'
         print '    HEAD                  ', base_124_head1[:10]
         print '    before four           ', project124_id_before_four[:10], '(base merge)'
@@ -892,7 +892,7 @@ def test():
         print 'igniting_duck'
         print '    HEAD                  ', base_ign_head1[:10]
 
-        assert fromble_test_id_before_three_plus == last_124_merge1
+        assert fromble_test1_id_before_three_plus == last_124_merge1
         assert project124_id_before_four         == base_124_merge1
         assert project124_id_after_four          == base_124_head1
 
@@ -955,13 +955,13 @@ def test():
         with Directory(os.path.join('.weld', 'bases', 'igniting_duck')):
             assert base_ign_head2 == git_rev_parse('HEAD')
 
-        fromble_test_head2 = git_rev_parse('HEAD')
+        fromble_test1_head2 = git_rev_parse('HEAD')
 
         print
         print 'fromble test:'
-        print '    HEAD                  ', fromble_test_head2[:10]
-        print '    before three-and-a-bit', fromble_test_id_before_three_plus[:10], '(last merge)'
-        print '    after  three-and-a-bit', fromble_test_id_after_three_plus[:10], '(local head)'
+        print '    HEAD                  ', fromble_test1_head2[:10]
+        print '    before three-and-a-bit', fromble_test1_id_before_three_plus[:10], '(last merge)'
+        print '    after  three-and-a-bit', fromble_test1_id_after_three_plus[:10], '(local head)'
         print 'project124'
         print '    HEAD                  ', base_124_head2[:10]
         print '    before four           ', project124_id_before_four[:10], '(base merge)'
@@ -969,7 +969,7 @@ def test():
         print 'igniting_duck'
         print '    HEAD                  ', base_ign_head2[:10]
 
-        assert fromble_test_head2         == last_124_merge2
+        assert fromble_test1_head2         == last_124_merge2
         assert project124_id_after_four   == base_124_merge2 # it moved
         assert project124_id_after_four   == base_124_head2
 
@@ -1004,11 +1004,11 @@ def test():
         # *before* the "last Merge with project124" (which is now the HEAD
         # checkin).
 
-        fromble_test_remote_master_id = git_rev_parse('remotes/origin/master')
+        fromble_test1_remote_master_id = git_rev_parse('remotes/origin/master')
 
-        print 'Fromble test after clone     ', fromble_test_clone_id[:10]
-        print 'Fromble test after first pull', fromble_test_first_pull_id[:10]
-        print 'Fromble test remote master   ', fromble_test_remote_master_id[:10]
+        print 'Fromble test after clone     ', fromble_test1_clone_id[:10]
+        print 'Fromble test after first pull', fromble_test1_first_pull_id[:10]
+        print 'Fromble test remote master   ', fromble_test1_remote_master_id[:10]
 
         # We know we didn't have any Push events in our past, so we will be
         # falling back to the Init event, which is the same for everyone
@@ -1060,12 +1060,12 @@ def test():
     # Let's push for the first time
     banner('WELD PUSH for the first time')
     banner('weld push -v igniting_duck')
-    weld('push -v igniting_duck', cwd=fromble_test.where)
+    weld('push -v igniting_duck', cwd=fromble_test1.where)
     banner('weld push -v project124')
-    weld('push -v project124', cwd=fromble_test.where)
+    weld('push -v project124', cwd=fromble_test1.where)
 
     banner('Amend the checked out sources AGAIN')
-    with Directory(fromble_test.where):
+    with Directory(fromble_test1.where):
         with Directory('124'):
             with Directory('four'):
                 touch('four-and-a-bit.c',
@@ -1108,9 +1108,9 @@ def test():
         # And try a second set of pushing
         banner('WELD PUSH for the second time')
         banner('weld push -v igniting_duck')
-        weld('push -v igniting_duck', cwd=fromble_test.where)
+        weld('push -v igniting_duck', cwd=fromble_test1.where)
         banner('weld push -v project124')
-        weld('push -v project124', cwd=fromble_test.where)
+        weld('push -v project124', cwd=fromble_test1.where)
 
         # And we can also push our weld...
         need_to_pull, need_to_push = weld_status()
@@ -1131,21 +1131,21 @@ def test():
 
     print 'Checking fromble test and fromble original match'
     # Before comparing directories, remove the executables we built
-    with Directory(fromble_test.where):
+    with Directory(fromble_test1.where):
         os.remove(os.path.join('124', 'one', 'one'))
         os.remove(os.path.join('124', 'two', 'two'))
         os.remove(os.path.join('one-duck', 'one'))
         os.remove(os.path.join('two-duck', 'two'))
 
-    if not same_files(fromble_test.where, fromble_orig.where):
+    if not same_files(fromble_test1.where, fromble_orig.where):
         raise GiveUp('Test directory doesn not match source directory')
 
     # If there aren't any changes, we shouldn't do anything(!)
     banner('A push of nothing should do nothing')
     banner('weld push igniting_duck')
-    weld('push -v igniting_duck', cwd=fromble_test.where)
+    weld('push -v igniting_duck', cwd=fromble_test1.where)
     banner('weld push project124')
-    weld('push project124', cwd=fromble_test.where)
+    weld('push project124', cwd=fromble_test1.where)
 
     # Make inconsistent changes at each end...
     def make_inconsistent_changes(n):
@@ -1159,7 +1159,7 @@ def test():
                 git('commit -a -m "Commit comment 1+%d"'%n)
                 git('push')
 
-        with Directory(fromble_test.where):
+        with Directory(fromble_test1.where):
             with Directory('124'):
                 with Directory('four'):
                     # Make a different change
@@ -1169,7 +1169,7 @@ def test():
         banner('WELD PUSH inconsistent change (%d)'%n)
         banner('weld push -v project124')
         try:
-            out = weld_get_output('push -v project124', cwd=fromble_test.where)
+            out = weld_get_output('push -v project124', cwd=fromble_test1.where)
             print out
             raise GiveUp('weld did not fail, returned:\n%s'%out)
         except ShellError as e:
@@ -1182,7 +1182,7 @@ def test():
     make_inconsistent_changes(1)
     # So we failed successfully (!)
     # Let's check we can abort
-    with Directory(fromble_test.where):
+    with Directory(fromble_test1.where):
         compare_dir('.weld',
                     ['  abort.py',
                      '  bases/...',
@@ -1205,7 +1205,7 @@ def test():
 
     # So we failed successfully (!)
     # Let's see if we can fix it
-    with Directory(fromble_test.where):
+    with Directory(fromble_test1.where):
         compare_dir('.weld',
                     ['  abort.py',
                      '  bases/...',
