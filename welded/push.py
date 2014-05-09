@@ -99,6 +99,29 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
             print 'Which was None, so using Init'
         latest_sync = weld_init
 
+    # Why do we use the last "weld push", and not the last "weld push *or*
+    # pull"?
+    #
+    # Consider the following:
+    #
+    #   6   +   change B to a file in the seam for <project>
+    #   5   o   the last Merged commit for <project>
+    #   4   -   a change to some irrelevant file(s)
+    #   3   +   change A to a file in the seam for <project>
+    #   2   o   the last Pushed commit for <project>
+    #   1   x   some common commit
+    #
+    # So we last "weld pulled" up to 5, and we the weld thus contains all the
+    # changes from <project> up to that point.
+    #
+    # However, we last "weld pushed" at 2, which means that changes 3 and 6
+    # have still to be applied to the base for <project>. But change 3 is
+    # before our last "weld pull", so we definitely want the last "push".
+    #
+    #   Remember: "weld pull" updates the base from its remote, and then brings
+    #   any changes therein into our weld. It does not propagate any changes
+    #   in the weld back to the base.
+
     base = spec.bases[base_name]
     seams = base.get_seams()
 
@@ -539,4 +562,5 @@ def report_status(spec):
         elif filename.startswith('_push_commit_'):
             head, ext = os.path.splitext(filename)
             base_name = head[len('_push_commit_'):]
-            print 'Base %s is still to be committed, using message in %s'%base_name
+            print 'Base %s is still to be committed, using message' \
+                    ' in %s'%(base_name, filepath)

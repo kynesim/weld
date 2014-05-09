@@ -603,7 +603,7 @@ def test():
     # And check we can pull that using weld
     banner('Pull into cloned weld')
     with Directory(fromble_test.where):
-        weld('pull project124')
+        weld('pull -v project124')
 
         compare_dir('.',
                     ['  .git/...',
@@ -711,7 +711,7 @@ def test():
         git('pull origin master')
 
         # If we do a "weld pull" now, that should only affect the .weld/bases
-        weld('pull _all')
+        weld('pull -v _all')
         compare_dir('.',
                     ['  .git/...',
                      '  .gitignore',
@@ -1059,9 +1059,9 @@ def test():
 
     # Let's push for the first time
     banner('WELD PUSH for the first time')
-    banner('weld push igniting_duck')
+    banner('weld push -v igniting_duck')
     weld('push -v igniting_duck', cwd=fromble_test.where)
-    banner('weld push project124')
+    banner('weld push -v project124')
     weld('push -v project124', cwd=fromble_test.where)
 
     banner('Amend the checked out sources AGAIN')
@@ -1107,10 +1107,10 @@ def test():
 
         # And try a second set of pushing
         banner('WELD PUSH for the second time')
-        banner('weld push igniting_duck')
-        weld('push igniting_duck', cwd=fromble_test.where)
-        banner('weld push project124')
-        weld('push project124', cwd=fromble_test.where)
+        banner('weld push -v igniting_duck')
+        weld('push -v igniting_duck', cwd=fromble_test.where)
+        banner('weld push -v project124')
+        weld('push -v project124', cwd=fromble_test.where)
 
         # And we can also push our weld...
         need_to_pull, need_to_push = weld_status()
@@ -1143,7 +1143,7 @@ def test():
     # If there aren't any changes, we shouldn't do anything(!)
     banner('A push of nothing should do nothing')
     banner('weld push igniting_duck')
-    weld('push igniting_duck', cwd=fromble_test.where)
+    weld('push -v igniting_duck', cwd=fromble_test.where)
     banner('weld push project124')
     weld('push project124', cwd=fromble_test.where)
 
@@ -1167,7 +1167,7 @@ def test():
                     git('commit -a -m "Commit comment 2+%d"'%n)
 
         banner('WELD PUSH inconsistent change (%d)'%n)
-        banner('weld push project124')
+        banner('weld push -v project124')
         try:
             out = weld_get_output('push -v project124', cwd=fromble_test.where)
             print out
@@ -1194,7 +1194,7 @@ def test():
                      '    project124/',             # should this be here?
                      '  welded.xml',
                      ], fold_dirs=['bases'])
-        weld("abort")
+        weld("abort -v")
         compare_dir('.weld',
                     ['  bases/...',
                      '  counter',
@@ -1228,7 +1228,7 @@ def test():
             touch('Makefile', new_makefile)
             shell('git commit -a -m "Fixed the problem"')
 
-        weld("finish")
+        weld("finish -v")
 
         compare_dir('.weld',
                     ['  bases/...',
