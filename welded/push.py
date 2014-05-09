@@ -212,11 +212,12 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     with open(commit_file, 'w') as f:
         f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
         f.write('\n')
-        f.write('Changes were (in summary, earliest first)\n')
+        f.write('Changes were (in summary, topmost was applied last)\n')
         f.write('\n')
-        # Theses lines are of the form "<short-sha1> <first-line>" - do we
-        # want the SHA1 entry? Is it really of use?
-        f.write('\n'.join(base_changes))
+        # These lines are of the form "<short-sha1> <first-line>"
+        # XXX Do we really want the SHA1 entry? Is it really of use?
+        # XXX (I quite like having it)
+        f.write('\n'.join(reversed(base_changes)))
 
     # Write out the "continue.py" and "abort.py" files
     ops.write_finish_push(spec,
