@@ -190,6 +190,25 @@ def query_push(where, base):
     else:
         return None
 
+def query_merge_or_push(where, base):
+    """Return the id of the last commit which contained a merge or push of this 'base'
+
+    Finds the last "X-Weld-State: Pushed <base>", or
+    "X-Weld-State: Merged <base>" commit, and returns its SHA1 id.
+
+    If there wasn't one, return None.
+    """
+    rv, out = run_silently(["git", "log",
+                            "--grep=%s"%(headers.header_grep_push(base)),
+                            "--grep=%s"%(headers.header_grep_merge(base)),
+                            "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
+    lines = out.splitlines()
+    if (len(lines) > 0):
+        f = lines[0].split(' ')
+        return f[0]
+    else:
+        return None
+
 def query_init(where):
     """
     Query the weld init commit

@@ -33,6 +33,8 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     moment.
     """
     # XXX How much of the following check code is common with "pull"?
+    if verbose:
+        print 'WELD PULL %s'%base_name
 
     weld_root = spec.base_dir
 
@@ -65,6 +67,10 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # We don't care if "git push" would update the weld's remote, since
     # it's the bases we're about to push to...
 
+    if current_branch.startswith("weld-"):
+        raise GiveUp("You are currently on a branch used by weld (%s) - please"
+                " get off it before trying to use weld."%(current_branch))
+
     # At some point we need to make sure that our copy of the base is
     # up-to-date, so we can patch something that is reasonably safe to
     # push. Let's try doing it now
@@ -77,10 +83,6 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     print "Pushing %s .."%base_name
     print
     current_commit = git.query_current_commit_id(weld_root)
-
-    if current_branch.startswith("weld-"):
-        raise GiveUp("You are currently on a branch used by weld (%s) - please"
-                " get off it before trying to use weld."%(current_branch))
 
     orig_branch = git.current_branch(weld_root, verbose=verbose)
 

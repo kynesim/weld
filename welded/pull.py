@@ -13,27 +13,26 @@ import ops
 import layout
 import status
 
-def pull_base(spec, base, verbose=False):
+def pull_base(spec, base_name, verbose=False):
     """Pull a single base.
 
     'spec' is the Weld that contains this base.
-
-    'base' is the name of the base.
     """
+    weld_root = spec.base_dir
+
     # Make sure we have no unstaged changes.
-    if git.has_local_changes(spec.base_dir, verbose=verbose):
+    if git.has_local_changes(weld_root, verbose=verbose):
         raise GiveUp("'git status' reports that you have local changes;"
                      " please commit or stash them.")
 
-    current_branch = git.current_branch(spec.base_dir)
+    orig_branch = git.current_branch(weld_root)
 
     # Make sure we aren't part way through something...
     #
     # TODO NB: we are defaulting our remote to 'origin' - but that seems to be
     # TODO an assumption being made anyway...
     in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
-            status.get_status(spec.base_dir, branch_name=current_branch,
-                              verbose=True)
+            status.get_status(weld_root, branch_name=orig_branch, verbose=True)
     if in_weld_pull:
         raise utils.GiveUp('Part way through an earlier "weld pull"\n'
                 'Fix any problems and then "weld finish", or give up using "weld abort"')
@@ -52,72 +51,78 @@ def pull_base(spec, base, verbose=False):
     # We don't care if "git push" would update the weld's remote, since we
     # are about to change it locally anyway...
 
-    print
-    print "Pulling %s .."%base
-    print
-    current_commit = git.query_current_commit_id(spec.base_dir)
-
-    if current_branch.startswith("weld-"):
+    if orig_branch.startswith("weld-"):
         raise GiveUp("You are currently on a branch used by weld (%s) - please"
-                " get off it before trying to use weld."%(current_branch))
+                " get off it before trying to use weld."%(orig_branch))
 
-    # Find the last merge
-    (commit_id, base_commit_id, seams) = headers.query_last_merge(spec.base_dir, base)
-    if commit_id is None:
+    print
+    print "Pulling %s .."%base_name
+    print
+    weld_head = git.query_current_commit_id(weld_root)
+
+    # Find the last merge or push (i.e., the last sync point with the base's
+    # remote repository)
+    (verb, last_weld_sync, last_base_sync,
+            seams) = headers.query_last_merge_or_push(weld_root, base_name)
+    if last_weld_sync is None:
         # There was no previous merge - fall back to the Init state
-        commit_id = git.query_init(spec.base_dir)
-    b = spec.query_base(base)
-    # Update the base.
-    ops.update_base(spec, b)
-    # Now query the latest commit on that base
-    current_base_commit_id = ops.query_head_of_base(spec, b)
+        last_weld_sync = git.query_init(weld_root)
 
-    # Get a base object.
-    b = spec.query_base(base)
+    base_obj = spec.query_base(base_name)
 
-    if (b is None):
-        raise utils.GiveUp("No such base '%s'"%base)
+    # Make sure the base has been updated from its remote
+    ops.update_base(spec, base_obj)
+    # From which we can deduce the latest commit, which should be its HEAD
+    # XXX Note that this will update the base again(!) - although of course
+    # XXX that won't actually do much, except require some network traffic.
+    # XXX Maybe we should just explicitly ask for the HEAD using
+    # XXX "git rev-parse HEAD".
+    base_head = ops.query_head_of_base(spec, base_obj)
+
+    if (base_obj is None):
+        raise utils.GiveUp("No such base '%s'"%base_name)
 
     # Classify seams.
-    ( deleted_in_new, changes, added_in_new ) = utils.classify_seams(seams, b.get_seams())
-
+    (deleted_in_new, changes, added_in_new) = utils.classify_seams(seams, base_obj.get_seams())
 
     # Are they the same? If so, no work to do.
-    if (current_base_commit_id == base_commit_id and len(deleted_in_new) == 0 and
+    if (base_head == last_base_sync and
+        len(deleted_in_new) == 0 and
         len(added_in_new) == 0):
-        print "  %s is up to date\n"%(base)
+        print "  %s is up to date\n"%(base_name)
         return 0
-    
-    print("Pulling %s from %s -> %s on top of local branch %s\n"%(base, 
-                                                                  base_commit_id,
-                                                                  current_base_commit_id,
-                                                                  current_branch))
+
+    print("Pulling %s from %s -> %s on top of local branch %s\n"%(base_name,
+                                                                  last_base_sync,
+                                                                  base_head,
+                                                                  orig_branch))
 
 
     # No! Create a branch with a suitable unique name
-    branch_name = git.new_branch_name(spec.base_dir, 'weld-merge-%s'%base, commit_id)
-    git.checkout(spec.base_dir, commit_id, new_branch_name=branch_name)
+    working_branch = git.new_branch_name(weld_root, 'weld-merge-%s'%base_name,
+                                         last_weld_sync)
+    git.checkout(weld_root, last_weld_sync, new_branch_name=working_branch)
 
     # First, if there are any deleted seams, use a commit to get rid of them.
-    ops.delete_seams(spec, b, deleted_in_new, current_base_commit_id)
+    ops.delete_seams(spec, base_obj, deleted_in_new, base_head)
 
     # Now, modified seams ..
-    ops.modify_seams(spec, b, changes, base_commit_id, current_base_commit_id)
+    ops.modify_seams(spec, base_obj, changes, last_base_sync, base_head)
 
     # Now added seams
-    ops.add_seams(spec, b, added_in_new, current_base_commit_id)
-    
+    ops.add_seams(spec, base_obj, added_in_new, base_head)
+
     # Write some stuff to the completion file.
     ops.write_finish_pull(spec,
                          " pull.finish_pull(spec, %r, %r, %r, %r, %r, %r)"%
-                         (b.name, current_branch, current_commit, branch_name,
-                          base_commit_id, current_base_commit_id),
-                         " pull.abort_pull(spec, %r, %r)"%(branch_name, current_branch))
+                         (base_obj.name, orig_branch, weld_head, working_branch,
+                          last_base_sync, base_head),
+                         " pull.abort_pull(spec, %r, %r)"%(working_branch, orig_branch))
 
     # Now merge master into current-branch
     try:
-        git.merge(spec.base_dir, branch_name, current_branch,
-                  "Merging changes from %s"%current_branch)
+        git.merge(weld_root, working_branch, orig_branch,
+                  "Merging changes from %s"%orig_branch)
     except utils.GiveUp as e:
         print str(e)
         print "Merge failed"
@@ -129,23 +134,23 @@ def pull_base(spec, base, verbose=False):
     ops.do_finish(spec)
     return 0
 
-def finish_pull(spec, base_name, current_branch, current_commit, branch_name,
-                base_commit, current_base_commit_id):
+def finish_pull(spec, base_name, orig_branch, weld_head, working_branch,
+                base_commit, base_head):
     """
     Finish a merge.
     """
-    b = spec.query_base(base_name)
-    hdr = headers.merge_marker(b, b.get_seams(), current_base_commit_id)
+    base_obj = spec.query_base(base_name)
+    hdr = headers.merge_marker(base_obj, base_obj.get_seams(), base_head)
 
     # Make sure we are merging to the right place.
-    git.switch_branch(spec.base_dir, current_branch)
+    git.switch_branch(spec.base_dir, orig_branch)
 
     # You can't merge a weld pull, because it will reverse the order of commits, which is
     #  quite bad, but also remove commits that didn't have any net effect - which will
     #  lose us our headers.
     #
     # So, what you need to do is to do a git diff and then apply that patch and commit.
-    tmpfile = git.show_diff(spec.base_dir, current_branch, branch_name)
+    tmpfile = git.show_diff(spec.base_dir, orig_branch, working_branch)
     # Apply the patch.
     n = tmpfile.name
     tmpfile.file.close()
@@ -161,12 +166,12 @@ def finish_pull(spec, base_name, current_branch, current_commit, branch_name,
     git.commit(spec.base_dir, hdr, [ ])
 
 
-def abort_pull(spec, branch_name, current_branch):
+def abort_pull(spec, working_branch, orig_branch):
     """
     Abort a merge
     """
     #git.abort_rebase(spec)
-    git.switch_branch(spec, current_branch)
-    git.remove_branch(spec.base_dir, branch_name)
+    git.switch_branch(spec, orig_branch)
+    git.remove_branch(spec.base_dir, working_branch)
 
 # end file.

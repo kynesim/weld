@@ -147,6 +147,36 @@ def query_last_push(where, base_name):
                  'In base %s, id %s\n%s'%(base_name, commit_id,
                      '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
+def query_last_merge_or_push(where, base_name):
+    """
+    Find the last push or merge of base in where
+
+    Return ( verb, weld-commit-id, base-commit-id, seams )
+
+    If base 'base_name' has never been pushed or merged, then we return
+
+      (None, None, None, []),
+
+    and the caller will probably have to make do with the Init commit.
+    """
+    commit_id = git.query_merge_or_push(where, base_name)
+    if commit_id is None:
+        return (None, None, None, [])
+    log_entry = git.log(where, commit_id)
+    hdrs = decode_headers(log_entry)
+    # Find all the pulls/pushes
+    for h in hdrs:
+        (verb, data) = h
+        if verb in ("Merged", "Pushed"):
+            # Gotcha!
+            (in_base_name, cid, seams) = decode_commit_data(data)
+            if (base_name == in_base_name):
+                return (verb, commit_id, cid, seams)
+
+    raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
+                 'In base %s, id %s\n%s'%(base_name, commit_id,
+                     '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
+
 
 
 # End file.

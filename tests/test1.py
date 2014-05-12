@@ -1242,6 +1242,50 @@ def test():
             if content != new_makefile:
                 raise GiveUp('"weld finish" was not resolved as expected')
 
+    banner('Cloning source weld for a second time')
+    with NewCountedDirectory('test') as test2:
+        # Because we're using git to clone it, we *could* change the
+        # name of the directory we extract into, but we're not going to
+        #
+        # git 1.7.10 introduces the --single-branch switch, which does what
+        # it suggests. If we use this, then we won't get the "weld-"
+        # branches from the original weld repository copied over, which
+        # leads to a neater appearance in gitk (!)
+        git('clone %s'%fromble_repo.where)
+        # Remember that our weld.xml does redirect some of the "internal"
+        # directories (in particular, of igniting_duck) so they get put
+        # somewhere else in our source tree.
+
+        compare_dir('fromble',
+                    ['  .git/...',
+                     '  .gitignore',
+                     '  .weld/...',
+                     '  124/',
+                     '    four/',
+                     '      Makefile',
+                     '      four-and-a-bit.c',
+                     '      four.c',
+                     '    one/',
+                     '      Makefile',
+                     '      one.c',
+                     '    three/',
+                     '      Makefile',
+                     '      three-and-a-bit.c',
+                     '      three.c',
+                     '    two/',
+                     '      Makefile',
+                     '      two.c',
+                     '  one-duck/',
+                     '    Makefile',
+                     '    one.c',
+                     '  two-duck/',
+                     '    Makefile',
+                     '    two.c',
+                     ])
+
+        with Directory('fromble') as fromble_test2:
+            weld('pull _all')
+
 def main(args):
 
     keep = False
