@@ -1,0 +1,40 @@
+=========================
+Getting started with weld
+=========================
+
+As a normal user
+================
+If you're a normal user of weld, then there isn't much to learn.
+
+Basically, your project documentation should tell you how to clone a weld -
+for instance::
+
+  $ git clone ssh://git@example.com//opt/projects/99/weld project99
+
+You can then just develop in ``project99`` as normal, using git to handle
+version control as you would for any other project.
+
+As a muddle user
+================
+Your project should include documentation telling you to:
+
+1. Clone a weld
+2. ``cd`` into it and use ``muddle init`` to set it up
+
+and then you can mostly use the build tree as a normal muddle user.
+
+For instance::
+
+  $ mkdir project99
+  $ cd project99
+  $ git clone ssh://git@example.com//opt/projects/99/weld weld
+  $ cd weld
+  $ muddle init weld+ssh://git@example.com//opt/projects/99/weld builds/01.py
+
+The ``weld+`` tells muddle it is dealing with a weld, and (essentially)
+disanles ``muddle push`` and ``muddle pull``. The idea is that you should just
+use git directly (``git push``, ``git pull``, etc.).
+
+For a bit more information, see the chapter on Muddle later on.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
