@@ -1283,8 +1283,72 @@ def test():
                      '    two.c',
                      ])
 
+        with open(os.path.join('fromble', '124', 'four', 'Makefile')) as fd:
+            four_makefile_a = fd.read()
+
         with Directory('fromble') as fromble_test2:
-            weld('pull _all')
+            weld('-v pull _all')
+
+        compare_dir('fromble',
+                    ['  .git/...',
+                     '  .gitignore',
+                     '  .weld/...',
+                     '  124/',
+                     '    four/',
+                     '      Makefile',
+                     '      four-and-a-bit.c',
+                     '      four.c',
+                     '    one/',
+                     '      Makefile',
+                     '      one.c',
+                     '    three/',
+                     '      Makefile',
+                     '      three-and-a-bit.c',
+                     '      three.c',
+                     '    two/',
+                     '      Makefile',
+                     '      two.c',
+                     '  one-duck/',
+                     '    Makefile',
+                     '    one.c',
+                     '  two-duck/',
+                     '    Makefile',
+                     '    two.c',
+                     ])
+
+        with open(os.path.join('fromble', '124', 'four', 'Makefile')) as fd:
+            four_makefile_b = fd.read()
+
+        # Check the change was what we expected...
+        assert four_makefile_b == four_makefile_a + "#This is comment 1 and 2, folded together\n"
+
+        # Now let us change seams...
+        # Renaming allows us to both add and delete...
+        with Directory(fromble_test2.where):
+            os.rename('one-duck', 'one-goose')
+            with open(os.path.join('.weld', 'welded.xml'), 'r+') as fd:
+                text = fd.read()
+                text = text.replace('one-duck', 'one-goose')
+                fd.seek(0)
+                fd.write(text)
+            shell('git rm -r one-duck')
+            shell('git add one-goose .weld/welded.xml')
+            shell('git commit -m "one-duck becomes one-goose"')
+
+            text = weld_get_output('query seam-changes igniting_duck')
+            print text
+            assert text.endswith("""\
+Seams:
+  D: [<seam source="one" dest="one-duck"/>]
+  C: [<seam source="two" dest="two-duck"/>]
+  A: [<seam base="igniting_duck" source="one" dest="one-goose"/>]
+""")
+
+            weld('push -v igniting_duck')
+
+        #with Directory(fromble_test1.where):
+        #    weld('status')
+        ##    weld('pull -v igniting_duck')
 
 def main(args):
 
