@@ -1,0 +1,128 @@
+=========
+Why weld?
+=========
+
+Weld is meant to make it easier to manage the verson control of projects with
+a moderate to large number of packages. A typical example would be the sources
+needed to build a Linux system, which might typically contain:
+
+* linux itself
+* busybox for the shell and basic command line utilities
+* a bootloader
+* some kernel modules
+* some /etc files
+* audio and video support (alsalib, libvorbis, gstreamer, etc.)
+* and so on
+
+There are two traditional ways to organise the version control for such a
+project:
+
+1. One package per repository
+2. One repository for the world
+
+.. note:: *Pretty pictures to come at some later stage*
+
+One package per repository
+--------------------------
+In this approach, each package is put into its own repository (or may,
+sometimes, be retrieved from the "outside world" repository from which it
+originates - this has obvious problems if the internet connection to the
+outside world goes down).
+
+
+The advantages of this approach are:
+
+* it is very easy to relate the local copy of a package back to its
+  upstream/external version, even if they are not both using the same version
+  control system (e.g., local in git, remote in mercurial or subversion)
+
+* it is easy to keep track of licensing issues, and other such per-package
+  responsibilies, because each package is clearly atomic
+
+On the other hand:
+
+* some form or meta system must be used to decide which packages are required
+  by the particular system that is being built - this is one of the reasons
+  that muddle_ was first started
+
+* it is hard to make and maintain a coherent change across multiple packages,
+  because there is no linkage at all between the changes in each individual
+  package
+
+* for new software, a decision to split into packages at the wrong granularity
+  (so either too much code in one large package, or too many small packages
+  that are actually tightly integrated) can lead to awkward code management
+  later on
+
+* cloning many small packages is slower than cloning one larger package
+
+.. _muddle: http://code.google.com/p/muddle/
+
+One repository for the world
+----------------------------
+In this approach, the project as-a-whole has a single repository. Individual
+packages are imported into this repository, in some appropriate workflow.
+
+  For instamce, one might have an import branch for the project, named after
+  its version ("import-busybox-1.2.1"), and once the new version of the
+  package is working, this would be merged back into the main tree.
+
+  Alternatively, perhaps, one might have a long-running package specific branch
+  ("package-busybox") into which new versions of the package are periodically
+  copied, tagged with the version number, and then integrated/merged back into
+  the main tree.
+
+  The actual mechanism used is not particularly pertinent to this discussion,
+  but we know of people who have good mechanisms in place for handling this
+  sort of repository organisation.
+
+The advantages of this approach are:
+
+* it is very clear what the code being used for the project is - it is that
+  code which is in the repository
+
+* a change can be made across several packages as an individual change
+
+On the other hand:
+
+* it is harder to reason about individual packages when they are all "mashed
+  together" into one place
+
+* it is harder to send changes upstream to the original package repositories
+  when changes to an individual package are not separated out
+
+* if a package is used in two "mega" repositories, but some of the changes (or
+  perhaps just some of the information in commit messages) may not be shared
+  between the two, then moving those changes from one "mega" repository to the
+  original package and thence to the other "mega" repository needs careful
+  management
+
+Or there's weld
+---------------
+Weld attempts to make it reasonably simple to have something of both worlds.
+
+One VCS is chosen (git) to restrict the complexity of the problem.
+
+The normal user gets to work in a single large repository, using git, and
+should mostly be able to ignore the rest of weld.
+
+Setting up a weld in the first place, and relating it to the individual
+repositories that provide its packages, is regarded as a more expert task, and
+for this the ``weld`` commandline tool is provided.
+
+A little more detail
+~~~~~~~~~~~~~~~~~~~~
+Broadly, the normal user will ``git clone`` a weld (a single large repository)
+and work within that as with any other body of source code, using the normal
+``git`` tools to branch/commit/push/pull as required. The intention is that a
+"normal" user just sees a "mega" repository, and works with it as such.
+
+A project then needs one or more weld managers, who set the weld up in the
+first place, and curate pushing changes back to individual repositories as and
+when it becomes necessary, using "weld push" and "weld pull".
+
+Can I use it with muddle?
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Yes, and we shall explain that in its own section.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
