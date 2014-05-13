@@ -118,6 +118,9 @@ class Seam:
     def __lt__(self, other):
         return repr(self) < repr(other)
 
+    def __hash__(self):
+        return hash(repr(self))
+
     def srcdest(self):
         res = ""
         if (self.source is not None):
