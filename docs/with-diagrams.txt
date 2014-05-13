@@ -1,0 +1,51 @@
+============================
+An explanation with diagrams
+============================
+
+Clones of our external packages:
+
+.. image:: images/igniting_duck.png
+.. image:: images/project124.png
+
+An empty weld, just after doing ``weld init``:
+
+.. image:: images/fromble_empty.png
+
+A representation of the same:
+
+.. image:: images/fromble_L_shaped.png
+
+and a further version of that making it explicit we have no bases yet:
+
+.. image:: images/fromble_empty_bases.png
+
+This is what a user would expect to see after they had done a ``git clone`` of
+the weld repository:
+
+.. image:: images/fromble_with_no_bases.png
+
+After doing ``weld pull project124`` they would have:
+
+.. image:: images/fromble_with_base_project124.png
+
+After also doing ``weld pull igniting_duck``, they would have:
+
+.. image:: images/fromble_with_both_bases.png
+
+This is the weld after changing the name of the seam ``one_duck`` to
+``one_goose``:
+
+.. image:: images/fromble_one_goose.png
+
+Repositories:
+
+.. image:: images/fromble_repo.png
+.. image:: images/project124_repo.png
+.. image:: images/igniting_duck_repo.png
+
+This is an alternative way of showing "project124", trying to make it clearer
+that it is all of the base that is being included:
+
+.. image:: images/fromble_all_blue.png
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
