@@ -1,0 +1,68 @@
+======================
+Using weld with muddle
+======================
+
+Weld was written with the intent of being muddle-compatible.
+
+A normal muddle build tree looks something like the following::
+
+  <project>
+    .muddle/
+    src/
+      builds/
+        .git/
+        01.py
+      base/
+        kernel
+          .git/
+          <lots of source code>
+      <and so on>
+
+A muddle build tree set up for use with weld instead looks like::
+
+  <project>
+    .git/
+    .gitignore
+    .muddle/
+    .weld/
+    src/
+      builds/
+        01.py
+      base/
+        kernel
+          <lots of source code>
+      <and so on>
+
+As you can see, there is now a single ``.git`` directory at the top of the
+muddle source tree, as well as a ``.weld`` directory, and a ``.gitignore``
+file. The ``.git`` directories that would have been present in the ``src``
+directories have gone away - they are not needed in this setup.
+
+The toplevel ``.git`` directory manages the entire source code tree.
+
+The ``.gitignore`` file tells git to ignore various things, including the
+muddle ``.muddle``, ``obj``, ``install`` and ``deploy`` directories.
+
+Typically, such a tree would be set up by doing something like::
+
+  $ git clone ssh://git@example.com//opt/projects/99/weld weld
+  $ cd weld
+  $ muddle init weld+ssh://git@example.com//opt/projects/99/weld builds/01.py
+
+after which one can do ``muddle build _all`` and so on in the traditional
+manner.
+
+Use of the ``weld+`` mechanism in ``muddle init`` tells muddle *not* to allow
+``muddle pull`` and the like to do anything - the muddle VCS commands are not
+currently aware of how welds work, and so are disabled by this means. Instead,
+just use git in the normal manner.
+
+.. note:: It is possible that muddle may become more "weld aware" in the
+   future, but to be honest the current mechanism seems like a sensible
+   first approach, and may be the correct way to handle this in the long term
+   as well.
+
+Setting up a muddle build tree for use as a weld is addressed in a later
+chapter.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
