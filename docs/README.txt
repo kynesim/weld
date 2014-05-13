@@ -1,6 +1,6 @@
-====
-Weld
-====
+==========================
+Weld - the original README
+==========================
 
 The multiple repository model used by muddle makes it quite difficult
 to track changes. It would be simpler if there was a single git 
