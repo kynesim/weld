@@ -24,15 +24,13 @@ def base_repo(base_dir, base):
 def count_file(base_dir):
     return os.path.join(base_dir, ".weld", "counter")
 
-def pushing_dir(base_dir, base=None, seam=None):
-    if seam:
-        return os.path.join(base_dir, '.weld', 'pushing', base, seam)
-    elif base:
-        return os.path.join(base_dir, '.weld', 'pushing', base)
-    else:
-        return os.path.join(base_dir, '.weld', 'pushing')
+def pushing_dir(base_dir):
+    return os.path.join(base_dir, '.weld', 'pushing')
 
 def push_commit_file(base_dir, base_name):
-    return os.path.join(pushing_dir(base_dir), '_push_commit_%s.txt'%base_name)
+    return os.path.join(base_dir, '.weld', 'pushing', '_commit_%s.txt'%base_name)
+
+def push_merging_file(base_dir, base_name):
+    return os.path.join(base_dir, '.weld', 'pushing', '_merging_%s'%base_name)
 
 # End file.

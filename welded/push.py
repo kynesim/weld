@@ -34,7 +34,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     """
     # XXX How much of the following check code is common with "pull"?
     if verbose:
-        print 'WELD PULL %s'%base_name
+        print 'WELD PUSH %s'%base_name
 
     weld_root = spec.base_dir
 
@@ -124,15 +124,25 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     #   any changes therein into our weld. It does not propagate any changes
     #   in the weld back to the base.
 
+    # What are our current seams? Knowing this tells us what directories in
+    # our weld correspond to directories in our base
+    #
+    # Seams define:
+    #
+    #   * name   - the name of the seam
+    #   * base   - the Base object the seam belongs to
+    #   * source - the directory in the base itself (defaulting to '.')
+    #   * dest   - the corresponding directory in the weld
+    #
     base = spec.bases[base_name]
-    seams = base.get_seams()
+    base_seams = base.get_seams()
 
     if verbose:
         print
         print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
     # Whilst seam.source may be None, seam.dest should always be a string
-    directories = [s.dest for s in seams]
-    base_changes = git.log_between(weld_root, latest_sync, 'HEAD', directories)
+    weld_directories = [s.dest for s in base_seams]
+    base_changes = git.log_between(weld_root, latest_sync, 'HEAD', weld_directories)
     if base_changes:
         if verbose:
             print '\n'.join(base_changes)
@@ -162,38 +172,6 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     git.tag(weld_root, 'weld-last-%s-sync-%s'%(base_name, latest_sync[:10]),
             latest_sync, force=True, verbose=verbose)
 
-    # We want the changes in the opposite order, so that we apply the oldest
-    # change first. For simplicity, then, sort that out now
-    base_changes.reverse()
-
-    # So, what are the differences for our seams?
-    # (Remember that this may include changes to other seams or the
-    # main weld itself, as well - we'll deal with that later on)
-    # Use --relative to make the changes relative to the named directory,
-    # so that we don't end up with the seam directory name embedded in
-    # the difference header.
-    diff_dict = {}      # seam.source -> list of patches
-    for s in seams:
-        for change in base_changes:
-            words = change.split()
-            sha1 = words[0]
-            # "<commit-id>^!" is a really useful notation, as I found out at
-            # http://stackoverflow.com/questions/436362. It is (very briefly)
-            # documented in "git help gitrevisions" (near the end)
-            diff = git.diff_this(weld_root, relative_to=s.dest, commit_id=sha1,
-                                 verbose=verbose)
-            if diff:
-                if s.source in diff_dict:
-                    diff_dict[s.source].append((change, diff))
-                else:
-                    diff_dict[s.source] = [(change, diff)]
-
-    for seam_dir, diff_list in diff_dict.items():
-        write_patchfiles(weld_root, base_name, seam_dir, diff_list, verbose=verbose)
-
-    # Some of those differences are things we've to push, but some are
-    # probably things we already pulled
-
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
 
     if verbose:
@@ -209,7 +187,21 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     working_branch = git.new_branch_name(base_dir, 'weld-pushing', latest_base_sync)
     git.checkout(base_dir, commit_id=latest_base_sync, new_branch_name=working_branch)
 
+    # Whilst we wanted the list of changes for our commit message, we're
+    # actually going to "propagate" the changes from our weld to the base
+    # by copying files...
+    for s in base_seams:
+        # Remember, we want our rirectories relative to weld_root
+        from_dir = os.path.join(s.dest)
+        if s.source is None:
+            to_dir = base_dir
+        else:
+            to_dir = os.path.join(base_dir, s.source)
+        make_files_match(weld_root, from_dir, to_dir, verbose=verbose)
+
     # Prepare our (default) commit message
+
+    os.makedirs(layout.pushing_dir(weld_root))
     commit_file = layout.push_commit_file(weld_root, base_name)
     with open(commit_file, 'w') as f:
         f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
@@ -219,7 +211,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
         # These lines are of the form "<short-sha1> <first-line>"
         # XXX Do we really want the SHA1 entry? Is it really of use?
         # XXX (I quite like having it)
-        f.write('\n'.join(reversed(base_changes)))
+        f.write('\n'.join(base_changes))
 
     # Write out the "continue.py" and "abort.py" files
     ops.write_finish_push(spec,
@@ -229,6 +221,58 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
 
     # And then use the "complete.py" script to do the rest
     return ops.do_finish(spec)
+
+def make_files_match(weld_root, from_dir, to_dir, verbose=False):
+    """Make the git handled files in 'to_dir' match those in 'from_dir'
+    """
+    # What files is git managing for us in each directory?
+    from_files = git.list_files(from_dir)
+    to_files = git.list_files(to_dir)
+
+    from_files_set = set(from_files)
+    to_files_set = set(to_files)
+
+    # We need to remove "by hand" those files which are no longer meant to
+    # be in the "to" directory, so work out which files that is
+    deleted_files = to_files_set - from_files_set
+
+    if verbose:
+        print 'Making files the same'
+        print '====================='
+        print 'From', from_dir
+        print 'To  ', to_dir
+        max_len = max(len(n) for n in from_files)
+        for name in sorted(from_files_set | to_files_set):
+            if name in from_files_set and name in to_files_set:
+                print '%-*s  %s'%(max_len, name, name)
+            elif name in from_files_set:
+                print '%-*s'%(max_len, name)
+            else:
+                print '%-*s  %s'%(max_len, ' ', name)
+        print '====================='
+
+    # If we copy over everything from the "from" directory to the "to"
+    # directory, and "git add" them all, then that will cope with changes to
+    # existing files, and also add in any new files. We then need to remember
+    # to "git rm" any files that are meant to have gone away, at which point we
+    # can commit all the changes.
+    #
+    # We use rsync for our copy because it will handle things like:
+    #
+    #   rsync -a --relative four/jim four/bob <weld_root>/.weld/bases/project124
+    #
+    # and put "jim" and "bob" into <weld_root>/.weld/bases/project124/four
+    cmd = ['rsync', '-a', '--relative']
+    cmd += from_files
+    cmd += [to_dir]
+    run_silently(cmd, cwd=from_dir, verbose=verbose)
+
+    git.add(to_dir, from_files, verbose=verbose)
+    git.commit_using_message(to_dir, "Add files from %s"%from_dir, verbose=verbose)
+
+    if deleted_files:
+        git.rm(to_dir, deleted_files)
+        git.commit_using_message(to_dir, "Delete files no longer in %s"%from_dir)
 
 def trim_states(lines):
     """Return only those lines that do not say "X-Weld-State:"
@@ -293,87 +337,10 @@ def continue_patching(spec, base_name, working_branch, orig_branch,
     weld_root = spec.base_dir
     dot_weld_dir = layout.weld_dir(weld_root)
 
-    pushing_dir = os.path.join(dot_weld_dir, 'pushing')
-    if not os.path.exists(pushing_dir):
-        print 'There is nothing to "weld push"'
-        return
-
-    # We should have one directory per base, named as the base
-    bases_to_push = os.listdir(pushing_dir)
-    # We'll deal with them in a predictable order
-    for filename in sorted(bases_to_push):
-        filepath = os.path.join(pushing_dir, filename)
-        if not os.path.isdir(filepath):
-            continue        # presumably a commit file
-        base_name = filename
-        pushing_base_dir = filepath
-        base_dir = os.path.join(dot_weld_dir, 'bases', base_name)
-        print 'weld_push: base %s'%base_name
-        # We should have one directory per seam, named as the seam's directory
-        # in the base (i.e., where we want to apply the patch). We reserve the
-        # name __None to mean "at the top level of the base"
-        seams_to_push = os.listdir(pushing_base_dir)
-        # We'll deal with them in a predictable order
-        for seam_name in sorted(seams_to_push):
-            print 'weld_push: base %s seam %s'%(base_name, seam_name)
-            pushing_seam_dir = os.path.join(pushing_base_dir, seam_name)
-            # All the files here should be patch files
-            patch_files = os.listdir(pushing_seam_dir)
-            # We deal with the files in the obvious order, because
-            # they were carefully named that way...
-            for patch_file in sorted(patch_files):
-                name, ext = os.path.splitext(patch_file)
-                if ext != '.diff':
-                    # It's a patch file we've already "used"
-                    continue
-                print 'weld_push: base %s seam %s patch %s'%(base_name, seam_name, patch_file)
-                patch_path = os.path.join(pushing_seam_dir, patch_file)
-                with open(patch_path) as fd:
-                    commit_line = fd.readline().strip()
-                    commit_text = commit_line[2:]       # lost the starting "# "
-                try:
-                    if seam_name == '__None':
-                        git.apply_patch(base_dir, patch_path, verbose=verbose)
-                    else:
-                        git.apply_patch(base_dir, patch_path, verbose=verbose,
-                                        directory=seam_name)
-                    os.rename(patch_path, '%s.applied'%patch_path)
-                except GiveUp as e:
-                    os.rename(patch_path, '%s.failed'%patch_path)
-                    raise ApplyError(str(e))
-
-                # Our commit message doesn't need to be very sophisticated,
-                # as it is only used on this branch, and will get squash
-                # merged away
-                git.commit_using_message(base_dir, commit_text, verbose=verbose)
-
-                ## Once a patch has been applied successfully, we can
-                ## delete the patch file
-                #if verbose:
-                #    print 'weld_push: base %s seam %s DELETE patch %s'%(base_name,
-                #            seam_name, patch_file)
-                #os.remove(patch_path)
-
-            # Once we've finished a seam, we can delete the directory
-            if verbose:
-                print 'weld_push: base %s DELETE seam %s'%(base_name, seam_name)
-            shutil.rmtree(pushing_seam_dir)
-            ##os.rmdir(pushing_seam_dir)
-
+    if True:    # XXX keep the older indentation XXX
         # That appears to be all...
         finish_push(spec, base_name, working_branch, orig_branch,
                     edit_commit_file=edit_commit_file, verbose=verbose)
-
-        # Once we're done with a base, we can delete the directory
-        if verbose:
-            print 'weld_push: DELETE base %s'%base_name
-        os.rmdir(pushing_base_dir)
-
-    # And guess what we can do when we've finished pushing everything...
-    if verbose:
-        print 'weld_push: DELETE'
-    shutil.rmtree(pushing_dir)
-    ##os.rmdir(pushing_dir)
 
 def edit_file(filename):
     """Allow the user to edit the given file.
@@ -415,8 +382,7 @@ def finish_push(spec, base_name, working_branch, orig_branch,
     weld_root = spec.base_dir
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
 
-    pushing_dir = layout.pushing_dir(weld_root)
-    merging_indicator = os.path.join(pushing_dir, '_merging_%s'%base_name)
+    merging_indicator = layout.push_merging_file(weld_root, base_name)
 
     # If the merging indicator exists, then we've at least started a merge
     # before, so we don't need to do so again
@@ -442,11 +408,13 @@ def finish_push(spec, base_name, working_branch, orig_branch,
                              base_name, '\n'.join(lines), base_dir))
 
     # And then merge *that* back into the original branch
+    print 'XXX Merge back into original branch (%s -> %s)'%(working_branch, orig_branch)
     git.checkout(base_dir, orig_branch, verbose=verbose)
     git.merge_to_current(base_dir, working_branch, squash=True, verbose=verbose)
 
     commit_file = layout.push_commit_file(weld_root, base_name)
     if os.path.exists(commit_file):
+        print 'XXX Commit using file %s'%commit_file
         # We've still to do the commit
         # This seems like an appropriate time to let the user edit the commit
         # file, if they've asked to do so
@@ -462,6 +430,8 @@ def finish_push(spec, base_name, working_branch, orig_branch,
         if verbose:
             print 'Deleting', commit_file
         os.remove(commit_file)
+    else:
+        print 'XXX There is no commit file %s'%commit_file
 
     head_base_commit = git.query_current_commit_id(base_dir)
 
@@ -470,8 +440,8 @@ def finish_push(spec, base_name, working_branch, orig_branch,
 
     # And now mark the weld with where/when the push happened
     base = spec.bases[base_name]
-    seams = base.get_seams()
-    seam_str = headers.pickle_seams(seams)
+    base_seams = base.get_seams()
+    seam_str = headers.pickle_seams(base_seams)
     f = tempfile.NamedTemporaryFile(delete=False)
     f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
         head_base_commit, seam_str))
@@ -486,6 +456,10 @@ def finish_push(spec, base_name, working_branch, orig_branch,
     # for our action
     git.commit_using_file(spec.base_dir, f.name, all=True, verbose=verbose)
     os.remove(f.name)
+
+    # And we've finished merging!
+    os.remove(merging_indicator)
+    os.rmdir(layout.pushing_dir(weld_root))
 
     return 0
 
@@ -522,7 +496,9 @@ def abort_push(spec, base_name, working_branch, orig_branch):
     commit_file = layout.push_commit_file(spec.base_dir, base_name)
     if os.path.exists(commit_file):
         os.remove(commit_file)
-    shutil.rmtree(layout.pushing_dir(spec.base_dir))
+    merging_indicator = layout.push_merging_file(weld_root, base_name)
+    os.remove(merging_indicator)
+    os.rmdir(layout.pushing_dir(weld_root))
 
 def report_status(spec):
     """Report on our pushing status
@@ -530,40 +506,15 @@ def report_status(spec):
     weld_root = spec.base_dir
     pushing_dir = layout.pushing_dir(weld_root)
 
-    bases_to_push = os.listdir(pushing_dir)
-    for filename in sorted(bases_to_push):
-        filepath = os.path.join(pushing_dir, filename)
-
-        if os.path.isdir(filepath):
-            base_name = filename
-            base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
-            seams_to_push = os.listdir(filepath)
-            # We'll deal with them in a predictable order
-            for seam_name in sorted(seams_to_push):
-                print 'Base %s seam %s'%(filename,
-                        'None' if seam_name == '__None' else seam_name)
-                seam_dir = os.path.join(filepath, seam_name)
-                diff_files = os.listdir(seam_dir)
-                applied = 0
-                failed = 0
-                outstanding = 0
-                for name in diff_files:
-                    head, ext = os.path.splitext(name)
-                    if ext == '.diff':
-                        outstanding += 1
-                    elif ext == '.failed':
-                        failed += 1
-                    elif ext == '.applied':
-                        applied += 1
-                print'  applied %d, failed %d, still to do %d'%(applied, failed,
-                        outstanding)
-        elif filename.startswith('_merging_'):
+    pushing_files = os.listdir(pushing_dir)
+    for filename in sorted(pushing_files):
+        if filename.startswith('_merging_'):
             base_name = filename[len('_merging_'):]
             print 'Base %s has been merged, but the merge did not complete'%base_name
             base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
-            print "The source code that needs fixing is in\n    %s"%base_dir
+            print "  The source code that needs fixing is in\n    %s"%base_dir
         elif filename.startswith('_push_commit_'):
             head, ext = os.path.splitext(filename)
-            base_name = head[len('_push_commit_'):]
-            print 'Base %s is still to be committed, using message' \
-                    ' in %s'%(base_name, filepath)
+            base_name = head[len('_commit_'):]
+            print 'Base %s is still to be committed'%base_name
+            print '  Using the message in %s'%os.path.join(pushing_dir, filename)

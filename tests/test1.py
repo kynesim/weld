@@ -1178,6 +1178,10 @@ def test():
                 raise GiveUp('weld failed in an unexpected manner:\n%s'%e)
             if not e.text.strip().endswith('and do "weld finish", or abort using "weld abort"'):
                 raise GiveUp('weld failed in an unexpected manner:\n%s'%e)
+            print 'weld failed as expected'
+            print '-----------------------------------------------------------'
+            print e.text 
+            print '-----------------------------------------------------------'
 
     make_inconsistent_changes(1)
     # So we failed successfully (!)
@@ -1189,9 +1193,8 @@ def test():
                      '  complete.py',
                      '  counter',
                      '  pushing/',
+                     '    _commit_project124.txt',
                      '    _merging_project124',
-                     '    _push_commit_project124.txt',
-                     '    project124/',             # should this be here?
                      '  welded.xml',
                      ], fold_dirs=['bases'])
         weld("abort -v")
@@ -1212,9 +1215,8 @@ def test():
                      '  complete.py',
                      '  counter',
                      '  pushing/',
+                     '    _commit_project124.txt',
                      '    _merging_project124',
-                     '    _push_commit_project124.txt',
-                     '    project124/',             # should this be here?
                      '  welded.xml',
                      ], fold_dirs=['bases'])
 
@@ -1346,8 +1348,8 @@ Seams:
 
             weld('push -v igniting_duck')
 
-        #with Directory(fromble_test1.where):
-        #    weld('status')
+        with Directory(fromble_test1.where):
+            weld('status')
         ##    weld('pull -v igniting_duck')
 
 def main(args):

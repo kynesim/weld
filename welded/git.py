@@ -18,8 +18,8 @@ def init(where):
 def add_in_subdir(where, dirname):
     run_silently(["git", "add", "-A", "%s/**"%dirname], cwd=where)
 
-def add(where, files):
-    run_silently(["git", "add"] + files, cwd=where)
+def add(where, files, verbose=True):
+    run_silently(["git", "add"] + files, cwd=where, verbose=verbose)
 
 def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
     cmd = [ "git", "clone" ]
@@ -431,6 +431,21 @@ def set_remote(where, name, origin):
     run_silently(["git", "remote", "rm", name], allowFailure=True, cwd=where)
     run_silently(["git", "remote", "add", name, origin], cwd=where)
 
+def list_files(where, verbose=False):
+    """Return the files listed by "git ls-files" in 'where'
+
+    Returns a list of paths, relative to 'where'
+    """
+    rv, text = run_silently(["git", "ls-files"], cwd=where, verbose=verbose)
+    lines = text.splitlines()
+    return lines
+
+def rm(where, files, verbose=True):
+    """Delete the named files
+
+    'files' should be a list of file names
+    """
+    run_silently(["git", "rm"] + files, cwd=where, verbose=verbose)
 
 def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None, verbose=False):
     """Is there something to pull from/push to our remote?
