@@ -13,9 +13,10 @@ Contents:
 
    getting-started
    intro
-   README
    muddle
+   with-diagrams
    weld-management
+   README
 
 
 
