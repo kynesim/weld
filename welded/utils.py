@@ -117,21 +117,27 @@ def find_weld_dir(d):
     while True:
         w = os.path.exists(os.path.join(d, ".weld"))
         g = os.path.exists(os.path.join(d, ".git"))
-        if ((not w) and (not g)):
-            # Rats. up a level ..
-            p = os.path.split(d)
-            if (len(p[0]) > 0): 
-                d = p[0]
-            else:
-                raise GiveUp("Cannot find a weld in '%s'"%orig_d)
-        elif (w and g):
-            # Found it!
-            return d
-        else:
-            raise GiveUp("There is something in %s (up from %s) , but it is not a valid weld - \n" + 
-                         " it does not have both .git and .weld"%(d, orig_d))
+        if w or g:
+            break
 
+        # Rats. up a level ..
+        up1, tail = os.path.split(d)
+        if up1 == d or d == '/':
+            raise GiveUp("Not inside a weld\n"
+                         "  Cannot find a .weld file in %s or its parents"%orig_d)
 
+        d = up1
+
+    if not w:
+        raise GiveUp('Not a valid weld\n'
+                     '  Looking at %s\n'
+                     '  Found .git in %s, but no corresponding .weld'%(orig_d, d))
+    elif not g:
+        raise GiveUp('Not a valid weld\n'
+                     '  Looking at %s\n'
+                     '  Found .weld in %s, but no corresponding .git'%(orig_d, d))
+    else:
+        return d
 
 def classify_seams(old_seams, new_seams):
     """

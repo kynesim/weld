@@ -75,10 +75,7 @@ def go(args):
     if (cmd in g_command_dict):
         obj = g_command_dict[cmd]()
         if (obj.needs_weld()):
-            try:
-                obj.set_weld_dir(utils.find_weld_dir(os.getcwd()))
-            except Exception as e:
-                raise utils.GiveUp('Cannot find .weld directory\n%s: %s'%(e.__class__.__name__, e))
+            obj.set_weld_dir(utils.find_weld_dir(os.getcwd()))
         return obj.go(opts, args[1:])
     else:
         raise utils.GiveUp('Unrecognised command %r'%cmd)
