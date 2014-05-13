@@ -294,8 +294,11 @@ def diff_matches(d):
     else:
         return True
 
-def same_files(this_dir, that_dir):
+def same_files(this_dir, that_dir, special_dot_weld=True):
     """Check that the same files are present, with some standard exclusions
+
+    If 'compare_dot_weld' is False, we don't treat .weld directories as
+    special.
 
     We ignore .git directories (and their contents).
 
@@ -317,12 +320,13 @@ def same_files(this_dir, that_dir):
     if not diff_matches(d):
         same = False
 
-    # And similarly, compare the top-level of the .weld directory
-    this_subdir = os.path.join(this_dir, '.weld')
-    that_subdir = os.path.join(that_dir, '.weld')
-    d = dircmp(this_subdir, that_subdir)
-    if not diff_matches(d):
-        same = False
+    if special_dot_weld:
+        # And similarly, compare the top-level of the .weld directory
+        this_subdir = os.path.join(this_dir, '.weld')
+        that_subdir = os.path.join(that_dir, '.weld')
+        d = dircmp(this_subdir, that_subdir)
+        if not diff_matches(d):
+            same = False
 
     # Compare other directories
     this_files = os.listdir(this_dir)
@@ -1220,14 +1224,14 @@ def test():
                      '  welded.xml',
                      ], fold_dirs=['bases'])
 
-        new_makefile = ('# An empty makefile\n\n'
+        new_124_four_makefile = ('# An empty makefile\n\n'
                         'all: four\n\n'
                         'four: four.c\n\n'
                         'four-and-a-bit: four-and-a-bit.c\n\n'
                         '#This is comment 1 and 2, folded together\n')
 
         with Directory(os.path.join('.weld', 'bases', 'project124', 'four')):
-            touch('Makefile', new_makefile)
+            touch('Makefile', new_124_four_makefile)
             shell('git commit -a -m "Fixed the problem"')
 
         weld("finish -v")
@@ -1241,7 +1245,7 @@ def test():
         with Directory(os.path.join('.weld', 'bases', 'project124', 'four')):
             with open('Makefile') as fd:
                 content = fd.read()
-            if content != new_makefile:
+            if content != new_124_four_makefile:
                 raise GiveUp('"weld finish" was not resolved as expected')
 
     banner('Cloning source weld for a second time')
@@ -1350,7 +1354,48 @@ Seams:
 
         with Directory(fromble_test1.where):
             weld('status')
-        ##    weld('pull -v igniting_duck')
+            weld('pull -v igniting_duck')
+
+    # Both our versions of igniting_duck should now be the same
+    if not same_files(os.path.join(fromble_test1.where, '.weld', 'bases', 'igniting_duck'),
+                      os.path.join(fromble_test2.where, '.weld', 'bases', 'igniting_duck'),
+                      special_dot_weld=False):
+        raise GiveUp('Fromble 01 and Fromble 02, base igniting_duck does not match')
+    else:
+        print 'Fromble 01 and Fromble 02, base igniting_duck. matches'
+
+    # Perform a dance to try to get our two welds the same...
+    with Directory(fromble_test1.where):
+        git('push')
+
+    with Directory(fromble_test2.where):
+        try:
+            out = shell_get_output('git pull')
+            print out
+            raise GiveUp('"git pull" of fromble2 should have failed')
+        except ShellError as e:
+            if not e.text.endswith("""\
+Auto-merging 124/four/Makefile
+CONFLICT (content): Merge conflict in 124/four/Makefile
+Automatic merge failed; fix conflicts and then commit the result.
+"""):
+                raise GiveUp('"git pull" of fromble2 endeded wrongly:\n%s'%e.text)
+
+        with Directory(os.path.join('124', 'four')):
+            touch('Makefile', new_124_four_makefile)
+            shell('git commit -a -m "Fixed the problem"')
+
+        git('push')
+        assert weld_get_output('status') == ''
+
+    with Directory(fromble_test1.where):
+        git('pull')
+        assert weld_get_output('status') == ''
+
+    if not same_files(fromble_test1.where, fromble_test2.where):
+        raise GiveUp('Fromble 01 and Fromble 02 do not match')
+    else:
+        print 'Fromble 01 and Fromble 02 match'
 
 def main(args):
 
