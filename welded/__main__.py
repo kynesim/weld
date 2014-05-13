@@ -19,18 +19,19 @@ sys.path.insert(0, p_dir)
 
 try:
     # Import goes here
-    import welded.cmdline
-    from welded.utils import Bug, GiveUp
+    import cmdline
+    from utils import Bug, GiveUp
 except ImportError:
     # Perhaps we are being run through a soft link.
     sys.path = [a_dir] + sys.path[1:]
-    import welded.cmdline
-    from welded.utils import Bug, GiveUp
+    import cmdline
+    from utils import Bug, GiveUp
 
 
 if __name__ == "__main__":
+
     try:
-        welded.cmdline.go(sys.argv[1:])
+        cmdline.go(sys.argv[1:])
         sys.exit(0)
     except Bug as e:
         print("")
@@ -45,6 +46,3 @@ if __name__ == "__main__":
         sys.exit(e.retval)
 
 # End file.
-
-
-        
