@@ -18,6 +18,9 @@ def pull_base(spec, base_name, verbose=False):
 
     'spec' is the Weld that contains this base.
     """
+    if verbose:
+        print 'WELD PULL %s'%base_name
+
     weld_root = spec.base_dir
 
     # Make sure we have no unstaged changes.
@@ -67,6 +70,11 @@ def pull_base(spec, base_name, verbose=False):
     if last_weld_sync is None:
         # There was no previous merge - fall back to the Init state
         last_weld_sync = git.query_init(weld_root)
+        if verbose:
+            print 'No last Push or Merge - using weld Init at %s'%last_weld_sync[:10]
+    else:
+        if verbose:
+            print 'Last weld sync was %s at %s'%(verb, last_weld_sync[:10])
 
     base_obj = spec.query_base(base_name)
 
