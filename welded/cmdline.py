@@ -17,7 +17,6 @@ import subprocess
 
 from optparse import OptionParser
 
-import welded.utils as utils
 import utils
 import db
 import parser
@@ -174,7 +173,7 @@ class Pull(Command):
         if opts.verbose:
             print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
-            rv = pull.pull_base(self.spec, p)
+            rv = pull.pull_base(self.spec, p, verbose=opts.verbose)
             if rv != 0:
                 return rv
 
@@ -330,7 +329,7 @@ class Status(Command):
     """
     def go(self, opts, args):
         if len(args) > 1:
-            raise utils.Giveup('Too many arguments - "weld status [<remote-name>]"')
+            raise utils.GiveUp('Too many arguments - "weld status [<remote-name>]"')
 
         verbose = opts.verbose
         output_tuple = opts.as_tuple
