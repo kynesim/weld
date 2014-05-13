@@ -38,13 +38,42 @@ def decode_commit_data(data):
         raise GiveUp("Attempt to parse '%s' as a commit-data header failed."%(data))
     # m.group(3) is some seams..
     (base_name, commit_id) = (m.group(1), m.group(2))
-    arr = json.loads(m.group(3))
-    seams = [ ]
+    seams = str_to_seams(m.group(3))
+    return (base_name, commit_id, seams)
+
+def str_to_seams(text):
+    """Convert a seam array representation to an array of Seam instances
+    """
+    arr = json.loads(text)
+    seams = []
     for a in arr:
         s = db.Seam()
         (s.source, s.dest) = a
         seams.append(s)
-    return (base_name, commit_id, seams)
+    return seams
+
+def decode_log_entry(log_entry, base_name, verb_sequence):
+    """Look in the log entry for the first "X-Weld-State: <verb> <base_name>"
+
+    (where <verb> is one of the strings in 'verb_sequence')
+
+    That is, when it finds:
+
+        X-Weld-State: <verb> <base_name>/<commit_id> <seams>
+
+    it returns (<verb>, <commit_id>, <seams>)
+
+    Returns (None, None, None) if it doesn't find anything suitable.
+    """
+    hdrs = decode_headers(log_entry)
+    # Find all the pulls/pushes
+    for verb, data in hdrs:
+        if verb in verb_sequence:
+            # Gotcha!
+            this_base_name, commit_id, seams = decode_commit_data(data)
+            if this_base_name == base_name:
+                return verb, commit_id, seams
+    return None, None, None
 
 def print_headers(lst):
     for l in lst:
@@ -108,19 +137,13 @@ def query_last_merge(where, base_name):
     if commit_id is None:
         return (None, None, [])
     log_entry = git.log(where, commit_id)
-    hdrs = decode_headers(log_entry)
-    # Find all the merges
-    for h in hdrs:
-        (verb, data) = h
-        if (verb == "Merged"):
-            # Gotcha!
-            (in_base_name, cid, seams) = decode_commit_data(data)
-            if (base_name == in_base_name):
-                return (commit_id, cid, seams)
-
-    raise GiveUp('Unable to find "X-Weld-State: Merged" data in merge commit\n'
-                 'In base %s, id %s\n%s'%(base_name, commit_id,
-                     '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
+    verb, cid, seams = decode_log_entry(log_entry, base_name, ["Merged"])
+    if verb:
+        return (commit_id, cid, seams)
+    else:
+        raise GiveUp('Unable to find "X-Weld-State: Merged" data in merge commit\n'
+                     'In base %s, id %s\n%s'%(base_name, commit_id,
+                         '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
 def query_last_push(where, base_name):
     """
@@ -133,19 +156,13 @@ def query_last_push(where, base_name):
     if commit_id is None:
         return (None, None, [])
     log_entry = git.log(where, commit_id)
-    hdrs = decode_headers(log_entry)
-    # Find all the pulls
-    for h in hdrs:
-        (verb, data) = h
-        if (verb == "Pushed"):
-            # Gotcha!
-            (in_base_name, cid, seams) = decode_commit_data(data)
-            if (base_name == in_base_name):
-                return (commit_id, cid, seams)
-
-    raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
-                 'In base %s, id %s\n%s'%(base_name, commit_id,
-                     '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
+    verb, cid, seams = decode_log_entry(log_entry, base_name, ["Pushed"])
+    if verb:
+        return (commit_id, cid, seams)
+    else:
+        raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
+                     'In base %s, id %s\n%s'%(base_name, commit_id,
+                         '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
 def query_last_merge_or_push(where, base_name):
     """
@@ -163,19 +180,13 @@ def query_last_merge_or_push(where, base_name):
     if commit_id is None:
         return (None, None, None, [])
     log_entry = git.log(where, commit_id)
-    hdrs = decode_headers(log_entry)
-    # Find all the pulls/pushes
-    for h in hdrs:
-        (verb, data) = h
-        if verb in ("Merged", "Pushed"):
-            # Gotcha!
-            (in_base_name, cid, seams) = decode_commit_data(data)
-            if (base_name == in_base_name):
-                return (verb, commit_id, cid, seams)
-
-    raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
-                 'In base %s, id %s\n%s'%(base_name, commit_id,
-                     '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
+    verb, cid, seams = decode_log_entry(log_entry, base_name, ["Pushed", "Merged"])
+    if verb:
+        return (verb, commit_id, cid, seams)
+    else:
+        raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
+                     'In base %s, id %s\n%s'%(base_name, commit_id,
+                         '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
 
 
