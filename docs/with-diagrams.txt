@@ -101,7 +101,7 @@ And if we edited the XML file to change name of the seam ``one_duck`` to
 
   $ git mv one_duck one_goose
 
-then we would have::
+then we would have:
 
 .. image:: images/fromble_one_goose.png
 
