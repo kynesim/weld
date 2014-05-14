@@ -37,4 +37,12 @@ use git directly (``git push``, ``git pull``, etc.).
 
 For a bit more information, see the chapter on Muddle later on.
 
+But where's the use of the ``weld`` tool?
+=========================================
+One of the points of "weld" is that normal users do not need to use the weld
+command line tool. The idea is that only the software developers maintaining
+the weld need to worry about how it interacts with its upstream packages.
+This means that if you're just building software from a weld, it is simply
+another (albeit perhaps rather large) git repository.
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -20,34 +20,70 @@ are written in XML. We did consider using Python, but felt that given
 the highly declarative nature of the information described, the 
 number of opportunities for self-mutilation was just too high.
 
+Getting weld
+============
+Getting weld needs git. If you don't have git on your system, and you're on
+a Debian based system (Debian, Ubuntu, Linux Mint, etc.), then you can do::
 
-Files in .welded
-================
+  $ sudo apt-get install git gitk
 
- .weld/welded.xml 
-   This is the file that describes this weld. It is a copy of the XML file
-   given to weld init.
+(the ``gitk`` program is an invaluable UI for looking at the state of git
+checkouts - it's always worth checking it out as well as git itself).
 
- .weld/completion
-   A set of instructions for weld finish to perform once you have
-   completed your merge (i.e., "weld pull")
+Then decide where to put weld. I have a ``sw`` directory for useful software
+checkouts, so I would do::
 
- .weld/bases/ ..
-   Copies of all your bases.
+  $ cd sw
+  $ git clone https://code.google.com/p/weld/
 
- .weld/counter
-   Counts upward; this is used to force changes so we never have
-   empty commits - git commit --allow-empty doesn't really work and
-   can easily lose commits.
+which creates me a directory ``~/sw/weld``.
 
-bases and seams
-===============
+.. note:: Sometimes (luckily not often) the Google code repositories give
+   errors. In this case, the only real solution is to try again later.
 
-A **base** is a git repository (and branch) from which one pulls seams and to
-which they are pushed.
+To *use* weld, you can then either:
 
-A **seam** is a mapping from a directory in a git repository to a directory in
-the weld in which it will appear.
+1. just type ``~/sw/weld/weld`` - this is the simplest thing to do,
+   but the longest to type.
+
+2. add an alias to your ``.bashrc`` or equivalent::
+
+      alias weld="${HOME}/sw/weld/weld"
+
+3. add ``~/sw/weld`` to your PATH::
+
+      export PATH=${PATH}:${HOME}/sw/weld
+
+4. add a link - for instance, if you have ``~/bin`` on your path, do::
+
+     cd ~/bin
+     ln -s ~/sw/weld/weld .
+
+Personally, I use the second option, but all are sensible.
+
+You should now be able to do::
+
+  $ weld help
+
+and get meaningful output.
+
+Terminology: welds, bases and seams
+===================================
+A **weld** is a git repository containing all of the source code for a
+project.
+
+``weld`` is also the command line tool that is used to maintain welds.
+
+A **seam** is a mapping from a directory in an external git repository to the
+directory in the weld in which it will appear.
+
+Colloquially it is also the directory in the weld that is so described.
+
+A **base** is an external git repository (and implicitly its branch or
+other specifiers) from which one pulls seams and to which they are pushed.
+
+The term may also be used to refer to the clone of that external directory in
+the ``.weld/bases`` directory.
 
 weld.xml
 ========
@@ -140,6 +176,45 @@ is not defined.
   that destinations that "nest" - e.g., ``src/fred`` and ``src/fred/jim`` -
   are forbidden.
 
+.. note:: I am not aware of anything that ensures that the origin URI
+   corresponds to the place that you actually clone the weld from. Indeed,
+   since it is a URI (and not a URL), it need not so corresppnd. However, if
+   you do something obscure based on this, then no-one is going to like you.
+
+Files in .weld
+==============
+When you first clone a weld, the only file in the ``.weld`` directory will be:
+
+* ``welded.xml`` - this is the file that describes this weld. It is a copy of
+  the XML file given to weld init.
+
+After doing a ``weld pull``, a ``weld push``, or a ``weld query`` on a base
+(which may need to "pull" the base to find out about it), there will also be:
+
+* ``bases/`` - this is a directory containing a clone of each of your bases,
+  retrieved as they are needed.
+
+You may also see:
+
+* ``counter`` - this is a file whose content counts upward. It is used to
+  force changes so we never have empty commits when doing ``weld pull`` (or
+  ``weld push``). It appears to be necessary because - ``git commit
+  --allow-empty`` can sometimes lose commits.
+
+During a ``weld pull`` or ``weld push`` you will also see:
+
+* ``complete.py`` - the script that ``weld finish`` runs.
+* ``abort.py`` - the script that ``weld abort`` runs.
+
+and ``weld push`` also creates:
+
+* ``pushing/`` - which contains the commit message to be used at the end of
+  the ``weld push``, and a marker to indicate whether a merge is in progress.
+
+All of these should be deleted when the ``weld pull`` or ``weld push`` is
+finished (and, specifically, ``weld finish`` and ``weld abort`` should delete
+them).
+
 Going behind weld's back
 ========================
 
@@ -167,12 +242,12 @@ weld pull <base-name>
 
 weld finish
 
-   Finish a weld pull that had problems (indicating that the problems were
-   fixed).
+   Finish a weld pull or push that had problems (indicating that the problems
+   were fixed).
 
 weld abort
 
-   Abort a weld pull that had problems (thus discarding it)
+   Abort a weld pull or push that had problems (thus discarding it)
 
 weld query bases
 
@@ -194,8 +269,8 @@ weld status
    our weld. This is intended to be useful before doing a ``weld pull`` or
    ``weld push`` of our bases.
 
-Headers that weld introduces
-============================
+Commit messages that weld inserts
+=================================
 
 Weld will occasionally leave commits containing messages to itself.
 It is important that you do not start any other commit messages
@@ -276,13 +351,28 @@ Reads in a weld XML file, and:
 ...and more stuff to be written
 
 
-Interesting information
-=======================
-...or stuff Tibs is learning about weld that will get put somewhere else
-later, but he doesn't want to lose...
+How things work
+===============
+
+Things to remember not to do in a world of welds
+------------------------------------------------
+
+Do not use git submodules in bases, as weld will not preserve them.
+
+Do not use commit messages that start "X-WeldState:", as weld uses such for
+its own purposes.
+
+Do not use branches that start "weld-", as weld uses such for its own purposes
+(and is not very careful in checking if you're on an offending branch).
+
+Do not change the ``origin`` remote of a weld - the weld command assumes that
+``origin`` is the origin remote it should use.
 
 How "weld pull" does its stuff
 ------------------------------
+*Obviously, the code is the final word on what happens, but this is intended
+as reasonable background.*
+
 Remember, "weld pull" updates its idea of the bases, and then updates the
 seams in the weld "to match".
 
@@ -310,16 +400,33 @@ Given the name of a base:
    refuse to proceed, suggesting that the user commit or stash the changes
    first.
 
-#. It finds the last merge for the given base-name (i.e., the last commit with
-   an ``X-Weld-State: Merged <base-name>`` message). If there isn't one, it
-   finds the ``X-Weld-State: Init`` commit.
+   It also checks whether:
+
+   * the user is part way through an unfinished ``weld pull`` or ``weld push``
+   * the weld could be updated with ``git pull`` (it looks at the remote
+     repository to determine this)
+   * the current branch is a weld-specific branch (starting with ``weld-``).
+
+   and refuses to proceeed if any of those is true (this is essentially what
+   ``weld status`` does, so you can do it beforehand as well).
+
+#. It finds the last time that ``weld pull`` or ``weld push`` was done for
+   this base, by looking for the most recent commit with an ``X-Weld-State:
+   Merged <base-name>`` or ``X-Weld-State: Pushed <base-name>`` message. If
+   there isn't  one (i.e., this is the first ``weld pull`` or ``weld push``
+   for this weld), then it uses the ``X-Weld-State: Init`` commit instead.
+
+       For ``weld pull`` we want to know the last time our base was
+       synchronised with the weld as a whole. Since both ``weld pull`` and
+       ``weld push`` do this, we can use either as the relevant place to work
+       from.
 
 #. Weld makes sure its copy of the base is up-to-date:
 
    a. If it doesn't yet have a clone of the base, it does::
 
          cd .weld/bases
-         git clone <base-repository>
+         git clone <base-repository> <base>
          cd <base>
          git pull
 
@@ -328,20 +435,22 @@ Given the name of a base:
          cd .weld/bases/<base>
          git pull
 
-   and notes the HEAD commit of the base.
+   In either case, it notes the HEAD commit of the base.
 
 #. It determines which (if any) seams have been deleted, changed or added in
    the weld (with respect to the now up-to-date base). If all of those lists
    are empty, there is nothing to do, and the ``weld pull`` for this base is
    finished.
 
-#. Back in the "main" directory structure (outside the .weld) it branches.
-   The branch point is the last "X-Weld-State: Merged <base>" commit, or the
-   "X-Weld-State: Init" commit, as located above.
+#. It branches the weld. The branch point is the synchronisation commit that
+   was found earlier (the last ``weld pull`` or ``weld push`` commit, or else
+   the Init commit).
 
        (The branch name used is chosen to be unique to this repository, and
-       is currently of the form "weld-merge-<base>-<index>", where <index> is
-       chosen to make the branch unique.)
+       is currently of the form "weld-merge-<commit-id>-<index>", where
+       <commit-id> is the first 10 characters of the synchronisation commits
+       SHA1 id, and <index> is chosen to make the branch unique in case that
+       is not enough.)
 
 #. It then:
 
@@ -350,6 +459,18 @@ Given the name of a base:
    * adds any added seams
 
    within that branch.
+
+   Deleting a seam is easy - it just means deleting the appropriate directory.
+
+   Adding a seam just copies the directory structure for that seam across
+   from the base into the correct place in the weld.
+
+   Modifying a seam uses ``git diff`` to determine the appropriate changes in
+   the base, and then replays them in the weld.
+
+     .. note:: *TODO* It occurs to me that the technique use in ``weld push``
+        might be more efficient than this last, if it turns out to be usable -
+        I'd need to think on this further. (Tibs)
 
 #. It writes ``.weld/complete.py`` and ``.weld/abort.py``, which can later be
    used by the ``weld finish`` and ``weld abort`` commands if necessary (and
@@ -377,22 +498,21 @@ Given the name of a base:
       should be changing the weld whilst we're busy)
    e. commits this whole operation using an appropriate ``X-Weld-State: Merged
       <base-name>`` message.
-   f. deletes the ``finish.py`` and ``abort.py`` scripts
+   f. deletes the ``complete.py`` and ``abort.py`` scripts
 
    At the moment, this doesn't delete the temporary/working branch (which will
    show as a loop if you look in gitk). Future versions of weld may do so
-   as part of the "complete" phase, or we may add a "weld tidy" command
-   to remove them, but during the current active development it's thought to
-   be useful to leave the branch visible.
+   as part of the "complete" phase, but during the current active development
+   it's thought to be useful to leave the branch visible.
 
 #. If the merge didn't succeed, and the user chooses to do ``weld abort``,
    then the ``abort.py`` script is run, which:
 
    * switches back to the original branch
    * deletes the temporary/working branch
-   * deletes the ``finish.py`` and ``abort.py`` scripts
+   * deletes the ``complete.py`` and ``abort.py`` scripts
 
-Also note that the "weld-" branches are always meant to be local to the
+Also note that the ``weld-`` branches are always meant to be local to the
 current repository - they're not meant to be pushed anywhere else.
 
 Not having those "remotes/origin/weld-" branches
@@ -400,9 +520,10 @@ Not having those "remotes/origin/weld-" branches
 If you do a ``weld pull`` and then do a ``git push`` of the weld, in general
 the transient branches will not be propagated to the weld's remote.
 
-However, if you clone directly from a "working weld", then by default all
-branches are cloned, which is (a) untidy, and (b) mak cause future working
-branches to have the same name as earlier (remote) working branches.
+However, if you clone directly from a "checked out" weld (rather than from a
+bare repository), then by default all branches are cloned, which is (a)
+untidy, and (b) mak cause future working branches to have the same name as
+earlier (remote) working branches.
 
 If you have git version 1.7.10 or later, then you can instead clone a
 "working" weld using::
@@ -413,104 +534,152 @@ to retrieve (in this case) just ``master`` (or use ``-b <branch`` to name a
 specific branch).
 
 Of course, unfortunately, if you later do a ``git pull``, then the branches
-will be fetched for you at that stage, so it's not a perfect solution.
+will be fetched for you at that stage, so it's not a perfect solution. But
+then maybe you shouldn't clone a "checked out" weld.
 
-How "weld push" should work
----------------------------
+How "weld push" works
+---------------------
+*Obviously, the code is the final word on what happens, but this is intended
+as reasonable background.*
+
 Again, we're only going to look at doing "weld push" on a single base - the
-command line will (probably) take more than one base name, pr the magic
-``_all``, but we'll ignore that here.
-
-  *This is still to be implemented as a "weld push" command*
+command line will take more than one base name, or the magic ``_all``, but
+we'll ignore that here.
 
 So doing ``weld push`` for a given base name works as follows:
 
-#. The seams for the base are looked up, and thus the individual seam
-   directories identified.
+#. Weld checks that there are no local changes in the weld - specifically, it
+   runs ``git status`` in the weld's base directory (the directory containing
+   the ``.weld`` directory). If there are any files in the weld that could be
+   added with ``git add`` or committed with ``git commit``, then it will
+   refuse to proceed, suggesting that the user commit or stash the changes
+   first.
 
-#. The original branch (of the weld) is remembered.
+   It also checks whether:
 
-#. The commit id of the last push for the given base-name (i.e., the last
-   commit with an ``X-Weld-State: Pushed <base-name>`` message) is located. If
-   there isn't one, the ``X-Weld-State: Init`` commit is used.
+   * the user is part way through an unfinished ``weld pull`` or ``weld push``
+   * the weld could be updated with ``git pull`` (it looks at the remote
+     repository to determine this)
+   * the current branch is a weld-specific branch (starting with ``weld-``).
 
-#. ``git log`` is used to determine what commits have happened between that
-   last push and HEAD. Then all the ``X-Weld-State`` commits are removed from
-   the list.
+   and refuses to proceeed if any of those is true (this is essentially what
+   ``weld status`` does, so you can do it beforehand as well).
 
-   If that leaves an empty list of commits, then nothing needs to be pushed
-   for this base name, and we are finished.
+#. Weld makes sure its copy of the base is up-to-date:
 
-#. At the moment, in the development version of the code, a tag may be put at
-   the last-Pushed (or Init) commit. This is not required by anything else,
-   and just serves to make it more obvious how ``weld push`` works.
+   a. If it doesn't yet have a clone of the base, it does::
 
-#. For each seam in this base, the changes for each commit in the list are
-   calculated, using ``git diff``, and remembered.
+         cd .weld/bases
+         git clone <base-repository> <base>
+         cd <base>
+         git pull
 
-      I am assuming that they are saved to a file with a name of the form
-      something like
-      ``.weld/pushing/<base-name>/<seam-name>/<index>-diff.txt``
-      where ``<index>`` retains the appropriate order of the differences
-      (which is, carefully, the correct order to apply them in, the reverse
-      of the order of the commit ids we found in our ``git log`` list).
+   b. If it does have a clone of the base, it does::
 
-      This means that ``.weld/pushing`` needs adding to the default
-      ``.gitignore`` file that ``weld init`` creates.
+         cd .weld/bases/<base>
+         git pull
 
-#. Two script files, ``.weld/continue.py`` and ``.weld/abort.py``, are
-   written.
+#. It finds the last time that ``weld push`` was done for this base, by
+   looking for the most recent commit with an ``X-Weld-State: Pushed
+   <base-name`` message. If there isn't one (i.e., this is the first ``weld
+   push`` for this weld), then it uses the ``X-Weld-State: Init`` commit
+   instead.
 
-#. The base is branched, so that our amendments to it can be done on that
-   branch.
+      Why do we use the last ``weld push``, and not the last ``weld push``
+      *or* ``weld pull``?
+     
+      Consider the following "pseudo git log"::
+     
+        6   +   change B to a file in base <fred>
+        5   o   X-Weld-State: Merged <fred>/...
+        4   -   a change to some irrelevant file(s)
+        3   +   change A to a file in base <fred>
+        2   o   X-Weld-State: Pushed <fred>/...
+        1   x   some common commit
+     
+      So we last did ``weld pull`` at commit 5, and the weld thus contains all
+      the changes from base <fred> up to that point.
+     
+      However, we last did a ``weld push`` at commit 2, which means that
+      changes 3 and 6 have still to be applied to base <fred>. But change 3 is
+      before our last ``weld pull``, so we definitely want the last ``push``.
+     
+      .. note:: Remember: ``weld pull`` updates the base from its remote, and
+         then brings any changes therein into our weld. It does not propagate
+         any changes in the weld back to the base.
 
-#. The ``continue.py`` script is run.
+#. Weld looks up the current seams being used for this base. This tells it
+   which directories (in the weld and in the base) it is interested in.
 
-   This applies the patches for each seam in the appropriate ``pushing``
-   directory - i.e., it:
+#. It looks up all of the changes in the weld since the synchronisation point
+   (using ``git log --one-line``) and remembers them.
 
-   a. takes the first patch from the first available ``<seam-name>`` directory
-   b. uses ``git apply`` to apply it
-   c. deletes the patch file
-   d. if that leaves the directory empty, deletes the ``<seam-name>``
-      directory
+   If there aren't any, it has finished.
 
-#. If the ``git apply`` succeeded, it then:
-  
-   * goes on to the next patch file for that seam, or starts on the next
-     ``<seam-name>`` directory, and so on, until there are no ``<seam-name>``
-     directories left,
-   * at which point it deletes ``pushing/<branch-name>`` directory, and also
-   * deletes the ``continue.py`` and ``abort.py`` scripts
+#. It trims out any ``X-Weld-State`` commits from that list, and remembers
+   *it*.
 
-   It then:
+   Again, if there are no changes (left), then it has finished.
 
-   * commits the changes to the base with a message of the form
-     ``X-Weld-State: Pushed <base-name> from weld <weld-name>``, and summary
-     lines for the actual changes we've folded in.
-   * merges the branch back onto the base's original branch (using a
-     fast-forward only merge)
-   * does a ``git push`` of the base to its remote
+#. As an aid during development (so this may go away later on), it tags the
+   synchronisation commit, using a tag name of the form
+   ``weld-last-<base-name>-sync-<commit-id>``, where <commit-id> is the first
+   10 characters of its SHA1 commit id.
 
-   Given a ``weld pull`` before this final ``git push``, this should succeed
-   because the base was up-to-date before the push.
+#. In the base, it branches at the synchronisation point (remember,
+   ``X-Weld-State`` commit messages record the equivalent commit id in the
+   base as well), using a branch name of the form
+   "weld-pushing-<commit-id>-<index>".
 
-   Then, back in the weld, it adds an empty commit containg the message
-   ``X-Weld-State: Pushed <base-name>/<commit-id> <seams>``, so that we have a
-   record of where the push was done from (for use in future ``weld push``
-   commands).
+#. We then update the branch in the base:
 
-   Note that this means you should consider doing a ``git push`` of your weld
-   after any ``weld pull`` command.
+   For each seam that the base currently has in our weld:
 
-#. If a problem occurred with the ``git apply``, then the user is expected to
-   fix it, and then issue a ``weld continue`` command (which just re-runs the
-   ``continue.py`` script, so behaves as described above), or to issue a
-   ``weld abort`` command, which:
+   1. We use ``git ls-files`` in the appropriate seam in the weld to find out
+      which files git is managing.
+   2. We do the same in the corresponding directory in the base.
+   3. For files which the seam (in the weld) has, but the base does not, we
+      do ``git rm``. We commit that change.
+   4. For all the other files in the seam, we just copy them over into the
+      base (actually, we use ``rsync``). It is, of course, quite likely that
+      many of them won't have changed, but that's OK. Then we ``git add`` all
+      of the files we've copied, in the base, and commit that change as well.
 
-   * deletes the working branch on the base
-   * deletes the ``pushing/<base-name>`` directory
-   * deletes the ``continue.py`` and ``abort.py`` scripts
+   .. note:: Any seams that are not in the weld are, by definition, not of
+      interest to us. Even if they were in the weld at the last
+      synchronisation point, the fact they aren't *now* means we are not
+      interested in any (possible) intermediate changes - if we cared about
+      such changes, we should have done ``weld push``  then.
+
+#. We prepare a final commit message, and write out the ``.weld/complete.py``
+   and ``.weld/abort.py`` files.
+
+#. We run the ``complete.py`` file to finish off our ``weld push``. This:
+
+   * sets the merging indicator (touches a file in the ``.weld/pushing``
+     directory)
+   * in the base, if the merging indicator is not set, merges the original
+     branch (normally "master") into our working branch - this should just
+     proceed with no problems
+   * still in the base, merges that back into the original branch
+   * still in the base, commits the change using the saved commit message
+
+       The commit message has a summary of the corresponding commits from the
+       weld, as output by ``git log --one-line``.
+
+       If the user specified ``weld push -edit``, then they get the chance to
+       edit the message before it is used.
+
+   * notes the new HEAD commit id in the base
+   * adds an ``X-Weld-State: Pushed <base-name>/<commit-id>`` commit to the
+     weld, using that commit id (this is, of course, notionally an empty
+     commit).
+   * deletes the merging indicator and the saved commit message.
+
+If something did go wrong, then ``weld finish`` just does that last item again
+(which is why we need the merging indicator). ``weld abort`` deletes the
+working branch, and then deletes the merging indicator and saved commit
+message.
 
 Tree
 ----

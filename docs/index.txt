@@ -17,6 +17,7 @@ Contents:
    with-diagrams
    weld-management
    README
+   these-docs
 
 
 
