@@ -2,6 +2,9 @@
 Weld - the original README
 ==========================
 
+*This chapter is being rewriten, and possibly split into separate parts. Some
+of it may be inaccurate. Please be patient.*
+
 The multiple repository model used by muddle makes it quite difficult
 to track changes. It would be simpler if there was a single git 
 repository for a project which could track back to other repositories.
@@ -508,5 +511,68 @@ So doing ``weld push`` for a given base name works as follows:
    * deletes the working branch on the base
    * deletes the ``pushing/<base-name>`` directory
    * deletes the ``continue.py`` and ``abort.py`` scripts
+
+Tree
+----
+::
+
+   $ cd fromble
+   $ tree.py -fold .git -fold .weld
+   fromble/
+   ├─.git/...
+   ├─.gitignore
+   ├─.weld/...
+   ├─124/
+   │ ├─four/
+   │ │ ├─Makefile
+   │ │ ├─four-and-a-bit.c
+   │ │ └─four.c
+   │ ├─one/
+   │ │ ├─Makefile
+   │ │ └─one.c
+   │ ├─three/
+   │ │ ├─Makefile
+   │ │ ├─three-and-a-bit.c
+   │ │ └─three.c
+   │ └─two/
+   │   ├─Makefile
+   │   └─two.c
+   ├─one-goose/
+   │ ├─Makefile
+   │ └─one.c
+   └─two-duck/
+     ├─Makefile
+     └─two.c
+
+   $ tree.py -fold .git .weld
+   .weld/
+   ├─bases/
+   │ ├─igniting_duck/
+   │ │ ├─.git/...
+   │ │ ├─one/
+   │ │ │ ├─Makefile
+   │ │ │ └─one.c
+   │ │ └─two/
+   │ │   ├─Makefile
+   │ │   └─two.c
+   │ └─project124/
+   │   ├─.git/...
+   │   ├─four/
+   │   │ ├─Makefile
+   │   │ ├─four-and-a-bit.c
+   │   │ └─four.c
+   │   ├─one/
+   │   │ ├─Makefile
+   │   │ └─one.c
+   │   ├─three/
+   │   │ ├─Makefile
+   │   │ ├─three-and-a-bit.c
+   │   │ └─three.c
+   │   └─two/
+   │     ├─Makefile
+   │     └─two.c
+   ├─counter
+   └─welded.xml
+
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
