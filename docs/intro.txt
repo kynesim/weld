@@ -49,6 +49,16 @@ On the other hand:
   because there is no linkage at all between the changes in each individual
   package
 
+* branching across the whole project (for instance, for a release branch) is
+  almost impossible to manage. Muddle provides some help with muddle build
+  trees, but it is still not simple, and not being simple means not being
+  safe/easy to use.
+
+* it is hard to "name" a particular version of the project. Again, muddle
+  provides some support for this with its stamp files, but these are just text
+  files "naming" the repositories and the appropriate commit ids, which is
+  intrinsically clumsy.
+
 * for new software, a decision to split into packages at the wrong granularity
   (so either too much code in one large package, or too many small packages
   that are actually tightly integrated) can lead to awkward code management
@@ -82,6 +92,12 @@ The advantages of this approach are:
   code which is in the repository
 
 * a change can be made across several packages as an individual change
+
+* naming a particular version of the project is as simple as specifying a
+  commit id
+
+* a branch can be made across the whole project - this makes release branching
+  (for instance) manageable
 
 On the other hand:
 
