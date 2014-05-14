@@ -1,0 +1,146 @@
+===========
+Still to do
+===========
+
+The following is the current known "to do" list. This is above and beyond any
+list of issues on the google code site.
+
+Branch, tag, commit support for seams
+=====================================
+Priority: high
+
+The weld XML file allows specifying a branch, tag or revision (commit id?) for
+a seam. 
+
+* It is not defined what happens if you specify more than one. Ideally this
+  would not be allowed, and the user would be told so.
+* I'm not sure what, if any, of the code takes notice of these. ``push``
+  certainly doesn't. This needs fixing.
+
+This is the most important thing to fix, and must be thoroughly tested.
+
+XML file format
+===============
+Priority: medium
+
+The current XML file is laid out as::
+
+  <base name=A ... />
+  <seam base=A ... />
+
+and so on, where the seams for a base must occur after the base entity.
+
+Would we be better with a "more traditional" layout like::
+
+  <base name=A ... >
+      <seam ... />
+  </base>
+
+which removes the need for the implicit ordering.
+
+If we go for this change, we should add a "version" attribute to the <weld>
+entity, and make this ``<weld name=XXX version=2>`` so that we can continue
+to support old format files.
+
+  (We *could* actually detect both styles of file by inspection, and
+  support them that way, even allowing mixed format (!) files, but using
+  a version number feels cleaner.)
+
+Weld origin URI
+===============
+Priority: medium
+
+Should we be checking this against the *actual* origin that we are using for
+the weld (i.e., check the origin URI declared in the XML file against the
+origin that git is using)?
+
+What commands should check it, and what should they do if the values disagree?
+
+Weld pull and push common code
+==============================
+Priority: medium
+
+There is some common code between weld push and weld pull (pylint notices a
+small amount of it).
+
+Moreover, it is possible that the "use ``git ls-files to find files and then
+copy them`` approach used by weld push might be applicable in weld pull as
+well.
+
+Furthermore, weld push uses a ``pushing/`` directory to keep its temporary
+files local - again, weld pull could do the same with a ``pulling/``
+directory. This has the advantage that a partially completed push or pull is
+resumable over a system reboot (when the ``/tmp`` files would be deleted).
+
+Command line
+============
+Priority: low
+
+* ``weld -h`` could be more informative
+* ``weld help`` should be paged (as with muddle and git), and the formatting
+  could be better.
+* ``weld help <command>`` should be implemented
+* Command line switches that only apply to one or two commands should not be
+  general (I'm thinking of ``-tuple`` and ``-edit`` particularly)
+
+Weld push commit message content
+================================
+The commit message (in the base) from ``weld push`` takes the form::
+
+    X-Weld-State: Pushed igniting_duck from weld frank
+    
+    Changes were (in summary, topmost was applied last)
+    
+    f0e6ceb Remove the earlier trailing comment
+    f00c9fc Add more trailing comments across the bases and to the weld
+    335718e One-duck: Also build one-duck, same as one
+    a75b292 One-duck: Add a comment to the end of the Makefile
+
+* The header line is an ``X-Weld-State: Pushed`` line, in a different format
+  from that used in the weld. It could be argued that it should
+
+  a. not be an ``X-Weld-State`` line (although I don't think it can ever
+     "escape" back into the weld and cause confusion)
+  b. use a different term than ``Pushed`` (just in case it did "escape")
+
+* This is the only place that the weld name (as taken from the XML file) is
+  used (here it is ``frank``) - is it actually useful, or should we be using
+  something else?
+
+* I quite like having the short-form SHA1 commit ids in there, since they do
+  relate back to the weld repository, but it could be argued that they are not
+  of use.
+
+Do remember that it is always possible to do ``weld push --edit`` and edit
+this text before it is committed.
+
+* Should we make ``--edit`` the default, and provide a ``--no-edit`` switch
+  as well?
+
+Output levels
+=============
+Priority: low
+
+We are probably still outputting too much text when ``--verbose`` is not
+specified.
+
+We may be outputting too much or the wrong text when ``--verbose`` *is*
+specified.
+
+I suspect we are not always outputting appropriate text (in order to be
+useful) when something goes wrong.
+
+All of these need consideration.
+
+(Over) use of git porcelain
+===========================
+Ideally we would use the git plumbing more, and git porcelain less, since
+the output of git porcelain is (in general) allowed to be a moving target.
+
+Weld name
+=========
+Priority: low
+
+What is the weld name used for, if anything?
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -88,7 +88,7 @@ the ``.weld/bases`` directory.
 weld.xml
 ========
 
-A typical weld.xml::
+A simple weld.xml::
 
    <?xml version="1.0" ?>
    <weld name="frank">
@@ -103,9 +103,10 @@ A typical weld.xml::
 This file tells weld:
 
    * This weld is called frank. This name is not used for anything at the
-     moment (caveat: It may be used in the "X-Weld-State: Pushed" markers)
+     moment (caveat: It is put into the "X-Weld-State: Pushed" markers in the
+     base, but otherwise never referenced).
    * The origin for this weld is at ssh://git@home.example.com/ribbit/fromble.
-   * This weld draws from two bases: project124 and igniting_duck
+   * This weld draws from two bases: project124 and igniting_duck.
    * project124 turns up in a directory in the weld called flibble.
    * igniting_duck/foo turns up in <weld>/bar
 
@@ -171,10 +172,10 @@ It *is* intended that two bases with diffferent names be regarded as
 different, although what happens if that is the only difference between them
 is not defined.
 
-  *Do not cross the streams.* Specifically, no two different seams should have
-  the same destination, lest weld get terribly confused. This also means
-  that destinations that "nest" - e.g., ``src/fred`` and ``src/fred/jim`` -
-  are forbidden.
+.. warning:: *Do not cross the streams.* Specifically, no two different seams
+   should have the same destination, lest weld get terribly confused. This
+   also means that destinations that "nest" - e.g., ``src/fred`` and
+   ``src/fred/jim`` - are forbidden.
 
 .. note:: I am not aware of anything that ensures that the origin URI
    corresponds to the place that you actually clone the weld from. Indeed,
