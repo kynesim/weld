@@ -11,23 +11,20 @@ For more detail.
 # the help message unless you actually ask for it
 # (=> faster startup)
 
-import errno
 import os
-import subprocess
 
 from optparse import OptionParser
 
-import utils
-import db
-import parser
-import init
-import pull
-import push
-import layout
-import ops
-import query
-import git
-import status
+import welded.init
+import welded.parser
+import welded.query as query
+import welded.status
+
+from welded.layout import spec_file
+from welded.ops import do_finish, do_abort
+from welded.pull import pull_base
+from welded.push import push_base, report_status
+from welded.utils import Bug, GiveUp, find_weld_dir
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("-v", "--verbose", action="store_true",
@@ -51,7 +48,7 @@ def command(command_name):
     Some of Tony's magic; a decorator to register commands
     """
     if (command_name in g_command_dict):
-        raise utils.Bug("Command '%s' defined twice."%command_name)
+        raise Bug("Command '%s' defined twice."%command_name)
     def remember(klass):
         g_command_dict[command_name] = klass
         klass.cmd_name = command_name
@@ -75,10 +72,10 @@ def go(args):
     if (cmd in g_command_dict):
         obj = g_command_dict[cmd]()
         if (obj.needs_weld()):
-            obj.set_weld_dir(utils.find_weld_dir(os.getcwd()))
+            obj.set_weld_dir(find_weld_dir(os.getcwd()))
         return obj.go(opts, args[1:])
     else:
-        raise utils.GiveUp('Unrecognised command %r'%cmd)
+        raise GiveUp('Unrecognised command %r'%cmd)
 
 
 class Command(object):
@@ -89,8 +86,8 @@ class Command(object):
 
     def set_weld_dir(self, w):
         self.weld_dir = w
-        p = parser.Parser()
-        spec_name = layout.spec_file(w)
+        p = welded.parser.Parser()
+        spec_name = spec_file(w)
         self.spec = p.parse(spec_name)
         self.spec.set_dir(self.weld_dir)
 
@@ -119,7 +116,7 @@ class Command(object):
             elif (a in self.spec.bases):
                 bases[a] = True
             else:
-                raise utils.GiveUp("Base '%s' is unknown"%(a))
+                raise GiveUp("Base '%s' is unknown"%(a))
         return bases.keys()
     
 
@@ -135,11 +132,11 @@ class Init(Command):
 
     def go(self, opts, args):
         if (len(args) != 1):
-            raise utils.GiveUp("Missing <weld-xml-file>")
+            raise GiveUp("Missing <weld-xml-file>")
         
-        p = parser.Parser()
+        p = welded.parser.Parser()
         weld = p.parse(args[0])
-        init.init_weld(weld, os.getcwd())
+        welded.init.init_weld(weld, os.getcwd())
 
     def needs_weld(self):
         # init doesn't need a weld.
@@ -170,7 +167,7 @@ class Pull(Command):
         if opts.verbose:
             print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
-            rv = pull.pull_base(self.spec, p, verbose=opts.verbose)
+            rv = pull_base(self.spec, p, verbose=opts.verbose)
             if rv != 0:
                 return rv
 
@@ -205,9 +202,9 @@ class Push(Command):
         if opts.verbose:
             print "Pushing bases: %s"%(', '.join(to_push))
         for base_name in to_push:
-            rv = push.push_base(self.spec, base_name,
-                                edit_commit_file=opts.edit_commit_file,
-                                verbose=opts.verbose)
+            rv = push_base(self.spec, base_name,
+                           edit_commit_file=opts.edit_commit_file,
+                           verbose=opts.verbose)
             if rv != 0:
                 return rv
 
@@ -240,7 +237,7 @@ class Finish(Command):
     you may need to do "weld pull" of the base.
     """
     def go(self, opts, args):
-        ops.do_finish(self.spec)
+        do_finish(self.spec)
 
 @command('abort')
 class Abort(Command):
@@ -248,7 +245,7 @@ class Abort(Command):
     Abort a "weld pull" or "weld push" that needed user intervention
     """
     def go(self, opts, args):
-        ops.do_abort(self.spec)
+        do_abort(self.spec)
 
 @command('query')
 class Query(Command):
@@ -274,24 +271,24 @@ class Query(Command):
     """
     def go(self,opts,args):
         if len(args) < 1:
-            raise utils.GiveUp("query requires a subcommand")
+            raise GiveUp("query requires a subcommand")
         cmd = args[0]
         if cmd == "base":
             if len(args) < 2:
-                raise utils.GiveUp("query base requires a base name")
+                raise GiveUp("query base requires a base name")
             query.query_base(self.spec, args[1])
         elif cmd == "bases":
             query.query_bases(self.spec)
         elif cmd == "seam-changes":
             if len(args) != 2:
-                raise utils.GiveUp("query seam-changes requires a base name")
+                raise GiveUp("query seam-changes requires a base name")
             query.query_seam_changes(self.spec, args[1])
         elif cmd == "match":
             if len(args) != 2:
-                raise utils.GiveUp("query match requires a base name")
+                raise GiveUp("query match requires a base name")
             query.query_match(self.spec, args[1])
         else:
-            raise utils.GiveUp("No query subcommand '%s'"%cmd)
+            raise GiveUp("No query subcommand '%s'"%cmd)
 
 @command('status')
 class Status(Command):
@@ -326,7 +323,7 @@ class Status(Command):
     """
     def go(self, opts, args):
         if len(args) > 1:
-            raise utils.GiveUp('Too many arguments - "weld status [<remote-name>]"')
+            raise GiveUp('Too many arguments - "weld status [<remote-name>]"')
 
         verbose = opts.verbose
         output_tuple = opts.as_tuple
@@ -338,7 +335,8 @@ class Status(Command):
             remote_name = None
 
         in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
-                status.get_status(where, remote_name=remote_name, verbose=verbose)
+                welded.status.get_status(where, remote_name=remote_name,
+                        verbose=verbose)
 
         if verbose:
             print
@@ -351,7 +349,7 @@ class Status(Command):
 
         if in_weld_push:
             print 'Part way through "weld push"'
-            push.report_status(self.spec)
+            report_status(self.spec)
             print 'Fix any problems and then "weld finish", or give up using "weld abort"'
         elif verbose:
             print 'Not part way through a "weld push"'

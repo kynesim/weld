@@ -7,10 +7,8 @@ Git utilities
 import tempfile
 import os
 
-import headers
-import layout
-
-from utils import run_silently, run_to_stdout, GiveUp
+from welded.headers import header_grep_merge, header_grep_push, header_grep_init
+from welded.utils import run_silently, run_to_stdout, GiveUp
 
 def init(where):
     run_silently(["git", "init"], cwd=where)
@@ -164,7 +162,7 @@ def query_merge(where, base):
 
     If there wasn't one, return None.
     """
-    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_merge(base)),
+    rv, out = run_silently(["git", "log", "--grep=%s"%(header_grep_merge(base)),
                             "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
@@ -181,7 +179,7 @@ def query_push(where, base):
 
     If there wasn't one, return None.
     """
-    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_push(base)),
+    rv, out = run_silently(["git", "log", "--grep=%s"%(header_grep_push(base)),
                             "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
@@ -199,8 +197,8 @@ def query_merge_or_push(where, base):
     If there wasn't one, return None.
     """
     rv, out = run_silently(["git", "log",
-                            "--grep=%s"%(headers.header_grep_push(base)),
-                            "--grep=%s"%(headers.header_grep_merge(base)),
+                            "--grep=%s"%(header_grep_push(base)),
+                            "--grep=%s"%(header_grep_merge(base)),
                             "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
@@ -213,7 +211,7 @@ def query_init(where):
     """
     Query the weld init commit
     """
-    rv, out = run_silently(["git", "log", "--grep=%s"%(headers.header_grep_init()),
+    rv, out = run_silently(["git", "log", "--grep=%s"%(header_grep_init()),
                             "-E", "--oneline", "--no-abbrev-commit"], cwd=where)
     lines = out.splitlines()
     if (len(lines) > 0):
@@ -417,7 +415,7 @@ def show_diff(where, from_cid, to_cid):
     return f
 
     
-def apply(where, patch_file):
+def apply_patch_file(where, patch_file):
     """
     Apply the given patch file to the given repo
     """

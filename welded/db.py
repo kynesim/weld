@@ -2,7 +2,6 @@
 The weld database; contains a description of a weld.
 """
 
-import utils
 from xml.sax.saxutils import quoteattr
 from functools import total_ordering
 

@@ -2,9 +2,7 @@
 layout.py - tells weld where things are stored
 """
 
-import utils
 import os
-import db
 
 def weld_dir(base_dir):
     return os.path.join(base_dir, ".weld")

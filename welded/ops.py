@@ -2,14 +2,17 @@
 Generic operations
 """
 
-import git
-import utils
-import layout
-import headers
 import os
-import tempfile
 import re
 import shutil
+import tempfile
+import traceback
+
+import welded.git as git
+import welded.headers as headers
+import welded.layout as layout
+
+from welded.utils import GiveUp, run_silently, dynamic_load
 
 def update_base(spec, base):
     """
@@ -74,7 +77,7 @@ def rewrite_diff(infile, cid, changes):
             return (are_any, outfile)
         m = rec.match(l)
         if (m is None):
-           if (state == 1):
+            if (state == 1):
                 l = re.sub(r'^(\s*)X-Weld-State:', r'\1XX-Weld-State:', l)
                 if (len(l) > 5):
                     if (l[:5] == '--- a' or l[:5] == '+++ b'):
@@ -137,7 +140,7 @@ def modify_seams(spec, base_obj, changes, old_commit, new_commit):
         n = temp2.name
         temp2.close()
         if (are_any):
-            git.apply(spec.base_dir, temp2.name)
+            git.apply_patch_file(spec.base_dir, temp2.name)
         os.remove(n)
         print("W: Add .. \n")
         for s in changes:
@@ -161,7 +164,7 @@ def add_seams(spec, base_obj, seams, base_commit):
         dest = os.path.join(spec.base_dir, s.get_dest())
         try:
             os.makedirs(dest)
-        except:
+        except Exception:
             pass
 
         # XXX TODO XXX TODO XXX TODO    .git directories and submodules
@@ -203,7 +206,7 @@ def add_seams(spec, base_obj, seams, base_commit):
         # this level? Is the naive answer of just copying them good enough?)
 
         # Now just rsync it all over
-        utils.run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
+        run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
         # Make sure you add all the files in the subdirectory
         git.add_in_subdir(spec.base_dir, dest)
     # Now commit them with an appropriate header.
@@ -241,29 +244,29 @@ def write_finish_push(spec, cmds_ok, cmds_abort):
 def do_finish(spec):
     c = layout.complete_file(spec.base_dir)
     if (os.path.exists(c)):
-        f = utils.dynamic_load(c, no_pyc=True)
+        f = dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.remove(c)
         os.remove(layout.abort_file(spec.base_dir))
     else:
-        raise utils.GiveUp('No pending "weld pull" or "weld push" to complete')
+        raise GiveUp('No pending "weld pull" or "weld push" to complete')
 
 def do_abort(spec):
     c  = layout.abort_file(spec.base_dir)
     if (os.path.exists(c)):
-        f = utils.dynamic_load(c, no_pyc=True)
+        f = dynamic_load(c, no_pyc=True)
         f.go(spec)
         os.remove(c)
         os.remove(layout.complete_file(spec.base_dir))
     else:
-        raise utils.GiveUp('No pending "weld pull" or "weld push" to abort')
+        raise GiveUp('No pending "weld pull" or "weld push" to abort')
 
 def count(filename):
     contents = ""
     try:
         with open(filename, 'rb') as fin:
             contents = fin.read().trim()
-    except:
+    except Exception:
         pass
     contents = contents + "1\n"
     try:

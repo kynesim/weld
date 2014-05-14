@@ -3,15 +3,15 @@ pull.py - Pull a repo from upstream
 """
 
 import os
-import sys
 
-import git
-import utils
-import db
-import headers
-import ops
-import layout
-import status
+import welded.git as git
+import welded.ops as ops
+import welded.layout as layout
+
+from welded.headers import merge_marker
+from welded.query import query_last_merge_or_push
+from welded.status import get_status
+from welded.utils import GiveUp, classify_seams
 
 def pull_base(spec, base_name, verbose=False):
     """Pull a single base.
@@ -35,12 +35,12 @@ def pull_base(spec, base_name, verbose=False):
     # TODO NB: we are defaulting our remote to 'origin' - but that seems to be
     # TODO an assumption being made anyway...
     in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
-            status.get_status(weld_root, branch_name=orig_branch, verbose=True)
+            get_status(weld_root, branch_name=orig_branch, verbose=True)
     if in_weld_pull:
-        raise utils.GiveUp('Part way through an earlier "weld pull"\n'
-                'Fix any problems and then "weld finish", or give up using "weld abort"')
+        raise GiveUp('Part way through an earlier "weld pull"\n'
+                     'Fix any problems and then "weld finish", or give up using "weld abort"')
     if in_weld_push:
-        raise utils.GiveUp('Part way through an earlier "weld push"\n'
+        raise GiveUp('Part way through an earlier "weld push"\n'
                 'Fix any problems and then "weld finish", or give up using "weld abort"')
     if should_git_pull:
         # Our weld is not up-to-date. This means that if we do a "weld pull"
@@ -49,14 +49,14 @@ def pull_base(spec, base_name, verbose=False):
         #
         # TODO Consider if this really is a requirement, or just the user
         # TODO being a little reckless
-        raise utils.GiveUp('The weld is not up-to-date\n'
-                'You should do "git pull" before doing a "weld pull"')
+        raise GiveUp('The weld is not up-to-date\n'
+                     'You should do "git pull" before doing a "weld pull"')
     # We don't care if "git push" would update the weld's remote, since we
     # are about to change it locally anyway...
 
     if orig_branch.startswith("weld-"):
         raise GiveUp("You are currently on a branch used by weld (%s) - please"
-                " get off it before trying to use weld."%(orig_branch))
+                     " get off it before trying to use weld."%(orig_branch))
 
     print
     print "Pulling %s .."%base_name
@@ -66,7 +66,7 @@ def pull_base(spec, base_name, verbose=False):
     # Find the last merge or push (i.e., the last sync point with the base's
     # remote repository)
     (verb, last_weld_sync, last_base_sync,
-            seams) = headers.query_last_merge_or_push(weld_root, base_name)
+            seams) = query_last_merge_or_push(weld_root, base_name)
     if last_weld_sync is None:
         # There was no previous merge - fall back to the Init state
         last_weld_sync = git.query_init(weld_root)
@@ -88,10 +88,10 @@ def pull_base(spec, base_name, verbose=False):
     base_head = ops.query_head_of_base(spec, base_obj)
 
     if (base_obj is None):
-        raise utils.GiveUp("No such base '%s'"%base_name)
+        raise GiveUp("No such base '%s'"%base_name)
 
     # Classify seams.
-    (deleted_in_new, changes, added_in_new) = utils.classify_seams(seams, base_obj.get_seams())
+    (deleted_in_new, changes, added_in_new) = classify_seams(seams, base_obj.get_seams())
 
     # Are they the same? If so, no work to do.
     if (base_head == last_base_sync and
@@ -131,7 +131,7 @@ def pull_base(spec, base_name, verbose=False):
     try:
         git.merge(weld_root, working_branch, orig_branch,
                   "Merging changes from %s"%orig_branch)
-    except utils.GiveUp as e:
+    except GiveUp as e:
         print str(e)
         print "Merge failed"
         print "Either fix your merges and then do 'weld finish',"
@@ -148,7 +148,7 @@ def finish_pull(spec, base_name, orig_branch, weld_head, working_branch,
     Finish a merge.
     """
     base_obj = spec.query_base(base_name)
-    hdr = headers.merge_marker(base_obj, base_obj.get_seams(), base_head)
+    hdr = merge_marker(base_obj, base_obj.get_seams(), base_head)
 
     # Make sure we are merging to the right place.
     git.switch_branch(spec.base_dir, orig_branch)
@@ -164,7 +164,7 @@ def finish_pull(spec, base_name, orig_branch, weld_head, working_branch,
     tmpfile.file.close()
     #tmpfile.close()
     if (os.path.exists(n) and os.path.getsize(n) > 0):
-        git.apply(spec.base_dir, n)
+        git.apply_patch_file(spec.base_dir, n)
     # Add everything.
     os.unlink(n)
     git.add_in_subdir(spec.base_dir, ".")

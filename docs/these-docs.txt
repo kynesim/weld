@@ -1,0 +1,30 @@
+==============================================
+The weld documentation: Sphinx and ReadTheDocs
+==============================================
+
+Pre-built documentation
+-----------------------
+For your comfort and convenience, a pre-built version of the weld
+documentation is available at:
+
+    http://weld.readthedocs.org/
+
+This is hosted by `Read the Docs`_, who are wonderful people for providing
+such a facility. The documentation should get rebuilt on each push to the
+repository, which means that it should always be up-to-date.
+
+.. _`Read the Docs`: http://readthedocs.org
+
+Building the documentation
+--------------------------
+The weld documentation is built using Sphinx_.
+
+.. _Sphinx: http://sphinx.pocoo.org/
+
+As said above, the easiest way to get the documentation is via `Read the
+Docs`_, but if you want to build a copy yourself, then all you need to do is
+install Sphinx_, and use the Makefile::
+
+    $ cd docs
+    $ make html
+
