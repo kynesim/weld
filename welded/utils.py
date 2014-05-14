@@ -5,11 +5,9 @@ Weld utilities
 import os
 import sys
 import subprocess
-import tempfile
 import hashlib
 import imp
 import traceback
-import string
 
 class GiveUp(Exception):
     """Something has gone wrong - tell the user

@@ -683,7 +683,9 @@ message.
 
 Tree
 ----
-::
+Some example directory structures.
+
+This is the "fromble" weld after the test scripts have been run::
 
    $ cd fromble
    $ tree.py -fold .git -fold .weld
@@ -712,6 +714,8 @@ Tree
    └─two-duck/
      ├─Makefile
      └─two.c
+
+This is the content of the ``.weld`` directory, showing the populated bases::
 
    $ tree.py -fold .git .weld
    .weld/

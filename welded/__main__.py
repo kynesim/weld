@@ -19,19 +19,19 @@ sys.path.insert(0, p_dir)
 
 try:
     # Import goes here
-    import cmdline
-    from utils import Bug, GiveUp
+    import welded.cmdline
+    from welded.utils import Bug, GiveUp
 except ImportError:
     # Perhaps we are being run through a soft link.
     sys.path = [a_dir] + sys.path[1:]
-    import cmdline
-    from utils import Bug, GiveUp
+    import welded.cmdline
+    from welded.utils import Bug, GiveUp
 
 
 if __name__ == "__main__":
 
     try:
-        cmdline.go(sys.argv[1:])
+        welded.cmdline.go(sys.argv[1:])
         sys.exit(0)
     except Bug as e:
         print("")

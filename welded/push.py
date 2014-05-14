@@ -2,22 +2,18 @@
 push.py - Push a weld to its remote
 """
 
-import math
 import os
-import sys
+import subprocess
 import tempfile
 
-import db
-import git
-import headers
-import layout
-import ops
-import query
-import shutil
-import status
-import subprocess
+import welded.git as git
+import welded.layout as layout
+import welded.ops as ops
+import welded.query as query
 
-from utils import run_silently, run_to_stdout, GiveUp
+from welded.headers import pickle_seams
+from welded.status import get_status
+from welded.utils import run_silently, run_to_stdout, GiveUp
 
 class ApplyError(Exception):
     pass
@@ -50,7 +46,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # TODO NB: we are defaulting our remote to 'origin' - but that seems to be
     # TODO an assumption being made anyway...
     in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
-            status.get_status(weld_root, branch_name=current_branch,
+            get_status(weld_root, branch_name=current_branch,
                               verbose=True)
     if in_weld_pull:
         raise GiveUp('Part way through an earlier "weld pull"\n'
@@ -77,7 +73,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     print 'Updating base %s before our "weld push"'%base_name
     ops.update_base(spec, spec.query_base(base_name))
 
-    # XXX Here we go
+    # Here we go
 
     print
     print "Pushing %s .."%base_name
@@ -197,7 +193,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
             to_dir = base_dir
         else:
             to_dir = os.path.join(base_dir, s.source)
-        make_files_match(weld_root, from_dir, to_dir, verbose=verbose)
+        make_files_match(from_dir, to_dir, verbose=verbose)
 
     # Prepare our (default) commit message
 
@@ -222,7 +218,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # And then use the "complete.py" script to do the rest
     return ops.do_finish(spec)
 
-def make_files_match(weld_root, from_dir, to_dir, verbose=False):
+def make_files_match(from_dir, to_dir, verbose=False):
     """Make the git handled files in 'to_dir' match those in 'from_dir'
     """
     # What files is git managing for us in each directory?
@@ -286,62 +282,6 @@ def trim_states(lines):
             new.append(line)
     return new
 
-def write_patchfiles(weld_root, base_name, seam_dir, diffs, verbose=False):
-    """Write out patchfiles for later use
-
-    'base_name' is the name of our base
-
-    'seam_dir' is the name of the relevant subdirectory in the base, in
-    which the patches should be applied. This may be None, in which case
-    we shall convert it to the reserved name '__None'.
-
-    'diffs' is the sequence of patches to apply therein, in the order they
-    must be applied.
-    """
-    if seam_dir == None:
-        # We reserve the name '__None' to mean '.'
-        seam_dir = '__None'
-    width = int(math.log10(len(diffs)))+1
-    seam_pushing_dir = os.path.join(weld_root, '.weld', 'pushing', base_name, seam_dir)
-    os.makedirs(seam_pushing_dir)
-    count = 0
-    for change, diff in diffs:
-        filename = 'patch_%*d.diff'%(width, count)
-        filepath = os.path.join(seam_pushing_dir, filename)
-        if verbose:
-            print 'WRITING patch file',filename
-        with open(filepath, 'w') as fd:
-            fd.write('# Seam %s/%d: %s\n'%(seam_dir, count, change))
-            fd.write(diff)
-        count += 1
-
-
-def continue_patching(spec, base_name, working_branch, orig_branch,
-                      edit_commit_file=False, verbose=True):
-    """Continue doing the work of a "weld push".
-
-    Finds any outstanding patches to be done in the "pushing" directory,
-    and does them. If it returns, it has finished all the patches.
-
-    If something goes wrong (i.e., a patch fails and the user needs to
-    attend to it), then it raises an exception containing some sort of
-    explanation of the problem.
-
-    The idea is that you can keep calling this until all the patches have
-    been successfully dealt with.
-    """
-
-    if verbose:
-        print 'Continue patching %s'%base_name
-
-    weld_root = spec.base_dir
-    dot_weld_dir = layout.weld_dir(weld_root)
-
-    if True:    # XXX keep the older indentation XXX
-        # That appears to be all...
-        finish_push(spec, base_name, working_branch, orig_branch,
-                    edit_commit_file=edit_commit_file, verbose=verbose)
-
 def edit_file(filename):
     """Allow the user to edit the given file.
     """
@@ -373,12 +313,15 @@ def edit_file(filename):
     else:
         print 'Text was not changed'
 
-def finish_push(spec, base_name, working_branch, orig_branch,
+def continue_push(spec, base_name, working_branch, orig_branch,
                 edit_commit_file=False, verbose=True):
     """Do everything necessary to finish off our "weld push".
 
     Assumes we have been doing "weld push" for the given 'base_name'.
     """
+    if verbose:
+        print 'Continue pushing %s'%base_name
+
     weld_root = spec.base_dir
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
 
@@ -408,30 +351,34 @@ def finish_push(spec, base_name, working_branch, orig_branch,
                              base_name, '\n'.join(lines), base_dir))
 
     # And then merge *that* back into the original branch
-    print 'XXX Merge back into original branch (%s -> %s)'%(working_branch, orig_branch)
+    if verbose:
+        print 'Merge back into original branch (%s -> %s)'%(working_branch, orig_branch)
     git.checkout(base_dir, orig_branch, verbose=verbose)
     git.merge_to_current(base_dir, working_branch, squash=True, verbose=verbose)
 
     commit_file = layout.push_commit_file(weld_root, base_name)
     if os.path.exists(commit_file):
-        print 'XXX Commit using file %s'%commit_file
+        if verbose:
+            print 'Commit using file %s'%commit_file
         # We've still to do the commit
         # This seems like an appropriate time to let the user edit the commit
         # file, if they've asked to do so
         if edit_commit_file:
             edit_file(commit_file)
 
-        print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-        print 'In', base_dir
-        run_to_stdout(['git', 'status'], cwd=base_dir)
-        print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+        if verbose:
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+            print 'In', base_dir
+            run_to_stdout(['git', 'status'], cwd=base_dir)
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
         git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
         if verbose:
             print 'Deleting', commit_file
         os.remove(commit_file)
     else:
-        print 'XXX There is no commit file %s'%commit_file
+        if verbose:
+            print 'There is no commit file %s'%commit_file
 
     head_base_commit = git.query_current_commit_id(base_dir)
 
@@ -441,16 +388,14 @@ def finish_push(spec, base_name, working_branch, orig_branch,
     # And now mark the weld with where/when the push happened
     base = spec.bases[base_name]
     base_seams = base.get_seams()
-    seam_str = headers.pickle_seams(base_seams)
+    seam_str = pickle_seams(base_seams)
     f = tempfile.NamedTemporaryFile(delete=False)
     f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
         head_base_commit, seam_str))
     f.close()
 
-    # XXX Maybe, for consistency with "weld pull"
     # Spurious mod just in case ..
     ops.spurious_modification(spec)
-    # XXX
 
     # Allow an empty commit, so we still end up with a place marker
     # for our action
@@ -460,21 +405,6 @@ def finish_push(spec, base_name, working_branch, orig_branch,
     # And we've finished merging!
     os.remove(merging_indicator)
     os.rmdir(layout.pushing_dir(weld_root))
-
-    return 0
-
-def continue_push(spec, base_name, working_branch, orig_branch,
-                  edit_commit_file=False, verbose=True):
-    try:
-        continue_patching(spec, base_name, working_branch, orig_branch,
-                          edit_commit_file=edit_commit_file)
-        return 0
-    except ApplyError as e:
-        print str(e)
-        print "Push of base %s failed"%base_name
-        print "Either fix the errors and then do 'weld finish',"
-        print "or do 'weld abort' to give up."
-        return 1
 
 def abort_push(spec, base_name, working_branch, orig_branch):
     """

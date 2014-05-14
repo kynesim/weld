@@ -2,13 +2,13 @@
 Initialise a weld
 """
 
-import utils
 import os
-import utils
-import db
-import layout
-import git
-import headers
+
+import welded.layout as layout
+import welded.git as git
+
+from welded.utils import GiveUp
+from welded.headers import header_init
 
 def init_weld(weld, where):
     """
@@ -17,7 +17,7 @@ def init_weld(weld, where):
     
     # Initialise a repository.
     if (os.path.exists(os.path.join(where, ".git"))):
-        raise utils.GiveUp("Cannot initialise a weld where there is already a git repo")
+        raise GiveUp("Cannot initialise a weld where there is already a git repo")
     git.init(where)
     weld.set_dir(where)
     # Write the weld directory.
@@ -41,7 +41,7 @@ def init_weld(weld, where):
         git.set_remote(where, 'origin', weld.origin)
 
     # Commit.
-    git.commit(where, "Weld initialisation", [ headers.header_init() ])
+    git.commit(where, "Weld initialisation", [ header_init() ])
     print("Weld initialised OK.\n")
 
 

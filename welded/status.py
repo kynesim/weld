@@ -3,8 +3,9 @@
 
 import os
 
-import layout
-import git
+import welded.git as git
+
+from welded.layout import pushing_dir, complete_file
 
 def get_status(where, remote_name=None, branch_name=None, verbose=False):
     """Report on the weld status.
@@ -37,10 +38,10 @@ def get_status(where, remote_name=None, branch_name=None, verbose=False):
     if branch_name is None:
         branch_name = git.current_branch(where, verbose=verbose)
 
-    if os.path.exists(layout.pushing_dir(where)):
+    if os.path.exists(pushing_dir(where)):
         return False, True, None, None
 
-    if os.path.exists(layout.complete_file(where)):
+    if os.path.exists(complete_file(where)):
         return True, None, None, None
 
     should_pull, should_push = git.should_we_pull_or_push(remote_name,

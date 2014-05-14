@@ -5,9 +5,8 @@ Parse the various headers that weld leaves for itself
 import re
 import json
 
-import git
-import db
-from utils import GiveUp
+from welded.db import Seam
+from welded.utils import GiveUp
 
 SEAM_VERB_ADDED = "Added"
 SEAM_VERB_DELETED = "Deleted"
@@ -47,7 +46,7 @@ def str_to_seams(text):
     arr = json.loads(text)
     seams = []
     for a in arr:
-        s = db.Seam()
+        s = Seam()
         (s.source, s.dest) = a
         seams.append(s)
     return seams
@@ -120,73 +119,6 @@ def merge_marker(base_obj, seams, base_commit):
     """
     rv = "X-Weld-State: Merged %s/%s %s"%(base_obj.name, base_commit, pickle_seams(seams))
     return rv
-
-def query_last_merge(where, base_name):
-    """
-    Find the last merge of base in where
-
-    Returns ( base-commit-id, merge-commit-id, seams ) where base-commit-id
-    is the SHA1 id of the commit in 'base_name' that was merged,
-    merge-commit-id is the SHA1 id of the Merged commit in 'where', and
-    'seams' is a list of the seams implicated in that merge.
-
-    If base 'base_name' has never been merged, then we return (None, None, []),
-    and the caller will probably have to make do with the Init commit.
-    """
-    commit_id = git.query_merge(where, base_name)
-    if commit_id is None:
-        return (None, None, [])
-    log_entry = git.log(where, commit_id)
-    verb, cid, seams = decode_log_entry(log_entry, base_name, ["Merged"])
-    if verb:
-        return (commit_id, cid, seams)
-    else:
-        raise GiveUp('Unable to find "X-Weld-State: Merged" data in merge commit\n'
-                     'In base %s, id %s\n%s'%(base_name, commit_id,
-                         '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
-
-def query_last_push(where, base_name):
-    """
-    Find the last push of base in where and return ( commit-id, pull-commit-id, seams )
-
-    If base 'base_name' has never been merged, then we return (None, None, []),
-    and the caller will probably have to make do with the Init commit.
-    """
-    commit_id = git.query_push(where, base_name)
-    if commit_id is None:
-        return (None, None, [])
-    log_entry = git.log(where, commit_id)
-    verb, cid, seams = decode_log_entry(log_entry, base_name, ["Pushed"])
-    if verb:
-        return (commit_id, cid, seams)
-    else:
-        raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
-                     'In base %s, id %s\n%s'%(base_name, commit_id,
-                         '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
-
-def query_last_merge_or_push(where, base_name):
-    """
-    Find the last push or merge of base in where
-
-    Return ( verb, weld-commit-id, base-commit-id, seams )
-
-    If base 'base_name' has never been pushed or merged, then we return
-
-      (None, None, None, []),
-
-    and the caller will probably have to make do with the Init commit.
-    """
-    commit_id = git.query_merge_or_push(where, base_name)
-    if commit_id is None:
-        return (None, None, None, [])
-    log_entry = git.log(where, commit_id)
-    verb, cid, seams = decode_log_entry(log_entry, base_name, ["Pushed", "Merged"])
-    if verb:
-        return (verb, commit_id, cid, seams)
-    else:
-        raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
-                     'In base %s, id %s\n%s'%(base_name, commit_id,
-                         '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
 
 
 
