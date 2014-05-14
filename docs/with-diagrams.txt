@@ -2,50 +2,111 @@
 An explanation with diagrams
 ============================
 
-Clones of our external packages:
+We start with two external packages, project124 and igniting_duck. Here are
+their remote repositories:
 
-.. image:: images/igniting_duck.png
+.. image:: images/project124_repo.png
+.. image:: images/igniting_duck_repo.png
+
+We can clone them in the normal manner::
+
+  $ git clone file://<repo_base>/project124
+  $ git clone file://<repo_base>/igniting_duck
+
+which gives us two working directories:
+
 .. image:: images/project124.png
+.. image:: images/igniting_duck.png
 
-An empty weld, just after doing ``weld init``:
+We need an XML file to describe our weld::
+
+  <?xml version="1.0" ?>
+  <weld name="frank">
+    <origin uri="file://<repo_base>/fromble" />
+    <base name="project124" uri="file://<repo_base>/project124"/>
+      <seam base="project124" dest="124" />
+    <base name="igniting_duck" uri="file://<repo_base>/igniting_duck" />
+      <seam base="igniting_duck" source="one" dest="one_duck" />
+      <seam base="igniting_duck" source="two" dest="two_duck" />
+  </weld>
+
+which we can put into a file, ``fromble.xml``. We can then use that with
+``weld init``::
+
+  $ mkdir fromble
+  $ cd fromble
+  $ weld init ../fromble.xml
+
+to create an empty weld:
 
 .. image:: images/fromble_empty.png
 
-A representation of the same:
+or perhaps (foreshadowing the shape of later diagrams):
 
 .. image:: images/fromble_L_shaped.png
 
-and a further version of that making it explicit we have no bases yet:
+or even, that making it explicit we have no bases yet:
 
 .. image:: images/fromble_empty_bases.png
 
-This is what a user would expect to see after they had done a ``git clone`` of
-the weld repository:
-
-.. image:: images/fromble_with_no_bases.png
-
-After doing ``weld pull project124`` they would have:
-
-.. image:: images/fromble_with_base_project124.png
-
-After also doing ``weld pull igniting_duck``, they would have:
+To populate it, we need to use ``weld pull _all``, which clones the two remote
+repositories into the weld's ``.weld/builds`` directory, then copies the
+content of those clones into the appropriate places in the weld, and commits
+the new weld contents. This gives us:
 
 .. image:: images/fromble_with_both_bases.png
 
-This is the weld after changing the name of the seam ``one_duck`` to
-``one_goose``:
+We can then create a new remote repository for the weld itself, and push to
+it::
 
-.. image:: images/fromble_one_goose.png
+  $ git push file://<repo_base>/fromble
 
-Repositories:
+so we now have three remote repositories:
 
 .. image:: images/fromble_repo.png
 .. image:: images/project124_repo.png
 .. image:: images/igniting_duck_repo.png
 
-This is an alternative way of showing "project124", trying to make it clearer
-that it is all of the base that is being included:
+Another user can now clone the weld directly::
 
-.. image:: images/fromble_all_blue.png
+  $ cd ~/work
+  $ git clone file://<repo_base>/fromble
+
+which gives them the weld with its seams:
+
+.. image:: images/fromble_with_no_bases.png
+
+They can work on this as they need, pushing to and pulling from the weld's
+remote repository with git in the normal manner.
+
+If we use a weld command that needs access to one of the bases, for instance::
+
+  $ weld query base project124
+
+then weld will clone project124 into ``.weld/bases/``, giving us:
+
+.. image:: images/fromble_with_base_project124.png
+
+If we decided to update the weld with any changes made in the remote
+igniting_duck repository, by doing::
+
+  $ weld pull igniting_duck
+  
+then they would have:
+
+.. image:: images/fromble_with_both_bases.png
+
+And if we edited the XML file to change name of the seam ``one_duck`` to
+``one_goose`` and did::
+
+  $ git mv one_duck one_goose
+
+then we would have::
+
+.. image:: images/fromble_one_goose.png
+
+and because we have done *both* of those things, ``weld pull``, ``weld push``
+and all the other weld commands would recognise that the base directory
+``igniting_duck/one`` is now related to the weld seam ``one_goose``.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
