@@ -46,6 +46,40 @@ to support old format files.
   support them that way, even allowing mixed format (!) files, but using
   a version number feels cleaner.)
 
+Base and seam commands
+======================
+Priority: medium
+
+Adding, deleting and renaming seams (and bases) is fiddly. We should probably
+provide some commands to bundle up all the actions necessary. For instance:
+
+* ``weld add base <base_name> <uri>`` - adds the base to the XML file, clones
+  it into the "bases" directory (so the user can inspect it to figure out seam
+  names).
+* ``weld delete base <base_name>`` - removes the base and all its seams from
+  the XML file, deletes its clone from the "bases" directory if it is there,
+  deletess all the seams from the weld.
+* ``weld add seam <base_name> <seam_name> <from-dir> <to-dir>`` - add the seam
+  to the XML file (the base must already exist), and set up the seam. Doesn't
+  do a ``git commit`` - that's up to the user.
+* ``weld delete seam <base_name> <seam_name>`` - removes the seam from the XML
+  file, and removes its directory from the weld. Again, doesn't do a ``git
+  commit``.
+* ``weld rename seam <base_name> <old_seam_name> <new_seam_name>``
+
+Since creating the initial weld means writing an XML file, maybe we should
+also provide ``weld init --empty <weld-name> <uri>`` to create a weld with a
+minimal XML file - the above ``weld add`` commands can then be used to
+populate it with something more interesting.
+
+Technically, we can manage with just those, but it's probably also friendly to
+provide:
+
+* ``weld move seam <base_name> <seam_name> <old_to_dir> <new_to_dir>``
+* ``weld rename seam <base_name> <old_seam_name> <new_seam_name>``
+
+and maybe some others as becomes evident with time.
+
 Weld origin URI
 ===============
 Priority: medium
