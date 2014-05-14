@@ -85,6 +85,8 @@ Priority: low
 
 Weld push commit message content
 ================================
+Priority: low
+
 The commit message (in the base) from ``weld push`` takes the form::
 
     X-Weld-State: Pushed igniting_duck from weld frank
