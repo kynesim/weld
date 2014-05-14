@@ -217,11 +217,11 @@
 									<key>Color</key>
 									<dict>
 										<key>b</key>
-										<string>0.4</string>
-										<key>g</key>
-										<string>0.4</string>
-										<key>r</key>
 										<string>1</string>
+										<key>g</key>
+										<string>0.8</string>
+										<key>r</key>
+										<string>0.4</string>
 									</dict>
 								</dict>
 								<key>stroke</key>
@@ -339,11 +339,11 @@
 									<key>Color</key>
 									<dict>
 										<key>b</key>
-										<string>0.4</string>
-										<key>g</key>
-										<string>0.4</string>
-										<key>r</key>
 										<string>1</string>
+										<key>g</key>
+										<string>0.8</string>
+										<key>r</key>
+										<string>0.4</string>
 									</dict>
 								</dict>
 							</dict>
@@ -1551,7 +1551,7 @@
 	<key>MasterSheets</key>
 	<array/>
 	<key>ModificationDate</key>
-	<string>2014-05-13 19:10:26 +0000</string>
+	<string>2014-05-14 19:03:35 +0000</string>
 	<key>Modifier</key>
 	<string>Tibs</string>
 	<key>NotesVisible</key>
@@ -1632,7 +1632,7 @@
 			</dict>
 		</array>
 		<key>Frame</key>
-		<string>{{633, 203}, {732, 955}}</string>
+		<string>{{819, 222}, {732, 955}}</string>
 		<key>ListView</key>
 		<true/>
 		<key>OutlineWidth</key>
