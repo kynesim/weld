@@ -20,8 +20,6 @@ project:
 1. One package per repository
 2. One repository for the world
 
-.. note:: *Pretty pictures to come at some later stage*
-
 One package per repository
 --------------------------
 In this approach, each package is put into its own repository (or may,

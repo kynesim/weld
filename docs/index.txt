@@ -13,9 +13,10 @@ Contents:
 
    getting-started
    intro
-   muddle
    with-diagrams
    README
+   muddle
+   inner-workings
    todo
    these-docs
 

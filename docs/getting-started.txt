@@ -35,7 +35,51 @@ The ``weld+`` tells muddle it is dealing with a weld, and (essentially)
 disanles ``muddle push`` and ``muddle pull``. The idea is that you should just
 use git directly (``git push``, ``git pull``, etc.).
 
-For a bit more information, see the chapter on Muddle later on.
+A little more detail
+--------------------
+A normal muddle build tree looks something like the following::
+
+  <project>
+    .muddle/
+    src/
+      builds/
+        .git/
+        01.py
+      base/
+        kernel
+          .git/
+          <lots of source code>
+      <and so on>
+
+A muddle build tree set up for use with weld instead looks like::
+
+  <project>
+    .git/
+    .gitignore
+    .muddle/
+    .weld/
+    src/
+      builds/
+        01.py
+      base/
+        kernel
+          <lots of source code>
+      <and so on>
+
+As you can see, there is now a single ``.git`` directory at the top of the
+muddle source tree, as well as a ``.weld`` directory, and a ``.gitignore``
+file. The ``.git`` directories that would have been present in the ``src``
+directories have gone away - they are not needed in this setup.
+
+The toplevel ``.git`` directory manages the entire source code tree.
+
+The ``.gitignore`` file tells git to ignore various things, including the
+muddle ``.muddle``, ``obj``, ``install`` and ``deploy`` directories.
+
+Use of the ``weld+`` mechanism in ``muddle init`` tells muddle *not* to allow
+``muddle pull`` and the like to do anything - the muddle VCS commands are not
+currently aware of how welds work, and so are disabled by this means. Instead,
+just use git in the normal manner.
 
 But where's the use of the ``weld`` tool?
 =========================================
