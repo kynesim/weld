@@ -187,7 +187,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # actually going to "propagate" the changes from our weld to the base
     # by copying files...
     for s in base_seams:
-        # Remember, we want our rirectories relative to weld_root
+        # Remember, we want our directories relative to weld_root
         from_dir = os.path.join(s.dest)
         if s.source is None:
             to_dir = base_dir

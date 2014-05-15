@@ -102,13 +102,13 @@ A simple weld.xml::
 
 This file tells weld:
 
-   * This weld is called frank. This name is not used for anything at the
-     moment (caveat: It is put into the "X-Weld-State: Pushed" markers in the
-     base, but otherwise never referenced).
-   * The origin for this weld is at ssh://git@home.example.com/ribbit/fromble.
-   * This weld draws from two bases: project124 and igniting_duck.
-   * project124 turns up in a directory in the weld called flibble.
-   * igniting_duck/foo turns up in <weld>/bar
+* This weld is called frank. This name is not used for anything at the
+  moment (caveat: It is put into the "X-Weld-State: Pushed" markers in the
+  base, but otherwise never referenced).
+* The origin for this weld is at ssh://git@home.example.com/ribbit/fromble.
+* This weld draws from two bases: project124 and igniting_duck.
+* project124 turns up in a directory in the weld called flibble.
+* igniting_duck/foo turns up in <weld>/bar
 
 Details
 -------
@@ -379,6 +379,31 @@ seams in the weld "to match".
 
   The main code for this is in ``welded/pull.py``
 
+The very short form
+~~~~~~~~~~~~~~~~~~~
+We make sure we have a current copy of the base (in ``.weld/bases``), copy
+across the changes for each seam in that base to our weld, and commit with
+an ``X-Weld-State: Merged`` message.
+
+* The local copy of the base is updated, but is not otherwise changed.
+* The relevant seams in the weld are updated to match the equivalent
+  directories in the base.
+
+The short form
+~~~~~~~~~~~~~~
+* Check it's safe to do a ``weld pull``
+* Update the copy of the base in ``.weld/bases``
+* Find the last time ``weld pull`` or ``weld push`` was done for this base
+  - this is the synchronisation point.
+* Determine which seams have been added/removed/changed in comparison to the
+  newly update base. If nothing has changed, then there is nothing to do.
+* If there are deleted seams, delete them in the weld. If there are added
+  seams, add them in the weld, by copying their files across. If there are
+  changed seams, then replay the appropriate changes in the weld.
+* Commit with an ``X-Weld-State: Merged`` message.
+
+In detail
+~~~~~~~~~
 So we're pulling a base
 
   (You can also pull multiple bases at once, by giving multiple base names on
@@ -547,6 +572,38 @@ Again, we're only going to look at doing "weld push" on a single base - the
 command line will take more than one base name, or the magic ``_all``, but
 we'll ignore that here.
 
+  The main code for this is in ``welded/push.py``
+
+The very short form
+~~~~~~~~~~~~~~~~~~~
+We make sure we have a current copy of the base (in ``.weld/bases``), copy
+across the changes for each seam in that base from our weld to the base,
+commit them all as one change with an ``X-Weld-State: Pushed`` message, and
+push to the base's origin. We also add an empty ``X-Weld-State: Pushed``
+commit in the weld, as a marker of when the ``weld push`` happened.
+
+* The base is updated to match its seams in the weld, and pushed to its remote.
+* The weld is marked with when the push happened.
+
+The short form
+~~~~~~~~~~~~~~
+* Check it's safe to do a ``weld push``
+* Update the copy of the base in ``.weld/bases``
+* Determine the last ``weld push`` for this base
+* For each seam, work out which files have changed (added, removed, changed)
+  in the weld, since that last ``weld push``
+* Use ``rsync`` to make the files in (the corresponding directory in) the
+  base match
+* Commit that in the base, and push it to the base's remote
+* Add a corresponding ``X-Weld-State: Pushed`` commit in the weld
+
+Remember that only seams that are currently "named" in the weld are pushed,
+since they're the only seams that are of interest "now" - if the user wanted
+to push changes to a seam that is not currently in use, then they should have
+done it when it was in use.
+
+In detail
+~~~~~~~~~
 So doing ``weld push`` for a given base name works as follows:
 
 #. Weld checks that there are no local changes in the weld - specifically, it

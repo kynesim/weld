@@ -2,6 +2,8 @@
 An explanation with diagrams
 ============================
 
+Creating a weld
+===============
 We start with two external packages, project124 and igniting_duck. Here are
 their remote repositories:
 
@@ -18,7 +20,11 @@ which gives us two working directories:
 .. image:: images/project124.png
 .. image:: images/igniting_duck.png
 
-We need an XML file to describe our weld::
+Each has directories called ``one`` and ``two``, and naturally has its own
+``.git`` directory.
+
+To create a new weld, we have to first write an XML file describing it.
+Thus we create a file called ``frank.xml`` containing the following::
 
   <?xml version="1.0" ?>
   <weld name="frank">
@@ -30,36 +36,144 @@ We need an XML file to describe our weld::
       <seam base="igniting_duck" source="two" dest="two_duck" />
   </weld>
 
-which we can put into a file, ``fromble.xml``. We can then use that with
-``weld init``::
+This says that:
+
+1. The name of the weld is ``frank``
+2. The remote repository for the weld is (will be) ``file://<repo_base>/fromble``
+3. The weld will contain two bases:
+
+   a. The first base is called ``project124``, and its remote repository is
+      ``file://<repo_base>/project124`` - in other words, it's the first of
+      the two repositories we have already been introduced to.
+
+      Note that the name we give the base does not have to match the
+      repository name (although it probably normally will).
+
+   b. The second base is called ``igniting_duck``, and it is the second
+      remote repository from above.
+
+4. The ``project124`` base will provide a single seam in the weld. The source
+   is not specified, so this will be the entire content of the base. The
+   seam will be put into the weld as directory ``124``
+
+5. The ``igniting_duck`` base will provide two seams in the weld. The
+   directory in the base called ``one`` will be stored in the weld as
+   ``one-duck``, and the directory called ``two`` will be stored in the weld
+   as ``two-duck``. Any other directories in the base will not be added to the
+   weld.
+
+Once we've got the XML file, we can use ``weld init``::
 
   $ mkdir fromble
   $ cd fromble
-  $ weld init ../fromble.xml
+  $ weld init ../frank.xml
+  > git init
+  > git add fromble/.weld/welded.xml .gitignore
+  > git remote rm origin
+  > git remote add origin file://<repo_base>/fromble
+  > git commit --allow-empty --file /tmp/weldcommitYp7JZ2
+  Weld initialised OK.
 
 to create an empty weld:
 
 .. image:: images/fromble_empty.png
 
-or perhaps (foreshadowing the shape of later diagrams):
+.. We could have shown a weld shape that matches later on
+.. .. image:: images/fromble_L_shaped.png
 
-.. image:: images/fromble_L_shaped.png
+.. or even the same with an empty bases area
+.. .. image:: images/fromble_empty_bases.png
 
-or even, that making it explicit we have no bases yet:
+The weld contains::
 
-.. image:: images/fromble_empty_bases.png
+  fromble/
+    .git/...
+    .gitignore
+    .weld/
+      welded.xml
 
-To populate it, we need to use ``weld pull _all``, which clones the two remote
-repositories into the weld's ``.weld/builds`` directory, then copies the
-content of those clones into the appropriate places in the weld, and commits
-the new weld contents. This gives us:
+(I've left out the content of the ``.git`` directory).
+
+The ``.gitignore`` instructs git to ignore some artefacts that weld knows it will
+create in the ``.weld`` directory.  
+The ``.weld/welded.xml`` is a "copy" of the original ``frank.xml`` (actually,
+it is produced by reading the original XML and then writing it out from the
+internal datastructure, so the layout is likely to be slightly different, but
+the content should have the same effect).
+Both have been committed to the weld's git repository.
+
+To populate our weld, we need to use::
+
+  $ weld pull _all
+ 
+This clones the two remote repositories into the weld's ``.weld/builds``
+directory::
+
+  .weld/bases/project124
+  .weld/bases/igniting-duck
+
+then copies the content of those clones into the appropriate places in the
+weld, and commits the new weld contents. This gives us:
 
 .. image:: images/fromble_with_both_bases.png
 
-We can then create a new remote repository for the weld itself, and push to
-it::
+Our directory structure now looks like::
 
-  $ git push file://<repo_base>/fromble
+  fromble/
+    .git/...
+    .gitignore
+    .weld/
+      bases/
+        igniting_duck/
+          .git/...
+          one/
+            <source-code ign-1>
+          two/
+            <source-code ign-2>
+        project124/
+          .git/...
+          one/
+            <source-code 124-1>
+          two/
+            <source-code 124-2>
+      counter
+      welded.xml
+    124/
+      one/
+        <source-code 124-1>
+      two/
+        <source-code 124-2>
+    one-duck/
+      <source-code ign-1>
+    two-duck/
+      <source-code ign-2>
+
+Here we can see that in ``.weld/bases`` are the clones of the two remote
+packages (our "bases"), each with its own ``.git`` directory. A normal user
+will never interact with these, and strictly speaking they are not part of the
+weld.
+
+We can also see, at the top level of ``fromble``, that we now have three
+source directories: ``124``, ``one-duck`` and ``two-duck``. These are checked
+into the weld's git repository, and correspond to the seams described in the
+XML file. Thus the weld source directory ``124`` corresponds to all of the
+``project124`` base, whilst the two directories in the ``igniting_duck`` base
+have been split into separate (in this case top-level) directories in the
+weld, just as the XML file described.
+
+Now we've got our weld set up, we can create a bare repository for it in the
+normal manner - in this case::
+
+  $ pushd <repo-base>
+  $ mkdir fromble
+  $ cd fromble
+  $ git init --bare
+  $ popd
+
+and push to it (``weld init`` set up the URI in the XML file as the origin
+remote, so this "should just work")::
+
+  $ git push master origin
 
 so we now have three remote repositories:
 
@@ -67,6 +181,8 @@ so we now have three remote repositories:
 .. image:: images/project124_repo.png
 .. image:: images/igniting_duck_repo.png
 
+Using the weld just needs git
+=============================
 Another user can now clone the weld directly::
 
   $ cd ~/work
@@ -76,31 +192,134 @@ which gives them the weld with its seams:
 
 .. image:: images/fromble_with_no_bases.png
 
-They can work on this as they need, pushing to and pulling from the weld's
+This new weld has the following directory structure::
+
+  fromble/
+    .git/...
+    .gitignore
+    .weld/
+      counter
+      welded.xml
+    124/
+      one/
+        <source-code 124-1>
+      two/
+        <source-code 124-2>
+    one-duck/
+      <source-code ign-1>
+    two-duck/
+      <source-code ign-2>
+
+(the bases are not present in ``.weld`` because they are not part of the weld
+itself).
+
+The user can work on this as they need, pushing to and pulling from the weld's
 remote repository with git in the normal manner.
 
-If we use a weld command that needs access to one of the bases, for instance::
+Using ``weld`` commands on the weld may pull bases
+==================================================
+The ``weld`` command line tool will download (clone or update) the bases when
+it needs to. For instance, some queries need access to the base::
 
   $ weld query base project124
 
-then weld will clone project124 into ``.weld/bases/``, giving us:
+will clone project124 into ``.weld/bases/``, giving us:
 
 .. image:: images/fromble_with_base_project124.png
 
+or::
+
+  fromble/
+    .git/...
+    .gitignore
+    .weld/
+      bases/
+        project124/
+          .git/...
+          one/
+            <source-code 124-1'>
+          two/
+            <source-code 124-2'>
+      counter
+      welded.xml
+    124/
+      one/
+        <source-code 124-1>
+      two/
+        <source-code 124-2>
+    one-duck/
+      <source-code ign-1>
+    two-duck/
+      <source-code ign-2>
+
+Note that the source code in the project124 base may be different than
+that in the corresponding seams - which is exactly what the query needs to
+know.
+
 If we decided to update the weld with any changes made in the remote
-igniting_duck repository, by doing::
+igniting_duck repository::
 
   $ weld pull igniting_duck
   
-then they would have:
+then this would also necessitate pulling the base::
 
 .. image:: images/fromble_with_both_bases.png
 
-And if we edited the XML file to change name of the seam ``one_duck`` to
-``one_goose`` and did::
+In this case, the source code in the weld would be updated to match that in
+the igniting_duck base::
+
+  fromble/
+    .git/...
+    .gitignore
+    .weld/
+      bases/
+        igniting_duck/
+          .git/...
+          one/
+            <source-code ign-1'>
+          two/
+            <source-code ign-2'>
+        project124/
+          .git/...
+          one/
+            <source-code 124-1'>
+          two/
+            <source-code 124-2'>
+      counter
+      welded.xml
+    124/
+      one/
+        <source-code 124-1>
+      two/
+        <source-code 124-2>
+    one-duck/
+      <source-code ign-1'>
+    two-duck/
+      <source-code ign-2'>
+
+Changing a base or seam
+=======================
+At the moment, altering the content of the weld, as described by the XML file,
+needs some care.
+
+For instance, if we edited the XML file to change name of the seam
+``one_duck`` to ``one_goose``::
+
+  <?xml version="1.0" ?>
+  <weld name="frank">
+    <origin uri="file://<repo_base>/fromble" />
+    <base name="project124" uri="file://<repo_base>/project124"/>
+      <seam base="project124" dest="124" />
+    <base name="igniting_duck" uri="file://<repo_base>/igniting_duck" />
+      <seam base="igniting_duck" source="one" dest="one_goose" />
+      <seam base="igniting_duck" source="two" dest="two_duck" />
+  </weld>
+
+and did::
 
   $ git mv one_duck one_goose
 
+(one day, weld may provide a command to do those together for you)
 then we would have:
 
 .. image:: images/fromble_one_goose.png
