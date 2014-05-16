@@ -4,6 +4,15 @@ Creating a muddle build tree for use with weld
 
 *Setting up a muddle build tree for use as a weld is still to be documented.*
 
+.. note:: Steps will include:
+
+   a. Create your muddle build description, with appropriate repository
+      information
+   b. Commit it to a remote/bare repository, as one does
+   c. Use muddle to find out the list of packages and their repositorie
+   d. Use that information to write the weld XML file
+   e. Follow the normal instructions on creating a weld given its XML file
+
 Weld was written with the intent of being muddle-compatible.
 
 A normal muddle build tree looks something like the following::
@@ -40,7 +49,9 @@ The toplevel ``.git`` directory manages the entire source code tree.
 The ``.gitignore`` file tells git to ignore various things, including the
 muddle ``.muddle``, ``obj``, ``install`` and ``deploy`` directories.
 
-Typically, a user just needs to do something like::
+Typically, a user just needs to do something like:
+
+.. code-block:: bash
 
   $ git clone ssh://git@example.com//opt/projects/99/weld weld
   $ cd weld

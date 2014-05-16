@@ -23,14 +23,18 @@ XML file format
 ===============
 Priority: medium
 
-The current XML file is laid out as::
+The current XML file is laid out as:
+
+.. code-block:: xml
 
   <base name=A ... />
   <seam base=A ... />
 
 and so on, where the seams for a base must occur after the base entity.
 
-Would we be better with a "more traditional" layout like::
+Would we be better with a "more traditional" layout like:
+
+.. code-block:: xml
 
   <base name=A ... >
       <seam ... />

@@ -21,7 +21,7 @@ project:
 2. One repository for the world
 
 One package per repository
---------------------------
+==========================
 In this approach, each package is put into its own repository (or may,
 sometimes, be retrieved from the "outside world" repository from which it
 originates - this has obvious problems if the internet connection to the
@@ -67,11 +67,11 @@ On the other hand:
 .. _muddle: http://code.google.com/p/muddle/
 
 One repository for the world
-----------------------------
+============================
 In this approach, the project as-a-whole has a single repository. Individual
 packages are imported into this repository, in some appropriate workflow.
 
-  For instamce, one might have an import branch for the project, named after
+  For instance, one might have an import branch for the project, named after
   its version ("import-busybox-1.2.1"), and once the new version of the
   package is working, this would be merged back into the main tree.
 
@@ -106,16 +106,20 @@ On the other hand:
   when changes to an individual package are not separated out
 
 * if a package is used in two "mega" repositories, but some of the changes (or
-  perhaps just some of the information in commit messages) may not be shared
+  perhaps just some of the information in commit messages) must not be shared
   between the two, then moving those changes from one "mega" repository to the
   original package and thence to the other "mega" repository needs careful
   management
 
 Or there's weld
----------------
+===============
 Weld attempts to make it reasonably simple to have something of both worlds.
 
 One VCS is chosen (git) to restrict the complexity of the problem.
+
+weld uses a directory, ``.weld``, at the top of your source tree (next to the
+``.git`` directory) to store meta-information about which packages you use and
+where they come from.
 
 The normal user gets to work in a single large repository, using git, and
 should mostly be able to ignore the rest of weld.
@@ -125,7 +129,7 @@ repositories that provide its packages, is regarded as a more expert task, and
 for this the ``weld`` commandline tool is provided.
 
 A little more detail
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 Broadly, the normal user will ``git clone`` a weld (a single large repository)
 and work within that as with any other body of source code, using the normal
 ``git`` tools to branch/commit/push/pull as required. The intention is that a
@@ -136,7 +140,32 @@ first place, and curate pushing changes back to individual repositories as and
 when it becomes necessary, using "weld push" and "weld pull".
 
 Can I use it with muddle?
-~~~~~~~~~~~~~~~~~~~~~~~~~
-Yes, and we shall explain that in its own section.
+=========================
+Yes, and in fact that was specifically why weld was invented: the multiple
+repository model traditionally used by muddle makes it quite difficult to
+track changes. We realised it would be simpler if there was a single git
+repository for a project which could track back to other repositories.
+
+weld is the tool which makes that possible.
+
+Using weld with muddle is explained in its own section.
+
+A little terminology: welds, bases and seams
+============================================
+A **weld** is a git repository containing all of the source code for a
+project.
+
+``weld`` is also the command line tool that is used to maintain welds.
+
+A **seam** is a mapping from a directory in an external git repository to the
+directory in the weld in which it will appear.
+
+Colloquially it is also the directory in the weld that is so described.
+
+A **base** is an external git repository (and implicitly its branch or
+other specifiers) from which one pulls seams and to which they are pushed.
+
+The term may also be used to refer to the clone of that external directory in
+the ``.weld/bases`` directory.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

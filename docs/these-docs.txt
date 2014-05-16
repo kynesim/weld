@@ -23,7 +23,9 @@ The weld documentation is built using Sphinx_.
 
 As said above, the easiest way to get the documentation is via `Read the
 Docs`_, but if you want to build a copy yourself, then all you need to do is
-install Sphinx_, and use the Makefile::
+install Sphinx_, and use the Makefile:
+
+.. code-block:: bash
 
     $ cd docs
     $ make html

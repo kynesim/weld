@@ -7,7 +7,9 @@ As a normal user
 If you're a normal user of weld, then there isn't much to learn.
 
 Basically, your project documentation should tell you how to clone a weld -
-for instance::
+for instance:
+
+.. code-block:: bash
 
   $ git clone ssh://git@example.com//opt/projects/99/weld project99
 
@@ -23,7 +25,9 @@ Your project should include documentation telling you to:
 
 and then you can mostly use the build tree as a normal muddle user.
 
-For instance::
+For instance:
+
+.. code-block:: bash
 
   $ mkdir project99
   $ cd project99
@@ -32,7 +36,7 @@ For instance::
   $ muddle init weld+ssh://git@example.com//opt/projects/99/weld builds/01.py
 
 The ``weld+`` tells muddle it is dealing with a weld, and (essentially)
-disanles ``muddle push`` and ``muddle pull``. The idea is that you should just
+disables ``muddle push`` and ``muddle pull``. The idea is that you should just
 use git directly (``git push``, ``git pull``, etc.).
 
 A little more detail

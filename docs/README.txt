@@ -1,96 +1,16 @@
-==========================
-Weld - the original README
-==========================
+=================
+Other information
+=================
 
-*This chapter is being rewriten, and possibly split into separate parts. Some
+*This chapter is being rewriten, and its parts moved around/elsewhere. Some
 of it may be inaccurate. Please be patient.*
 
-Why we needed weld
-==================
-The multiple repository model used by muddle makes it quite difficult
-to track changes. It would be simpler if there was a single git 
-repository for a project which could track back to other repositories.
+The weld XML file
+=================
 
-weld is the tool which makes that possible.
+A simple weld XML file:
 
-weld uses a directory, ``.weld``, inside your git repository to store
-meta-information about which repositories you use and where they 
-come from.
-
-Because all the best shell scripts parse XML, the files inside ``.weld``
-are written in XML. We did consider using Python, but felt that given
-the highly declarative nature of the information described, the 
-number of opportunities for self-mutilation was just too high.
-
-Getting the weld command line tool
-==================================
-Getting weld needs git. If you don't have git on your system, and you're on
-a Debian based system (Debian, Ubuntu, Linux Mint, etc.), then you can do::
-
-  $ sudo apt-get install git gitk
-
-(the ``gitk`` program is an invaluable UI for looking at the state of git
-checkouts - it's always worth checking it out as well as git itself).
-
-Then decide where to put weld. I have a ``sw`` directory for useful software
-checkouts, so I would do::
-
-  $ cd sw
-  $ git clone https://code.google.com/p/weld/
-
-which creates me a directory ``~/sw/weld``.
-
-.. note:: Sometimes (luckily not often) the Google code repositories give
-   errors. In this case, the only real solution is to try again later.
-
-To *use* weld, you can then either:
-
-1. just type ``~/sw/weld/weld`` - this is the simplest thing to do,
-   but the longest to type.
-
-2. add an alias to your ``.bashrc`` or equivalent::
-
-      alias weld="${HOME}/sw/weld/weld"
-
-3. add ``~/sw/weld`` to your PATH::
-
-      export PATH=${PATH}:${HOME}/sw/weld
-
-4. add a link - for instance, if you have ``~/bin`` on your path, do::
-
-     cd ~/bin
-     ln -s ~/sw/weld/weld .
-
-Personally, I use the second option, but all are sensible.
-
-You should now be able to do::
-
-  $ weld help
-
-and get meaningful output.
-
-Terminology: welds, bases and seams
-===================================
-A **weld** is a git repository containing all of the source code for a
-project.
-
-``weld`` is also the command line tool that is used to maintain welds.
-
-A **seam** is a mapping from a directory in an external git repository to the
-directory in the weld in which it will appear.
-
-Colloquially it is also the directory in the weld that is so described.
-
-A **base** is an external git repository (and implicitly its branch or
-other specifiers) from which one pulls seams and to which they are pushed.
-
-The term may also be used to refer to the clone of that external directory in
-the ``.weld/bases`` directory.
-
-weld.xml
-========
-
-A simple weld.xml::
+.. code-block:: xml
 
    <?xml version="1.0" ?>
    <weld name="frank">
@@ -218,27 +138,6 @@ All of these should be deleted when the ``weld pull`` or ``weld push`` is
 finished (and, specifically, ``weld finish`` and ``weld abort`` should delete
 them).
 
-Things to remember not to do in a world of welds
-================================================
-Do not use git submodules in bases, as weld will not preserve them.
-
-Do not use commit messages that start "X-WeldState:", as weld uses such for
-its own purposes.
-
-Do not use branches that start "weld-", as weld uses such for its own purposes
-(and is not very careful in checking if you're on an offending branch).
-
-Do not change the ``origin`` remote of a weld - the weld command assumes that
-``origin`` is the origin remote it should use.
-
-Going behind weld's back
-========================
-
-As with muddle, weld attempts to support you going behind its back. This
-mainluy means assuming that you're going to use git to do stuff regardless.
-Indeed, we shall see that using git directly is integral to the correct use of
-welds.
-
 A summary of weld commands  
 ==========================
 
@@ -341,29 +240,5 @@ its one line summary - so for instance::
     f589384 One-duck: Add a comment to the end of the Makefile
 
 The format of this message may change in the future.
-
-Using the weld command line tool
-================================
-weld init
----------
-::
-
-  weld init <weld-xml-file>
-
-Reads in a weld XML file, and:
-
-1. writes out the same data (possibly in a different order) to
-   ``.weld/welded.xml``
-2. Does a ``git init``
-3. Write a ``.gitignore`` to ignore various transient files that may appear
-   in the ``.weld`` directory.
-4. Commits the ``.gitignore`` and ``.weld/welded.xnl`` to git, with the commit
-   message::
-
-      X-Weld-State: Init
-
-      Weld initialisation
-
-
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -1,6 +1,65 @@
-============================
-An explanation with diagrams
-============================
+=========================================
+Weld for those who need to maintain welds
+=========================================
+
+Getting the weld command line tool
+==================================
+Getting weld needs git. If you don't have git on your system, and you're on
+a Debian based system (Debian, Ubuntu, Linux Mint, etc.), then you can do:
+
+.. code-block:: bash
+
+  $ sudo apt-get install git gitk
+
+(the ``gitk`` program is an invaluable UI for looking at the state of git
+checkouts - it's always worth checking it out as well as git itself).
+
+Then decide where to put weld. I have a ``sw`` directory for useful software
+checkouts, so I would do:
+
+.. code-block:: bash
+
+  $ cd sw
+  $ git clone https://code.google.com/p/weld/
+
+which creates me a directory ``~/sw/weld``.
+
+.. note:: Sometimes (luckily not often) the Google code repositories give
+   errors. In this case, the only real solution is to try again later.
+
+To *use* weld, you can then either:
+
+1. just type ``~/sw/weld/weld`` - this is the simplest thing to do,
+   but the longest to type.
+
+2. add an alias to your ``.bashrc`` or equivalent:
+
+   .. code-block:: bash
+
+      alias weld="${HOME}/sw/weld/weld"
+
+3. add ``~/sw/weld`` to your PATH:
+
+   .. code-block:: bash
+
+      export PATH=${PATH}:${HOME}/sw/weld
+
+4. add a link - for instance, if you have ``~/bin`` on your path, do:
+
+   .. code-block:: bash
+
+     $ cd ~/bin
+     $ ln -s ~/sw/weld/weld .
+
+Personally, I use the second option, but all are sensible.
+
+You should now be able to do:
+
+.. code-block:: bash
+
+  $ weld help
+
+and get meaningful output.
 
 Creating a weld
 ===============
@@ -10,7 +69,9 @@ their remote repositories:
 .. image:: images/project124_repo.png
 .. image:: images/igniting_duck_repo.png
 
-We can clone them in the normal manner::
+We can clone them in the normal manner:
+
+.. code-block:: bash
 
   $ git clone file://<repo_base>/project124
   $ git clone file://<repo_base>/igniting_duck
@@ -20,11 +81,14 @@ which gives us two working directories:
 .. image:: images/project124.png
 .. image:: images/igniting_duck.png
 
-Each has directories called ``one`` and ``two``, and naturally has its own
+Each has directories called ``one`` and ``two``, and naturally each has its own
 ``.git`` directory.
 
-To create a new weld, we have to first write an XML file describing it.
-Thus we create a file called ``frank.xml`` containing the following::
+To create a new weld, we must first write an XML file describing it.
+For instance, we might create a file called ``frank.xml`` containing the
+following:
+
+.. code-block:: xml
 
   <?xml version="1.0" ?>
   <weld name="frank">
@@ -44,7 +108,8 @@ This says that:
 
    a. The first base is called ``project124``, and its remote repository is
       ``file://<repo_base>/project124`` - in other words, it's the first of
-      the two repositories we have already been introduced to.
+      the two repositories we have already been introduced to at the start of
+      this chapter.
 
       Note that the name we give the base does not have to match the
       repository name (although it probably normally will).
@@ -53,16 +118,26 @@ This says that:
       remote repository from above.
 
 4. The ``project124`` base will provide a single seam in the weld. The source
-   is not specified, so this will be the entire content of the base. The
-   seam will be put into the weld as directory ``124``
+   directory is not specified, so this will be the entire content of the base.
+   The seam will be put into the weld as directory ``124``
 
 5. The ``igniting_duck`` base will provide two seams in the weld. The
-   directory in the base called ``one`` will be stored in the weld as
-   ``one-duck``, and the directory called ``two`` will be stored in the weld
-   as ``two-duck``. Any other directories in the base will not be added to the
-   weld.
+   base directory called ``one`` will be stored in the weld as
+   ``one-duck``, and the base directory called ``two`` will be stored in the
+   weld as ``two-duck``. Any other directories in the base will not be added
+   to the weld.
 
-Once we've got the XML file, we can use ``weld init``::
+.. note:: Why use XML?
+
+   We did consider using Python, but felt that given the highly declarative
+   nature of the information described, the number of opportunities for
+   self-mutilation was just too high.
+
+   And because all the best shell scripts parse XML, we chose that.
+
+Once we've got the XML file, we can use ``weld init``:
+
+.. code-block:: bash
 
   $ mkdir fromble
   $ cd fromble
@@ -98,11 +173,13 @@ The ``.gitignore`` instructs git to ignore some artefacts that weld knows it wil
 create in the ``.weld`` directory.  
 The ``.weld/welded.xml`` is a "copy" of the original ``frank.xml`` (actually,
 it is produced by reading the original XML and then writing it out from the
-internal datastructure, so the layout is likely to be slightly different, but
-the content should have the same effect).
+internal datastructure, so the layout is likely to be slightly different, and
+any comments will be lost, but the content should have the same effect).
 Both have been committed to the weld's git repository.
 
-To populate our weld, we need to use::
+To populate our weld, we need to use:
+
+.. code-block:: bash
 
   $ weld pull _all
  
@@ -162,7 +239,9 @@ have been split into separate (in this case top-level) directories in the
 weld, just as the XML file described.
 
 Now we've got our weld set up, we can create a bare repository for it in the
-normal manner - in this case::
+normal manner - in this case:
+
+.. code-block:: bash
 
   $ pushd <repo-base>
   $ mkdir fromble
@@ -171,7 +250,9 @@ normal manner - in this case::
   $ popd
 
 and push to it (``weld init`` set up the URI in the XML file as the origin
-remote, so this "should just work")::
+remote, so this "should just work"):
+
+.. code-block:: bash
 
   $ git push master origin
 
@@ -183,7 +264,9 @@ so we now have three remote repositories:
 
 Using the weld just needs git
 =============================
-Another user can now clone the weld directly::
+Another user can now clone the weld directly:
+
+.. code-block:: bash
 
   $ cd ~/work
   $ git clone file://<repo_base>/fromble
@@ -210,16 +293,19 @@ This new weld has the following directory structure::
     two-duck/
       <source-code ign-2>
 
-(the bases are not present in ``.weld`` because they are not part of the weld
-itself).
+.. note:: In normal use of a weld, there is no ``.weld/bases`` directory.
+   The bases are not part of the weld itself, they will only be retrieved if
+   the user runs a weld command that needs them.
 
-The user can work on this as they need, pushing to and pulling from the weld's
-remote repository with git in the normal manner.
+The user can work on the content of the weld as they need, pushing to and
+pulling from the weld's remote repository with git in the normal manner.
 
 Using ``weld`` commands on the weld may pull bases
 ==================================================
 The ``weld`` command line tool will download (clone or update) the bases when
-it needs to. For instance, some queries need access to the base::
+it needs to. For instance, some queries need access to the base. In particular:
+
+.. code-block:: bash
 
   $ weld query base project124
 
@@ -253,15 +339,17 @@ or::
       <source-code ign-2>
 
 Note that the source code in the project124 base may be different than
-that in the corresponding seams - which is exactly what the query needs to
-know.
+that in the corresponding seams (shown here as ``<source-code 124-1'>`` versus
+``<source-code 124>``) - which is exactly what the query needs to know.
 
 If we decided to update the weld with any changes made in the remote
-igniting_duck repository::
+igniting_duck repository:
+
+.. code-block:: bash
 
   $ weld pull igniting_duck
   
-then this would also necessitate pulling the base::
+then this would also necessitate pulling the base:
 
 .. image:: images/fromble_with_both_bases.png
 
@@ -303,7 +391,9 @@ At the moment, altering the content of the weld, as described by the XML file,
 needs some care.
 
 For instance, if we edited the XML file to change name of the seam
-``one_duck`` to ``one_goose``::
+``one_duck`` to ``one_goose``:
+
+.. code-block:: xml
 
   <?xml version="1.0" ?>
   <weld name="frank">
@@ -315,7 +405,9 @@ For instance, if we edited the XML file to change name of the seam
       <seam base="igniting_duck" source="two" dest="two_duck" />
   </weld>
 
-and did::
+and did:
+
+.. code-block:: bash
 
   $ git mv one_duck one_goose
 
@@ -327,5 +419,19 @@ then we would have:
 and because we have done *both* of those things, ``weld pull``, ``weld push``
 and all the other weld commands would recognise that the base directory
 ``igniting_duck/one`` is now related to the weld seam ``one_goose``.
+
+Things to remember not to do in a world of welds
+================================================
+Do not use git submodules in bases, as weld will not preserve them.
+
+Do not use commit messages that start "X-WeldState:", as weld uses such for
+its own purposes.
+
+Do not use branches that start "weld-", as weld uses such for its own purposes
+(and is not very careful in checking if you're on an offending branch, it just
+looks to see if the name starts with "weld-").
+
+Do not change the name of the ``origin`` remote of a weld, as the weld command
+assumes that ``origin`` is the origin remote it should use.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

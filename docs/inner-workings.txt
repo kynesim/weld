@@ -82,17 +82,21 @@ Given the name of a base:
 
 #. Weld makes sure its copy of the base is up-to-date:
 
-   a. If it doesn't yet have a clone of the base, it does::
+   a. If it doesn't yet have a clone of the base, it does:
 
-         cd .weld/bases
-         git clone <base-repository> <base>
-         cd <base>
-         git pull
+      .. code-block:: bash
 
-   b. If it does have a clone of the base, it does::
+         $ cd .weld/bases
+         $ git clone <base-repository> <base>
+         $ cd <base>
+         $ git pull
 
-         cd .weld/bases/<base>
-         git pull
+   b. If it does have a clone of the base, it does:
+
+      .. code-block:: bash
+
+         $ cd .weld/bases/<base>
+         $ git pull
 
    In either case, it notes the HEAD commit of the base.
 
@@ -185,9 +189,11 @@ untidy, and (b) mak cause future working branches to have the same name as
 earlier (remote) working branches.
 
 If you have git version 1.7.10 or later, then you can instead clone a
-"working" weld using::
+"working" weld using:
 
-  git clone --single-branch <weld-directory>
+.. code-block:: bash
+
+  $ git clone --single-branch <weld-directory>
 
 to retrieve (in this case) just ``master`` (or use ``-b <branch`` to name a
 specific branch).
@@ -258,17 +264,21 @@ So doing ``weld push`` for a given base name works as follows:
 
 #. Weld makes sure its copy of the base is up-to-date:
 
-   a. If it doesn't yet have a clone of the base, it does::
+   a. If it doesn't yet have a clone of the base, it does:
 
-         cd .weld/bases
-         git clone <base-repository> <base>
-         cd <base>
-         git pull
+      .. code-block:: bash
 
-   b. If it does have a clone of the base, it does::
+         $ cd .weld/bases
+         $ git clone <base-repository> <base>
+         $ cd <base>
+         $ git pull
 
-         cd .weld/bases/<base>
-         git pull
+   b. If it does have a clone of the base, it does:
+
+      .. code-block:: bash
+
+         $ cd .weld/bases/<base>
+         $ git pull
 
 #. It finds the last time that ``weld push`` was done for this base, by
    looking for the most recent commit with an ``X-Weld-State: Pushed
