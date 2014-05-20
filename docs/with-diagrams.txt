@@ -385,6 +385,34 @@ the igniting_duck base::
     two-duck/
       <source-code ign-2'>
 
+Adding a base
+=============
+
+Briefly:
+
+1. Make sure that the base to be added already exists as a remote git
+   repository.
+
+3. In the weld, do a ``git pull`` to make sure that the weld is up-to-date.
+
+3. Edit the ``.weld/welded.xml`` file to add the base (including its
+   repository URI) and the seam(s) you want from that base.
+
+   Commit the XML file with ``git commit .weld/welded.xml`` and an appropriate
+   message.
+
+4. Run ``weld pull <new-base-name>`` to pull the base.
+
+   This will:
+
+   a. Clone the base repository into ``.weld/bases/<new-base-name>``.
+   b. Copy the code for the seam(s) selected into the weld.
+   c. Commit the results.
+
+5. Once you are happy that the base and seam(s) are integrated properly into
+   the weld, then use ``git push`` to push the weld to *its* remote
+   repository.
+
 Changing a base or seam
 =======================
 At the moment, altering the content of the weld, as described by the XML file,
