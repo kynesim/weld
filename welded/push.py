@@ -136,8 +136,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     if verbose:
         print
         print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
-    # Whilst seam.source may be None, seam.dest should always be a string
-    weld_directories = [s.dest for s in base_seams]
+    weld_directories = [s.get_dest() for s in base_seams]
     base_changes = git.log_between(weld_root, latest_sync, 'HEAD', weld_directories)
     if base_changes:
         if verbose:
@@ -188,7 +187,7 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # by copying files...
     for s in base_seams:
         # Remember, we want our directories relative to weld_root
-        from_dir = os.path.join(s.dest)
+        from_dir = os.path.join(s.get_dest())
         if s.source is None:
             to_dir = base_dir
         else:

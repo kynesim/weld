@@ -61,9 +61,10 @@ With a weld definition, there are two types of entity:
 * base definitions
 * seam definitions
 
-These may occur in any order. A base must have at least one corresponding
-seam, and a seam must belong to a single base. The two are linked by the base
-name,
+A base definition must occur before the seam definitions that belong to it,
+but otherwise the order of entries is not important. A seam may only belong
+to a single base. A base without any seams is not forbidden by the file
+syntax, but will not be of much use.
 
 A base definition contains:
 
@@ -80,28 +81,36 @@ A seam definition contains:
 * ``base`` - the name of the base that this seam belongs to. This base must
   already have been defined in the XML file.
 * ``name`` - the name of this seam. This is optional, and defaults to None
-* ``source`` - where the seam's contents are taken from in the base
-  repository. This is optional, and defaults to ``"."``, meaning the top
-  (root) of the repository.
-* ``dest`` - where the seam is to be put in the target directory in the weld.
-  This is optional and defaults to ???.
-* ``current`` - ??? This is optional and defaults to ???
+* ``source`` - the directory in the bare repository from which the seam's
+  contents are taken. This is optional, and defaults to ``"."``, meaning the
+  top (root) of the repository. The ``source`` may specify a sub-directory,
+  e.g., "src/base/libuseful".
+* ``dest`` - the directory in the weld to which the seam's contents should
+  be copied. This is optional and defaults to ``"."``, meaning the top (root)
+  of the weld. The ``dest`` may specify a sub-directory, e.g.,
+  "kynesim/main/useful".
+* ``current`` - This is optional and is not used at the moment - it may be
+  withdrawn in future versions of weld.
 
 It is not defined what happens if the same base or seam is defined more than
-once (with either the same values or different values).
+once (with either the same values or different values). Future versions of
+weld may reject an XML file that does this.
 
 It *is* intended that two bases with diffferent names be regarded as
 different, although what happens if that is the only difference between them
 is not defined.
 
-.. warning:: *Do not cross the streams.* Specifically, no two different seams
-   should have the same destination, lest weld get terribly confused. This
-   also means that destinations that "nest" - e.g., ``src/fred`` and
-   ``src/fred/jim`` - are forbidden.
+.. warning:: *Do not cross the streams.*
+
+   Specifically, no two different seams should have the same destination, lest
+   weld get terribly confused.
+   ``"."`` counts, so you cannot have more than one seam with no ``dest``.
+   This also means that destinations that "nest" (e.g., ``src/fred`` and
+   ``src/fred/jim``) are forbidden.
 
 .. note:: I am not aware of anything that ensures that the origin URI
    corresponds to the place that you actually clone the weld from. Indeed,
-   since it is a URI (and not a URL), it need not so corresppnd. However, if
+   since it is a URI (and not a URL), it need not so correspond. However, if
    you do something obscure based on this, then no-one is going to like you.
 
 Files in .weld

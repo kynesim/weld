@@ -83,9 +83,6 @@ class Seam:
 
     def get_dest(self):
         if (self.dest is None):
-            # XXX Is this sensible? Is "source=." really the same as not
-            # XXX specifying source (I suspect that (a) yes and (b) yes,
-            # XXX in which case we need to document it).
             return "."
         else:
             return self.dest
