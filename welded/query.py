@@ -161,8 +161,8 @@ def query_coverage(spec, where):
     uncovered = { }
     for s in spec.get_seams():
         if DEBUG: 
-            print "Seam: %s -> %s"%(s.name, s.get_source())
-        abs_path = os.path.realpath(os.path.join(where, s.get_source()))
+            print "Seam: %s -> %s"%(s.name, s.get_dest())
+        abs_path = os.path.realpath(os.path.join(where, s.get_dest()))
         dir_map[abs_path] = s
     # Now .. 
     dirs_to_walk = [ '.' ]
