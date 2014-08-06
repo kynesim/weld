@@ -5,6 +5,7 @@ push.py - Push a weld to its remote
 import os
 import subprocess
 import tempfile
+import shutil
 
 import welded.git as git
 import welded.layout as layout
@@ -168,6 +169,10 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
             latest_sync, force=True, verbose=verbose)
 
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
+    base_branch = base.branch
+    # If no base branch was specified, use master.
+    if (base_branch is None):
+        base_branch = "master"
 
     if verbose:
         print "So, with %s's"%base_name
@@ -211,8 +216,8 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
     # Write out the "continue.py" and "abort.py" files
     ops.write_finish_push(spec,
             " push.continue_push(spec, %r, %r, %r, edit_commit_file=%s)"%(base_name,
-                working_branch, orig_branch, edit_commit_file),
-            " push.abort_push(spec, %r, %r, %r)"%(base_name, working_branch, orig_branch))
+                working_branch, base_branch, edit_commit_file),
+            " push.abort_push(spec, %r, %r, %r)"%(base_name, working_branch, base_branch))
 
     # And then use the "complete.py" script to do the rest
     return ops.do_finish(spec)
@@ -317,7 +322,7 @@ def edit_file(filename):
 
     if text != text2:
         print 'Text changed - updating %s'%filename
-        os.rename(f.name, filename)
+        shutil.move(f.name, filename)
     else:
         print 'Text was not changed'
 
