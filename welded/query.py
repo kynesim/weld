@@ -171,7 +171,8 @@ def query_coverage(spec, where):
         for d in dirs_to_walk:
             abs_path = os.path.realpath(os.path.join(where, d))
             if (abs_path in dir_map):
-                print "covered: %s"%d
+                if DEBUG:
+                    print "covered: %s"%d
                 result.append( ( d, dir_map[abs_path] ) )
                 continue
 
