@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import shutil
+import re
 
 import welded.git as git
 import welded.layout as layout
@@ -19,7 +20,8 @@ from welded.utils import run_silently, run_to_stdout, GiveUp
 class ApplyError(Exception):
     pass
 
-def push_base(spec, base_name, edit_commit_file=False, verbose=False):
+def push_base(spec, base_name, edit_commit_file=False, verbose=False, 
+              long_commit = False):
     """Push a single base.
 
     'spec' is the Weld that contains this base.
@@ -138,7 +140,14 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
         print
         print 'What changed for %s from %s to HEAD'%(base_name, latest_sync[:10])
     weld_directories = [s.get_dest() for s in base_seams]
-    base_changes = git.log_between(weld_root, latest_sync, 'HEAD', weld_directories)
+    if (long_commit):
+        # A friendly log ..
+        base_changes = git.what_changed(weld_root, latest_sync, 'HEAD', 
+                                        weld_directories)
+    else:
+        base_changes = git.log_between(weld_root, latest_sync, 'HEAD', 
+                                       weld_directories)
+
     if base_changes:
         if verbose:
             print '\n'.join(base_changes)
@@ -150,8 +159,8 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
 
     if verbose:
         print
-        print 'And trim out any X-Weld-State items'
-    base_changes = trim_states(base_changes)
+        print 'And escape out any X-Weld-State items'
+    base_changes = escape_states(base_changes)
     if base_changes:
         if verbose:
             print '\n'.join(base_changes)
@@ -283,16 +292,17 @@ def make_files_match(from_dir, to_dir, verbose=False):
         git.rm(to_dir, deleted_files)
         git.commit_using_message(to_dir, "Delete files no longer in %s"%from_dir)
 
-def trim_states(lines):
-    """Return only those lines that do not say "X-Weld-State:"
-
-    (that is, remove any weld state lines)
+def escape_states(lines):
+    """
+    Escape X-Weld-State: so it doesn't confuse us later.
+    
+    We do this by turning it into X-Escaped-Weld, incrementing
+    all the "Escaped"s so we can unescape correcly later if necessary.
     """
     new = []
     for line in lines:
-        words = line.split()
-        if words[1] != 'X-Weld-State:':
-            new.append(line)
+        new.append(re.sub(r'X-((Escaped-)*)Weld([^:]+):', 
+                          r'X-Escaped-\1Weld\3:', line))
     return new
 
 def edit_file(filename):

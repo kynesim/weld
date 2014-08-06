@@ -36,6 +36,9 @@ main_parser.add_option("-t", "--tuple", action="store_true",
 main_parser.add_option("-e", "--edit", action="store_true",
                        dest="edit_commit_file", default = False,
                        help='edit the "weld push" commit file for each base before using it')
+main_parser.add_option("-l", "--long-commit", action="store_true",
+                       dest="long_commit", default = False,
+                       help='Use long commit messages rather than the default summary message')
 
 # CommandName -> CommandClass
 g_command_dict = { }
@@ -205,6 +208,10 @@ class Push(Command):
     (if defined), else $VISUAL (if defined), else $EDITOR (if defined),
     and otherwise 'vi'.
 
+    If you specify --long-commit (-l) then the (squashed) commit to the
+    base will have a long commit message, otherwise a summary of changes
+    will be used as the commitlog.
+
     If pushing a base fails (typically because human intervention is needed
     to sort out a merge), then either use "weld abort" to give up on the
     operation, or fix the merge and use "weld finish" to continue with
@@ -224,7 +231,8 @@ class Push(Command):
         for base_name in to_push:
             rv = push_base(self.spec, base_name,
                            edit_commit_file=opts.edit_commit_file,
-                           verbose=opts.verbose)
+                           verbose=opts.verbose,
+                           long_commit = opts.long_commit)
             if rv != 0:
                 return rv
 

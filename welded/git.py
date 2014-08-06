@@ -6,6 +6,7 @@ Git utilities
 
 import tempfile
 import os
+import re
 
 from welded.headers import header_grep_merge, header_grep_push, header_grep_init
 from welded.utils import run_silently, run_to_stdout, GiveUp
@@ -126,6 +127,25 @@ def current_branch(where, verbose=True):
         if (f[0] == '*'):
             return f[1]
     return "master"
+
+def what_changed(where, commit_from, commit_to, paths = None):
+    """
+    Retrieves the full log entry for a commit, as given by 
+    'git whatchanged', with a list of changes.
+    
+    Changes are returned in a list, one at a time.
+    """
+    cmd = ["git", "whatchanged", "-m",
+           "%s..%s"%(commit_from,commit_to) ]
+    if (paths is not None):
+        cmd += [ '--' ] + paths
+    rv, out = run_silently(cmd, cwd = where)
+    # ugh.
+    return map(lambda x : "commit " + x, 
+               filter(lambda x: len(x) > 0 and True or False,
+                      re.split(r'^commit ', out, flags = re.MULTILINE)))
+
+   
 
 def log(where, commit_id):
     """
@@ -379,12 +399,15 @@ def has_local_changes(where, verbose=False):
     else:
         return True
 
-def list_changes(where, from_cid, to_cid):
+def list_changes(where, from_cid, to_cid, paths = None):
     """
     Return a list of commits in where from from_cid to to_cid, including
     to_cid but not from_cid, in the order in which they should be applied
     """
-    rv, out = run_silently(["git", "rev-list", "%s...%s"%(from_cid, to_cid)], cwd=where)
+    cmd = ["git", "rev-list", "%s...%s"%(from_cid, to_cid)]
+    if paths:
+        cmd += ['--'] + paths
+    rv, out = run_silently(cmd, cwd=where)
     lines = out.split('\n')
     rv = [ ]
     for l in lines:
