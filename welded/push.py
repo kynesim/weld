@@ -220,6 +220,15 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False):
 def make_files_match(from_dir, to_dir, verbose=False):
     """Make the git handled files in 'to_dir' match those in 'from_dir'
     """
+
+    # if to_dir doesn't exist, create it - we are probably pushing
+    # for the first time - Issue #2
+    if (not os.path.exists(to_dir)):
+        try:
+            os.makedirs(to_dir, 0755)
+        except:
+            pass
+
     # What files is git managing for us in each directory?
     from_files = git.list_files(from_dir)
     to_files = git.list_files(to_dir)
