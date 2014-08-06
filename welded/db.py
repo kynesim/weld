@@ -152,6 +152,13 @@ class Weld:
                 rv[s] = True
         return rv
 
+    def get_seams(self):
+        rv = [ ]
+        for b in self.bases.values():
+            if (len(b.seams) > 0):
+                rv.extend(b.seams)        
+        return rv
+        
     def base_names(self):
         return self.bases.keys()
 

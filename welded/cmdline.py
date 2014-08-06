@@ -318,6 +318,7 @@ class Query(Command):
         else:
             raise GiveUp("No query subcommand '%s'"%cmd)
 
+
 @command('status')
 class Status(Command):
     """
@@ -394,4 +395,29 @@ class Status(Command):
         if output_tuple:
             print in_weld_pull, in_weld_push, should_git_pull, should_git_push
 
+@command('coverage')
+class Coverage(Command):
+    """
+    Tell us how much of a git repository is covered by active seams.
+
+    weld coverage
+
+    Will print out a list of which directories in the current weld are covered
+    by seams, and which directories correspond to which seam.
+
+    Files and directories which start with a dot are ignored.
+    """
+    def go(self, opts, args):
+        if (len(args) > 0):
+            raise GiveUp('Too many arguments - "weld coverage"')
+        where = self.spec.base_dir
+        (covers, uncovered) = query.query_coverage(self.spec, where)
+        for (d, s) in covers:
+                print("%s -> %s"%(d,s.name))
+        print("\nUncovered:\n")
+        for u in uncovered:
+            print(u)
+        print("\n")
+
+        
 # End file.

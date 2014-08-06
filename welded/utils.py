@@ -194,6 +194,22 @@ def dynamic_load(filename, no_pyc=False):
 def run_file(name, spec):
     execfile(name, globals(), locals())
 
+def already_in_hash(d, hsh):
+    """
+    Checks to see if d or any parent of d is already in the hash hsh.
+    
+    @return True if it is, False if it isn't
+    """
+    x = d
+    already_here = False
+    while (x != '/' and x != ''):
+        (x, lead) = os.path.split(x)
+        if (x in hsh):
+            already_here = True
+            break
+    return already_here
+
+
 
 
 # End file.

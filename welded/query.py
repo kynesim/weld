@@ -4,6 +4,8 @@ query.py - Query data from weld
 
 import welded.git as git
 import welded.ops as ops
+import welded.utils as utils
+import os
 
 from welded.utils import classify_seams, GiveUp
 from welded.headers import decode_log_entry
@@ -140,5 +142,69 @@ def query_last_merge_or_push(where, base_name):
         raise GiveUp('Unable to find"X-Weld-State: Pushed" data in push commit\n'
                      'In base %s, id %s\n%s'%(base_name, commit_id,
                          '\n'.join(['  {}'.format(x) for x in log_entry.splitlines()])))
+
+def query_coverage(spec, where):
+    """
+    Returns a pair of ( list of pairs (directory, seam_name) , 
+                        list of uncovered directories )
+
+    Files and directories that start with a dot are ignored.
+    
+    Need to do this fairly carefully because a full recursive list of 
+    directories in a weld can be a fairly expensive process.
+    """
+    # First, build a hash mapping directory to seam..
+    DEBUG = False
+
+    dir_map = { }
+    result = [ ]
+    uncovered = { }
+    for s in spec.get_seams():
+        if DEBUG: 
+            print "Seam: %s -> %s"%(s.name, s.get_source())
+        abs_path = os.path.realpath(os.path.join(where, s.get_source()))
+        dir_map[abs_path] = s
+    # Now .. 
+    dirs_to_walk = [ '.' ]
+    while len(dirs_to_walk) > 0:
+        new_to_walk = [ ]
+        for d in dirs_to_walk:
+            abs_path = os.path.realpath(os.path.join(where, d))
+            if (abs_path in dir_map):
+                print "covered: %s"%d
+                result.append( ( d, dir_map[abs_path] ) )
+                continue
+
+            if DEBUG:
+                print "List %s"%d
+            files = os.listdir(os.path.join(where, d))
+            file_here = False
+            for f in files:
+                if DEBUG:
+                    print " .. check %s"%f
+                # Not interested in anything that starts with a dot.
+                if (f[0] == '.'):
+                    continue
+
+                full_name = os.path.join(where, d, f)
+                if (os.path.isdir(full_name)):
+                    # It's legit - we need to walk it.
+                    new_to_walk.append(os.path.join(d,f))
+                else:
+                    file_here = True
+
+            if file_here:
+                # There is some actual file or other here. If a higher
+                # directory is not already uncovered, uncover us.
+                if (not utils.already_in_hash(d, uncovered)):
+                    uncovered[d] = True
+                    
+        dirs_to_walk = new_to_walk
+
+    # Cunning observation: because we do a depth-first traversal, the
+    # uncovered list is already in as much of a most-general order
+    # as it is convenient to present.
+    return (result,uncovered.keys())
+
 
 # End file.
