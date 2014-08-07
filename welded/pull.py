@@ -13,7 +13,7 @@ from welded.query import query_last_merge_or_push
 from welded.status import get_status
 from welded.utils import GiveUp, classify_seams
 
-def pull_base(spec, base_name, verbose=False):
+def pull_base(spec, base_name, verbose=False, ignore_history = False):
     """Pull a single base.
 
     'spec' is the Weld that contains this base.
@@ -67,7 +67,7 @@ def pull_base(spec, base_name, verbose=False):
     # remote repository)
     (verb, last_weld_sync, last_base_sync,
             seams) = query_last_merge_or_push(weld_root, base_name)
-    if last_weld_sync is None:
+    if ignore_history or (last_weld_sync is None):
         # There was no previous merge - fall back to the Init state
         last_weld_sync = git.query_init(weld_root)
         if verbose:

@@ -21,7 +21,7 @@ class ApplyError(Exception):
     pass
 
 def push_base(spec, base_name, edit_commit_file=False, verbose=False, 
-              long_commit = False):
+              long_commit = False, ignore_history = False):
     """Push a single base.
 
     'spec' is the Weld that contains this base.
@@ -75,7 +75,6 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False,
     # push. Let's try doing it now
     print 'Updating base %s before our "weld push"'%base_name
     ops.update_base(spec, spec.query_base(base_name))
-
     # Here we go
 
     print
@@ -89,6 +88,13 @@ def push_base(spec, base_name, edit_commit_file=False, verbose=False,
         print 'Determining last push for %s:'%base_name
     (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
             base_head, weld_init) = query.query_base_commits(spec, base_name)
+    if (ignore_history):
+        last_weld_merge = None
+        last_base_merge = None
+        last_weld_push = None
+        last_base_push = None
+        
+
     query.print_sha1_ids(base_name, last_weld_merge, last_base_merge,
             last_weld_push, last_base_push, base_head, weld_init)
     if verbose:

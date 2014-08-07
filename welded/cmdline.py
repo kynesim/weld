@@ -39,6 +39,9 @@ main_parser.add_option("-e", "--edit", action="store_true",
 main_parser.add_option("-l", "--long-commit", action="store_true",
                        dest="long_commit", default = False,
                        help='Use long commit messages rather than the default summary message')
+main_parser.add_option("-i", "--ignore-history", action="store_true",
+                       dest="ignore_history", default = False,
+                       help='Ignore all history when pulling or pushing: DANGEROUS!')
 
 # CommandName -> CommandClass
 g_command_dict = { }
@@ -174,6 +177,9 @@ class Pull(Command):
 
     If _all is given, pull all bases.
 
+    If -i (or --ignore-history) is given, we ignore all previous history -
+    this is useful if you are messing with your welded.xml
+
     If pulling a base fails (typically because human intervention is needed
     to sort out a merge), then either use "weld abort" to give up on the
     operation, or fix the merge and use "weld finish" to finish the operation.
@@ -190,7 +196,7 @@ class Pull(Command):
         if opts.verbose:
             print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
-            rv = pull_base(self.spec, p, verbose=opts.verbose)
+            rv = pull_base(self.spec, p, verbose=opts.verbose, ignore_history=opts.ignore_history)
             if rv != 0:
                 return rv
 
@@ -212,6 +218,9 @@ class Push(Command):
     base will have a long commit message, otherwise a summary of changes
     will be used as the commitlog.
 
+    If -i (or --ignore-history) is given, we ignore all previous history -
+    this is useful if you are messing with your welded.xml
+
     If pushing a base fails (typically because human intervention is needed
     to sort out a merge), then either use "weld abort" to give up on the
     operation, or fix the merge and use "weld finish" to continue with
@@ -232,7 +241,8 @@ class Push(Command):
             rv = push_base(self.spec, base_name,
                            edit_commit_file=opts.edit_commit_file,
                            verbose=opts.verbose,
-                           long_commit = opts.long_commit)
+                           long_commit = opts.long_commit,
+                           ignore_history = opts.ignore_history)
             if rv != 0:
                 return rv
 

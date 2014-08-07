@@ -20,6 +20,7 @@ def query_base_commits(spec, base_name):
     # there (in .weld/bases/<base-name>)
     b = spec.query_base(base_name)
     ops.update_base(spec, b)
+        
     base_head = ops.query_head_of_base(spec, b)
     return (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
             base_head, weld_init)
