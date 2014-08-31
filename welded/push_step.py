@@ -20,7 +20,7 @@ from welded.utils import run_silently, run_to_stdout, GiveUp
 class ApplyError(Exception):
     pass
 
-def push_stepwise(spec, base_name, edit_commit_file = False, verbose = False,
+def push_step(spec, base_name, edit_commit_file = False, verbose = False,
                   long_commit = False, ignore_history = False):
     """
     Pushes a single base step-wise. This allows git bisect to work, but
@@ -33,7 +33,11 @@ def push_stepwise(spec, base_name, edit_commit_file = False, verbose = False,
         print "WELD PUSH_STEP %s"%base_name
 
     weld_root = spec.base_dir
-    
+
+    pd = layout.pushing_dir(weld_root)
+    if os.path.exists(pd):
+        raise GiveUp("Cannot run whilst a pushing dir exists - remove it and try again")
+
     # No unstaged changes please
     if git.has_local_changes(weld_root, verbose = verbose):
         raise GiveUp("'git status' reports local changes. Please commit or stash them.")
@@ -64,7 +68,7 @@ def push_stepwise(spec, base_name, edit_commit_file = False, verbose = False,
 
     if verbose:
         print "Determining last push for %s:"%base_name
-    (last_weld_merge, last_base_merge, last_weld_push, last_base_path,
+    (last_weld_merge, last_base_merge, last_weld_push, last_base_push,
      base_head, weld_init) = query.query_base_commits(spec, base_name)
     
     if (ignore_history):
@@ -88,12 +92,85 @@ def push_stepwise(spec, base_name, edit_commit_file = False, verbose = False,
     #  'push / pull'.
     base = spec.bases[base_name]
     base_seams = base.get_seams()
+    
+    # Tag the weld root so we know what is going on.
+    git.tag(weld_root,
+            'weld-last-%s-sync-%s'%(base_name, latest_sync[:10]),
+            latest_sync, force = True, verbose = verbose)
+    
+    base_dir = layout.base_repo(weld_root, base_name)
+    base_branch = base.branch
+    if (base_branch is None):
+        base_branch = "master"
+
+    if verbose:
+        print " Base name: %s, last push %s"%(base_name, last_base_push)
+    latest_base_sync = last_base_push
+    if latest_base_sync is None:
+        if verbose:
+            print "  No last sync, so using HEAD"
+        latest_base_sync = base_head
+
+    # Now let's create a branch on to which to port all the changes from
+    # the weld
+    working_branch = git.new_branch_name(base_dir,
+                                         'weld-pushing',
+                                         latest_base_sync)
+    # Swing the base round .. 
+    git.checkout(base_dir, commit_id = latest_base_sync,
+                 new_branch_name = working_branch)
+
+    # ... aand now start our merge in earnest.
 
     ops.write_finish_push(spec,
-                          " push_step.continue_push(spec, %r, %r, %r, 
-
+                          "push_step.continue_push( spec, %r, %r, %r, edit_commit_file=%s)"%
+                          (base_name, working_branch, base_branch, edit_commit_file),
+                          "push_step.abort_push(spec, %r, %r, %r)"%(base_name, working_branch,
+                                                                    base_branch))
     return ops.do_finish(spec)
-    
+
+
+def continue_push(spec, base_name, working_branch, base_branch, edit_commit_file):
+    """
+    This is where the work actually happens. 
+
+     - Are we merging? if so, finish merging.
+     - If not, the X-Weld-Original-Commit: header in the commit message tells us
+       what commit we were up to. Find the next one between it and HEAD and merge
+       it over.
+    """
+
+    pass
+
+def abort_push(spec, base_name, working_branch, orig_branch):
+    """
+    Abort a push-step; this is basically the same as aborting a weld.
+    """
+    weld_root = spec.base_dir
+    base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
+    try:
+        git.merge_abort(base_DIR)
+    except GiveUp:
+        pass
+
+    # Move back on to the branch we started the base on.
+    git.switch_branch(base_dir, orig_branch)
+    # Erase the working branch (we want to lose all work on it)
+    git.remove_branch(base_dir, working_branch, irrespective = True)
+    # Erase the file we use to hold temporary commit messages.
+    commit_file = layout.push_commit_file(spec.base_dir, base_name)
+    if os.path.exists(commit_file):
+        os.remove(commit_file)
+    # Erase the file we use to tell ourselves we are merging.
+    merging_indicator = layout.push_merging_file(weld_root, base_name)
+    os.remove(merging_indicator)
+    # Now remove the metadata directory.
+    os.rmdir(layout.pushing_dir(weld_root))
+
+
+
+# End file.
+
     
     
     

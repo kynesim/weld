@@ -24,6 +24,7 @@ from welded.layout import spec_file
 from welded.ops import do_finish, do_abort
 from welded.pull import pull_base
 from welded.push import push_base, report_status
+from welded.push_step import push_step
 from welded.utils import Bug, GiveUp, find_weld_dir
 
 main_parser = OptionParser(usage = __doc__)
@@ -197,6 +198,39 @@ class Pull(Command):
             print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
             rv = pull_base(self.spec, p, verbose=opts.verbose, ignore_history=opts.ignore_history)
+            if rv != 0:
+                return rv
+
+@command('push-step')
+class PushStep(Command):
+    """
+    Push the named base(s) a step at a time.
+
+    If more than one base name is given, push each base in turn.
+    
+    If _all is given, push all bases (one at a time)
+
+    A pushstep is exactly like a push (and takes the same options), 
+    except that each source commit is replicated to the base.
+
+    If you specify --edit (-e) then you will be given the opportunity
+    to approve each commit before it happens (you will need to issue
+    "weld finish" or "weld abort").
+
+    """
+    def go(self, opts, args):
+        to_push = self.base_set_from_args(args)
+        if len(to_push) == 0:
+            print 'You must name a base to push'
+            return 1
+        if opts.verbose:
+            print 'Push-step - bases are: %s'%(', '.join(to_push))
+        for base_name in to_push:
+            rv = push_step(self.spec, base_name,
+                           edit_commit_file = opts.edit_commit_file,
+                           verbose = opts.verbose,
+                           long_commit = opts.long_commit,
+                           ignore_history = opts.ignore_history)
             if rv != 0:
                 return rv
 
