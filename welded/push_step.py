@@ -116,6 +116,8 @@ def push_step(spec, base_name, edit_commit_file = False, verbose = False,
     # but basically it is the list of commits that rebase would have used.
     state = { }
     changes = git.list_changes(weld_root, latest_sync, 'HEAD')
+    state['edit_commit_file'] = edit_commit_file
+    state['verbose'] = verbose
     state['changes'] =  changes
     state['current'] = None
     state['last_committed'] = None
@@ -141,18 +143,18 @@ def push_step(spec, base_name, edit_commit_file = False, verbose = False,
     ops.make_verb_available(spec,
                             'step',
                             [ 'import push_step',
-                              'push_step.step( spec, %r, %r, %r, edit_commit_file=%s)'%\
-                              (base_name, working_branch, base_branch, edit_commit_file) ])
+                              'push_step.step( spec, %r, %r, %r)'%\
+                              (base_name, working_branch, base_branch) ])
     ops.make_verb_available(spec, 'abort',
                             [ 'import push_step',
-                              'push_step.abort(spec, %r, %r, %r, edit_commit_file=%s)'%\
-                              (base_name, working_branch, base_branch, edit_commit_file) ])
+                              'push_step.abort(spec, %r, %r, %r)'%\
+                              (base_name, working_branch, base_branch) ])
     ops.next_verbs(spec)
 
     return ops.do(spec, 'step')
 
 
-def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose = True):
+def step(spec, base_name, working_branch, base_branch):
     """
     Step a step-push; this means that we accumulate changes into the next change up
     """
@@ -199,10 +201,10 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
                                             weld_directories)
 
             if base_changes:
-                if verbose:
+                if state['verbose']:
                     print '\n'.join(base_changes)
             else:
-                if verbose:
+                if state['verbose']:
                     print "Nothing changed (apparently)"
           
             # Check out the right version of the weld
@@ -215,13 +217,14 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
                     to_dir = base_dir
                 else:
                     to_dir = os.path.join(base_dir, s.source)
-                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = verbose)
+                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
 
             if (not ('log' in state)):
                 state['log'] = [ ]
             if base_changes: 
                 base_changes.extend(state['log'])
                 state['log'] = base_changes
+
         
         # Stash state.
         state['current'] = next_c
@@ -232,22 +235,22 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
         ops.make_verb_available(spec,
                                 'step',
                                 [ 'import push_step',
-                                  'push_step.step( spec, %r, %r, %r, edit_commit_file=%s)'%\
-                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+                                  'push_step.step( spec, %r, %r, %r)'%\
+                                  (base_name, working_branch, base_branch) ])
         ops.make_verb_available(spec, 'abort',
                                 [ 'import push_step',
-                                  'push_step.abort(spec, %r, %r, %r, edit_commit_file=%s)'%\
-                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+                                  'push_step.abort(spec, %r, %r, %r)'%\
+                                  (base_name, working_branch, base_branch) ])
         
         ops.make_verb_available(spec, 'commit',
                                 [ 'import push_step',
-                                  'push_step.commit(spec, %r, %r, %r, edit_commit_file=%s)'%\
-                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+                                  'push_step.commit(spec, %r, %r, %r)'%\
+                                  (base_name, working_branch, base_branch) ])
 
         ops.make_verb_available(spec, 'inspect',
                                 [ 'import push_step',
-                                  'push_step.inspect(spec, %r, %r, %r, edit_commit_file=%s)'%\
-                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+                                  'push_step.inspect(spec, %r, %r, %r)'%\
+                                  (base_name, working_branch, base_branch) ])
         
         # Now work out if anything has changed.
         if (git.has_local_changes(base_dir) or no_further_commits):
@@ -258,7 +261,7 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
     print "Base stepped to %s - check changes and when you are happy, either step or commit."%next_c
     return True
 
-def inspect(spec, base_name, working_branch, orig_branch, edit_commit_file, verbose = True):
+def inspect(spec, base_name, working_branch, orig_branch):
     """
     Inspect the current set of changes 
     """
@@ -271,13 +274,13 @@ def inspect(spec, base_name, working_branch, orig_branch, edit_commit_file, verb
     ops.repeat_verbs(spec)
 
 
-def commit(spec, base_name, working_branch, orig_branch, edit_commit_file, verbose = True):
+def commit(spec, base_name, working_branch, orig_branch):
     """
     Commit a compound.
     """
     state = ops.read_state_data(spec)
     if ('all_done' in state):
-        return commit_finish(spec, base_name, working_branch, orig_branch, edit_commit_file)
+        return commit_finish(spec, base_name, working_branch, orig_branch)
 
     if (state['current'] == state['changes'][0]):
         print 'All commits added. Finishing .. '
@@ -286,28 +289,34 @@ def commit(spec, base_name, working_branch, orig_branch, edit_commit_file, verbo
         finishing = False
 
     weld_root = spec.base_dir
+    base_dir = state['base_dir']
     try:
         os.makedirs(layout.pushing_dir(weld_root))
     except:
         pass
-    commit_file = layout.push_commit_file(weld_root, base_name)
-    with open(commit_file, 'w') as f:
-        f.write('\n')
-        changes = state['commit_list']
-        f.write('Pushing base, original commits: %s .. %s'%(changes[0], changes[-1]))
-        f.write('\n')
-        f.write('\n'.join(state['log']))
-    
-    # Now just commit.
-    if edit_commit_file:
-        push_utils.edit_file(commit_file)
-    if verbose:
-        run_to_stdout(['git', 'status'], cwd = base_dir)
-    git.commit_using_file(base_dir, commit_file, all= True, verbose = verbose)
-    if verbose:
-        print "Removing temporary commit file", commit_file
-    os.remove(commit_file)
-    if finished: 
+
+    if (len(state['commit_list']) > 0):
+        commit_file = layout.push_commit_file(weld_root, base_name)
+        with open(commit_file, 'w') as f:
+            f.write('\n')
+            changes = state['commit_list']
+            f.write('X-Weld-Stepwise: %s %s..%s'%(weld_root, changes[0], changes[-1]))
+            f.write('\n')
+            f.write('\n'.join(state['log']))
+                    
+        # Now just commit.
+        if state['edit_commit_file']:
+            push_utils.edit_file(commit_file)
+        if state['verbose']:
+            run_to_stdout(['git', 'status'], cwd = base_dir)
+        git.commit_using_file(base_dir, commit_file, all= True, verbose = state['verbose'])
+        if state['verbose']:
+            print "Removing temporary commit file", commit_file
+        os.remove(commit_file)
+    else:
+        print "No changes to commit, skipping commit stage."
+
+    if finishing: 
         state['all_done'] = True
     state['log'] = [ ]
     state['commit_list'] = [ ]
@@ -315,34 +324,35 @@ def commit(spec, base_name, working_branch, orig_branch, edit_commit_file, verbo
     ops.write_state_data(spec, state)
 
     # From here, you can step, or abort.
-    if not finished:
+    if not finishing:
         ops.make_verb_available(spec,
                                 'step',
                                 [ 'import push_step',
-                                'push_step.continue_commit(spec, %r, %r, %r, edit_commit_file=%s'%(base_name,
-                                                                                                   working_branch,
-                                                                                                   base_branch,
-                                                                                                   edit_commit_file) ])
+                                'push_step.step(spec, %r, %r, %r)'%(base_name,
+                                                                               working_branch,
+                                                                               orig_branch)
+                              ])
     else:
         commit_finish(spec, base_name, working_branch, orig_branch, edit_commit_file)
         ops.make_verb_available(spec, 'commit',
                                 [ 'import push_step',
-                                  'push_step.commit(spec, %r, %r, %r, edit_commit_file=%s)'%\
-                                (base_name, working_branch, base_branch, edit_commit_file) ])
+                                  'push_step.commit(spec, %r, %r, %r)'%\
+                                (base_name, working_branch, orig_branch) ])
 
     ops.make_verb_available(spec,
                             'abort',
                             [ 'import push_step',
-                              'push_step.abort(spec, %r, %r, %r)'%(base_name, working_branch, base_branch) ])
-    ops.next_verbs(spec)
+                              'push_step.abort(spec, %r, %r, %r)'%(base_name, working_branch, orig_branch) ])
 
-def commit_finish(spec, base_name, working_branch, orig_branch,
-                    edit_commit_file = False, verbose = True):
+
+
+def commit_finish(spec, base_name, working_branch, orig_branch):
     """
     Finish off this pushed commit.
     """
     state = ops.read_state_data(spec)
-    if verbose:
+    verbose = state['verbose']
+    if state['verbose']:
         print "Merge back and commit this part of the push_step"
     
     weld_root = spec.base_dir
@@ -352,7 +362,7 @@ def commit_finish(spec, base_name, working_branch, orig_branch,
         # We weren't merging, so do ..
         try:
             run_silently(['touch', mi ])
-            git.merge_to_current(base_dir, orig_branch, verbose = verbose)
+            git.merge_to_current(base_dir, orig_branch, verbose = state['verbose'])
         except GiveUp as e:
             lines = e.message.splitlines()
             lines = ['  %s'%line for line in lines]
@@ -368,22 +378,22 @@ def commit_finish(spec, base_name, working_branch, orig_branch,
                              base_name, '\n'.join(lines), base_dir))
 
     # And then merge *that* back into the original branch
-    if verbose:
+    if state['verbose']:
         print 'Merge back into original branch (%s -> %s)'%(working_branch, orig_branch)
     git.checkout(base_dir, orig_branch, verbose=verbose)
     git.merge_to_current(base_dir, working_branch, squash=True, verbose=verbose)
 
     commit_file = layout.push_commit_file(weld_root, base_name)
     if os.path.exists(commit_file):
-        if verbose:
+        if state['verbose']:
             print 'Commit using file %s'%commit_file
         # We've still to do the commit
         # This seems like an appropriate time to let the user edit the commit
         # file, if they've asked to do so
-        if edit_commit_file:
+        if state['edit_commit_file']:
             push_utils.edit_file(commit_file)
 
-        if verbose:
+        if state['verbose']:
             print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
             print 'In', base_dir
             run_to_stdout(['git', 'status'], cwd=base_dir)
@@ -422,7 +432,7 @@ def commit_finish(spec, base_name, working_branch, orig_branch,
     os.rmdir(layout.state_dir(weld_root))
 
 
-def abort(spec, base_name, working_branch, orig_branch, edit_commit_file = False):
+def abort(spec, base_name, working_branch, orig_branch):
     """
     Abort a push-step; this is a little bit horrid.
     """

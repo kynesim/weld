@@ -464,12 +464,15 @@ def list_files(where, verbose=False):
     lines = text.splitlines()
     return lines
 
-def rm(where, files, verbose=True):
+def rm(where, files, verbose=True, force = True):
     """Delete the named files
 
     'files' should be a list of file names
     """
-    run_silently(["git", "rm"] + files, cwd=where, verbose=verbose)
+    cmd = [ "git", "rm" ]
+    if force:
+        cmd.append('-f')
+    run_silently(cmd + files, cwd=where, verbose=verbose)
 
 def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None, verbose=False):
     """Is there something to pull from/push to our remote?
