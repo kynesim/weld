@@ -16,6 +16,7 @@ import welded.query as query
 from welded.headers import pickle_seams
 from welded.status import get_status
 from welded.utils import run_silently, run_to_stdout, GiveUp
+import welded.push_utils as push_utils
 
 class ApplyError(Exception):
     pass
@@ -111,6 +112,21 @@ def push_step(spec, base_name, edit_commit_file = False, verbose = False,
             print "  No last sync, so using HEAD"
         latest_base_sync = base_head
 
+    # Create a list of commits that we want to merge. This is a bit tricky,
+    # but basically it is the list of commits that rebase would have used.
+    state = { }
+    changes = git.list_changes(weld_root, latest_sync, 'HEAD')
+    state['changes'] =  changes
+    state['current'] = None
+    state['last_committed'] = None
+    state['commit_list'] = [ ]
+    state['latest_sync'] = latest_sync
+    state['base_seams'] = spec.bases[base_name].get_seams()
+    state['spec_from_base'] = spec
+    state['weld_directories'] = [s.get_dest() for s in state['base_seams'] ]
+    state['base_dir'] = base_dir
+    state['current_commit'] = current_commit
+#
     # Now let's create a branch on to which to port all the changes from
     # the weld
     working_branch = git.new_branch_name(base_dir,
@@ -121,51 +137,291 @@ def push_step(spec, base_name, edit_commit_file = False, verbose = False,
                  new_branch_name = working_branch)
 
     # ... aand now start our merge in earnest.
+    ops.write_state_data(spec, state)
+    ops.make_verb_available(spec,
+                            'step',
+                            [ 'import push_step',
+                              'push_step.step( spec, %r, %r, %r, edit_commit_file=%s)'%\
+                              (base_name, working_branch, base_branch, edit_commit_file) ])
+    ops.make_verb_available(spec, 'abort',
+                            [ 'import push_step',
+                              'push_step.abort(spec, %r, %r, %r, edit_commit_file=%s)'%\
+                              (base_name, working_branch, base_branch, edit_commit_file) ])
+    ops.next_verbs(spec)
 
-    ops.write_finish_push(spec,
-                          "push_step.continue_push( spec, %r, %r, %r, edit_commit_file=%s)"%
-                          (base_name, working_branch, base_branch, edit_commit_file),
-                          "push_step.abort_push(spec, %r, %r, %r)"%(base_name, working_branch,
-                                                                    base_branch))
-    return ops.do_finish(spec)
+    return ops.do(spec, 'step')
 
 
-def continue_push(spec, base_name, working_branch, base_branch, edit_commit_file):
+def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose = True):
     """
-    This is where the work actually happens. 
-
-     - Are we merging? if so, finish merging.
-     - If not, the X-Weld-Original-Commit: header in the commit message tells us
-       what commit we were up to. Find the next one between it and HEAD and merge
-       it over.
+    Step a step-push; this means that we accumulate changes into the next change up
     """
+    state = ops.read_state_data(spec)
+    # Right oh. Move up a commit in the list .. 
+    weld_root = spec.base_dir
+    while True:
+        prev_c = None
+        next_c = None
+        base_seams = state['base_seams']
+        base_dir = state['base_dir']
 
-    pass
+        if state['current'] is None:
+            next_c = state['changes'][0]
+            print "Starting step-push with first step %s"%next_c
+        else:
+            print " current = %s"%state['current']
+            for c in state['changes']:
+                print "c=%s"%c
+                if prev_c == state['current']:
+                    next_c = c
+                    break
+                prev_c = c
 
-def abort_push(spec, base_name, working_branch, orig_branch):
+        if next_c is None:
+            print "No further commits to add - try 'weld do commit'"
+            next_c = state['current']
+            no_further_commits = True
+        else:
+            no_further_commits = False
+            if (state['last_committed'] is None):
+                merging_from = state['latest_sync']
+            else:
+                merging_from = state['last_committed']
+                
+            print "Stepping: changes merged to %s"%(state['last_committed'])
+            print "          next commit is    %s"%(next_c)
+            
+            weld_directories = state['weld_directories']
+            base_changes = git.what_changed(weld_root, merging_from, next_c,
+                                            weld_directories)
+
+            if base_changes:
+                if verbose:
+                    print '\n'.join(base_changes)
+            else:
+                if verbose:
+                    print "Nothing changed (apparently)"
+          
+            # Check out the right version of the weld
+            git.checkout(weld_root, next_c)
+
+            # Work out what changed .. 
+            for s in base_seams:
+                from_dir = os.path.join(s.get_dest())
+                if s.source is None:
+                    to_dir = base_dir
+                else:
+                    to_dir = os.path.join(base_dir, s.source)
+                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = verbose)
+
+                if (not ('log' in state)):
+                    state['log'] = [ ]
+                if base_changes: 
+                    state['log'].extend(base_changes)
+        
+        # Stash state.
+        state['current'] = next_c
+        state['commit_list'].append(next_c)
+        ops.write_state_data(spec, state)
+        
+        # You can now either step, abort, or commit
+        ops.make_verb_available(spec,
+                                'step',
+                                [ 'import push_step',
+                                  'push_step.step( spec, %r, %r, %r, edit_commit_file=%s)'%\
+                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+        ops.make_verb_available(spec, 'abort',
+                                [ 'import push_step',
+                                  'push_step.abort(spec, %r, %r, %r, edit_commit_file=%s)'%\
+                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+        
+        ops.make_verb_available(spec, 'commit',
+                                [ 'import push_step',
+                                  'push_step.commit(spec, %r, %r, %r, edit_commit_file=%s)'%\
+                                  (base_name, working_branch, base_branch, edit_commit_file) ])
+        
+        # Now work out if anything has changed.
+        if (git.has_local_changes(base_dir) or no_further_commits):
+            break
+        else:
+            ops.next_verbs(spec)
+
+    print "Base stepped to %s - check changes and when you are happy, either step or commit."%next_c
+    return True
+
+def commit(spec, base_name, working_branch, orig_branch, edit_commit_file, verbose = True):
     """
-    Abort a push-step; this is basically the same as aborting a weld.
+    Commit a compound.
     """
+    state = ops.read_state_data(spec)
+    if ('all_done' in state):
+        return commit_finish(spec, base_name, working_branch, orig_branch, edit_commit_file)
+
+    if (state['current'] == state['changes'][0]):
+        print 'All commits added. Finishing .. '
+        finishing = True
+    else:
+        finishing = False
+
+    weld_root = spec.base_dir
+    try:
+        os.makedirs(layout.pushing_dir(weld_root))
+    except:
+        pass
+    commit_file = layout.push_commit_file(weld_root, base_name)
+    with open(commit_file, 'w') as f:
+        f.write('\n')
+        changes = state['commit_list']
+        f.write('Pushing base, original commits: %s .. %s'%(changes[0], changes[-1]))
+        f.write('\n')
+        f.write('\n'.join(state['log']))
+    
+    # Now just commit.
+    if edit_commit_file:
+        push_utils.edit_file(commit_file)
+    if verbose:
+        run_to_stdout(['git', 'status'], cwd = base_dir)
+    git.commit_using_file(base_dir, commit_file, all= True, verbose = verbose)
+    if verbose:
+        print "Removing temporary commit file", commit_file
+    os.remove(commit_file)
+    if finished: 
+        state['all_done'] = True
+    state['log'] = [ ]
+    state['commit_list'] = [ ]
+    ops.write_state_data(spec, state)
+
+    # From here, you can step, or abort.
+    if not finished:
+        ops.make_verb_available(spec,
+                                'step',
+                                [ 'import push_step',
+                                'push_step.continue_commit(spec, %r, %r, %r, edit_commit_file=%s'%(base_name,
+                                                                                                   working_branch,
+                                                                                                   base_branch,
+                                                                                                   edit_commit_file) ])
+    else:
+        commit_finish(spec, base_name, working_branch, orig_branch, edit_commit_file)
+        ops.make_verb_available(spec, 'commit',
+                                [ 'import push_step',
+                                  'push_step.commit(spec, %r, %r, %r, edit_commit_file=%s)'%\
+                                (base_name, working_branch, base_branch, edit_commit_file) ])
+
+    ops.make_verb_available(spec,
+                            'abort',
+                            [ 'import push_step',
+                              'push_step.abort(spec, %r, %r, %r)'%(base_name, working_branch, base_branch) ])
+    ops.next_verbs(spec)
+
+def commit_finish(spec, base_name, working_branch, orig_branch,
+                    edit_commit_file = False, verbose = True):
+    """
+    Finish off this pushed commit.
+    """
+    state = ops.read_state_data(spec)
+    if verbose:
+        print "Merge back and commit this part of the push_step"
+    
+    weld_root = spec.base_dir
+    base_dir = state["base_dir"]
+    mi = layout.push_merging_file(weld_root, base_name)
+    if not os.path.exists(mi):
+        # We weren't merging, so do ..
+        try:
+            run_silently(['touch', mi ])
+            git.merge_to_current(base_dir, orig_branch, verbose = verbose)
+        except GiveUp as e:
+            lines = e.message.splitlines()
+            lines = ['  %s'%line for line in lines]
+            raise GiveUp('Error merging patches to base %s\n'
+                         '%s\n'
+                         'Fix the problems:\n'
+                         '  pushd %s\n'
+                         '  git status\n'
+                         '  edit <the appropriate files>\n'
+                         '  git commit -a\n'
+                         '  popd\n'
+                         'and do "weld commit", or abort using "weld abort"'%(
+                             base_name, '\n'.join(lines), base_dir))
+
+    # And then merge *that* back into the original branch
+    if verbose:
+        print 'Merge back into original branch (%s -> %s)'%(working_branch, orig_branch)
+    git.checkout(base_dir, orig_branch, verbose=verbose)
+    git.merge_to_current(base_dir, working_branch, squash=True, verbose=verbose)
+
+    commit_file = layout.push_commit_file(weld_root, base_name)
+    if os.path.exists(commit_file):
+        if verbose:
+            print 'Commit using file %s'%commit_file
+        # We've still to do the commit
+        # This seems like an appropriate time to let the user edit the commit
+        # file, if they've asked to do so
+        if edit_commit_file:
+            push_utils.edit_file(commit_file)
+
+        if verbose:
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+            print 'In', base_dir
+            run_to_stdout(['git', 'status'], cwd=base_dir)
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+        git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
+        if verbose:
+            print 'Deleting', commit_file
+        os.remove(commit_file)
+    else:
+        if verbose:
+            print 'There is no commit file %s'%commit_file
+
+    head_base_commit = git.query_current_commit_id(base_dir)
+
+    # And finally push the lot to our remote
+    git.push(base_dir, verbose=verbose)
+    # And now mark the weld with where/when the push happened
+    base = spec.bases[base_name]
+    base_seams = base.get_seams()
+    seam_str = pickle_seams(base_seams)
+    f = tempfile.NamedTemporaryFile(delete=False)
+    f.write('X-Weld-State: Pushed %s/%s %s\n\n'%(base_name,
+        head_base_commit, seam_str))
+    f.close()
+
+    # Spurious mod just in case ..
+    ops.spurious_modification(spec)
+
+    # Allow an empty commit, so we still end up with a place marker
+    # for our action
+    git.commit_using_file(spec.base_dir, f.name, all=True, verbose=verbose)
+    os.remove(f.name)
+
+    # And we've finished merging!
+    os.rmdir(layout.state_dir(weld_root))
+
+
+def abort(spec, base_name, working_branch, orig_branch, edit_commit_file = False):
+    """
+    Abort a push-step; this is a little bit horrid.
+    """
+    state = ops.read_state_data(spec)
+    
     weld_root = spec.base_dir
     base_dir = os.path.join(layout.weld_dir(weld_root), 'bases', base_name)
+    
     try:
-        git.merge_abort(base_DIR)
+        git.merge_abort(base_dir)
     except GiveUp:
         pass
-
+        
+    # Move back on the weld.
+    git.switch_branch(weld_root, state['current_commit'])
     # Move back on to the branch we started the base on.
     git.switch_branch(base_dir, orig_branch)
     # Erase the working branch (we want to lose all work on it)
     git.remove_branch(base_dir, working_branch, irrespective = True)
-    # Erase the file we use to hold temporary commit messages.
-    commit_file = layout.push_commit_file(spec.base_dir, base_name)
-    if os.path.exists(commit_file):
-        os.remove(commit_file)
-    # Erase the file we use to tell ourselves we are merging.
-    merging_indicator = layout.push_merging_file(weld_root, base_name)
-    os.remove(merging_indicator)
-    # Now remove the metadata directory.
-    os.rmdir(layout.pushing_dir(weld_root))
+    # Erase all state.
+    if (os.path.exists(layout.state_dir(weld_root))):
+        shutil.rmtree(layout.state_dir(weld_root))
 
 
 

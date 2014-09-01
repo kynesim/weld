@@ -121,11 +121,16 @@ def pull_base(spec, base_name, verbose=False, ignore_history = False):
     ops.add_seams(spec, base_obj, added_in_new, base_head)
 
     # Write some stuff to the completion file.
-    ops.write_finish_pull(spec,
-                         " pull.finish_pull(spec, %r, %r, %r, %r, %r, %r)"%
-                         (base_obj.name, orig_branch, weld_head, working_branch,
-                          last_base_sync, base_head),
-                         " pull.abort_pull(spec, %r, %r)"%(working_branch, orig_branch))
+    ops.make_verb_available(spec,
+                            'finish',
+                            " pull.finish_pull(spec, %r, %r, %r, %r, %r, %r)"%
+                            (base_obj.name, orig_branch, weld_head, working_branch,
+                             last_base_sync, base_head))
+    ops.make_verb_available(spec, 
+                            'abort',
+                            " pull.abort_pull(spec, %r, %r)"%(working_branch, orig_branch))
+
+    ops.next_verbs(spec)
 
     # Now merge master into current-branch
     try:
@@ -139,7 +144,7 @@ def pull_base(spec, base_name, verbose=False, ignore_history = False):
         return 1
 
     print("Rebase succeeded. Committing .. \n")
-    ops.do_finish(spec)
+    ops.do(spec, 'finish')
     return 0
 
 def finish_pull(spec, base_name, orig_branch, weld_head, working_branch,

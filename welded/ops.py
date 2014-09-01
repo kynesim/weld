@@ -7,6 +7,12 @@ import re
 import shutil
 import tempfile
 import traceback
+import groan
+
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 import welded.git as git
 import welded.headers as headers
@@ -214,7 +220,7 @@ def add_seams(spec, base_obj, seams, base_commit):
     git.commit(spec.base_dir, hdrs, [] )
 
 FINISH_PULL_PREFIX="import pull\n" + \
-    "def go(spec):"
+    "def go(spec):\n"
 FINISH_PULL_SUFFIX="\n"
 
 FINISH_PUSH_PREFIX="import push\n" + \
@@ -222,7 +228,7 @@ FINISH_PUSH_PREFIX="import push\n" + \
 FINISH_PUSH_SUFFIX="\n"
 
 VERB_PREFIX="import ops\n" + \
-    "def go(spec):"
+    "def go(spec):\n"
 VERB_SUFFIX="\n"
 
 def write_finish_pull(spec, cmds_ok, cmds_abort):
@@ -247,61 +253,86 @@ def write_finish_push(spec, cmds_ok, cmds_abort):
 
 def clear_verbs(spec):
     """
-    Clear all verbs available from this point
+    Clear all verbs, pending and real.
     """
     shutil.rmtree(layout.verb_dir(spec.base_dir))
+    shuilt.rmtree(layout.pending_verb_dir(spec.base_dir))
+
+def make_verb_available(spec, cmd, code):
+    try:
+        os.mkdir(layout.pending_verb_dir(spec.base_dir), 0755)
+    except:
+        pass
+
+    with open(layout.pending_verb_file(spec.base_dir, cmd), "w+") as f:
+        f.write(VERB_PREFIX)
+        for l in code:
+            f.write(' ' + l + '\n')
+        f.write(VERB_SUFFIX)
 
 def write_verbs(spec, cmds, erase_old_verbs = True):
     """
     Writes a finish spec. cmds is a hash of verb -> some text to be evaluated
     on that verb
+
+    The finish spec is written in the pending verbs directory.
     """
     if erase_old_verbs:
-        clear_verbs(spec)
+        shutil.rmtree(layout.pending_verb_dir(spec.base_dir))
+
     try:
-        os.mkdir(layout.verb_dir(spec.base_dir), 0755)
+        os.mkdir(layout.pending_verb_dir(spec.base_dir), 0755)
     except:
         pass
 
     for (cmd, text) in cmds:
-        with open(layout.verb_file(spec.base_dir, cmd), "w+") as f:
+        with open(layout.pending_verb_file(spec.base_dir, cmd), "w+") as f:
             f.write(VERB_PREFIX)
             f.write(cmds)
             f.write(VERB_SUFFIX)
 
 
-def do_verb(spec, verb, do_clear_verbs = True):
+def next_verbs(spec):
+    """
+    Remove the currently available verbs and replace them with the
+    pending verbs
+    """
+    vb =layout.verb_dir(spec.base_dir)
+    nvb = layout.pending_verb_dir(spec.base_dir)
+    if os.path.exists(vb):
+        shutil.rmtree(layout.verb_dir(spec.base_dir))
+    if os.path.exists(nvb):
+        shutil.move(nvb, vb)
+
+
+def do(spec, verb):
     """
     Perform a verb
     """
     c = layout.verb_file(spec.base_dir, verb)
     if (os.path.exists(c)):
         f = dynamic_load(c, no_pyc = True)
-        if do_clear_verbs:
-            clear_verbs(spec)
         f.go(spec)
-
-
-
-def do_finish(spec):
-    c = layout.complete_file(spec.base_dir)
-    if (os.path.exists(c)):
-        f = dynamic_load(c, no_pyc=True)
-        f.go(spec)
-        os.remove(c)
-        os.remove(layout.abort_file(spec.base_dir))
+        # Success!
+        next_verbs(spec)
     else:
-        raise GiveUp('No pending "weld pull" or "weld push" to complete')
+        raise GiveUp("You see no '%s' here. %s "%(verb, groan.with_demise()))
 
-def do_abort(spec):
-    c  = layout.abort_file(spec.base_dir)
+def available_verb(spec, verb):
+    return os.path.exists(layout.verb_file(spec.base_dir, verb))
+
+def list_verbs(spec):
+    return list_verbs_from(spec.base_dir)
+
+def list_verbs_from(base_dir):
+    c = layout.verb_dir(base_dir)
+    rv = [ ]
     if (os.path.exists(c)):
-        f = dynamic_load(c, no_pyc=True)
-        f.go(spec)
-        os.remove(c)
-        os.remove(layout.complete_file(spec.base_dir))
-    else:
-        raise GiveUp('No pending "weld pull" or "weld push" to abort')
+        for l in os.listdir(c):
+            if (l[0] != '.'):
+                rv.append(l)
+
+    return rv
 
 def count(filename):
     contents = ""
@@ -325,5 +356,21 @@ def spurious_modification(w):
     a_file = layout.count_file(w.base_dir)
     count(a_file)
     git.add(w.base_dir, [ a_file ] )
+
+def read_state_data(spec):
+    with open(layout.state_data_file(spec.base_dir), 'r') as f:
+        some_input = f.read()
+    return pickle.loads(some_input)
+
+def write_state_data(spec, data):
+    with open(layout.state_data_file(spec.base_dir), 'w') as f:
+        f.write(pickle.dumps(data))
+
+def ensure_state_dir(weld_dir):
+    try:
+        os.mkdir(layout.state_dir(weld_dir), 0755)
+    except:
+        pass
+
 
 # End file.

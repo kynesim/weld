@@ -19,9 +19,9 @@ import welded.init
 import welded.parser
 import welded.query as query
 import welded.status
+import welded.ops as ops
 
 from welded.layout import spec_file
-from welded.ops import do_finish, do_abort
 from welded.pull import pull_base
 from welded.push import push_base, report_status
 from welded.push_step import push_step
@@ -78,14 +78,22 @@ def go(args):
     cmd = args[0]
     if (cmd in g_command_dict):
         obj = g_command_dict[cmd]()
-        if (obj.needs_weld()):
-            obj.set_weld_dir(find_weld_dir(os.getcwd()))
-        return obj.go(opts, args[1:])
     else:
-        raise GiveUp('Unrecognised command %r'%cmd)
+        obj = g_command_dict['do']()
+        # .. so that there is something here to lop off in a few
+        # lines.
+        args.insert(0, 'do')
+
+    if (obj.needs_weld()):
+        weld_dir = find_weld_dir(os.getcwd())
+        obj.set_weld_dir(weld_dir)
+        ops.ensure_state_dir(weld_dir)
+
+    return obj.go(opts, args[1:])
 
 
 class Command(object):
+    cmd_name = "<PleaseRegisterYourCommand>"
     """
     Abstract base class for commands, with utilities for the wise.
     """
@@ -127,6 +135,27 @@ class Command(object):
         return bases.keys()
     
 
+@command('look')
+class Look(Command):
+    """Report the available verbs. This is typically used during an
+       operation to report the possible options for continuing the 
+       operation after manual intervention.
+
+       One day, it will also play tetris
+    """
+    
+    def syntax(self):
+        return "look"
+
+    def go(self, opts, args):
+        l = ops.list_verbs(self.spec)
+        if (len(l) > 0):
+            for x in l:
+                print "x\n"%l
+        else:
+            print "\nNo verbs available."
+
+   
 @command('init')
 class Init(Command):
     """Initialise a new weld in the current directory
@@ -298,18 +327,31 @@ class Help(Command):
         # help doesn't need a weld
         return False
 
-@command('finish')
-class Finish(Command):
+@command('do')
+class Do(Command):
     """
-    Finish a "weld pull" or a "weld pull" that needed user intervetion.
+    Performs a verb during a command that needed user intervention.
+
+    Get a list with "weld look"
 
     Remember that if you had to do "weld finish" on a "weld push", then
     you may have updated the remote base repository in a way that is not
     consistent with the equivalent source code in the main weld. As such,
     you may need to do "weld pull" of the base.
     """
+    def go(self,opts,args):
+        if (len(args)  < 1):
+            raise GiveUp("No verb supplied to 'do'")
+        ops.do(self.spec, args[0])
+
+@command('finish')
+class Finish(Command):
+    """
+    Finish a "weld pull" or a "weld pull" that needed user intervetion.
+
+    """
     def go(self, opts, args):
-        do_finish(self.spec)
+        ops.do(self.spec, 'finish')
 
 @command('abort')
 class Abort(Command):
@@ -317,7 +359,7 @@ class Abort(Command):
     Abort a "weld pull" or "weld push" that needed user intervention
     """
     def go(self, opts, args):
-        do_abort(self.spec)
+        ops.do(self.spec, 'abort')
 
 @command('query')
 class Query(Command):
@@ -379,7 +421,6 @@ class Query(Command):
             print("\n")
         else:
             raise GiveUp("No query subcommand '%s'"%cmd)
-
 
 @command('status')
 class Status(Command):
