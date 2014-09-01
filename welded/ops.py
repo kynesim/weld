@@ -221,6 +221,10 @@ FINISH_PUSH_PREFIX="import push\n" + \
     "def go(spec):"
 FINISH_PUSH_SUFFIX="\n"
 
+VERB_PREFIX="import ops\n" + \
+    "def go(spec):"
+VERB_SUFFIX="\n"
+
 def write_finish_pull(spec, cmds_ok, cmds_abort):
     with open(layout.complete_file(spec.base_dir), "w+") as f:
         f.write(FINISH_PULL_PREFIX)
@@ -240,6 +244,44 @@ def write_finish_push(spec, cmds_ok, cmds_abort):
         f.write(FINISH_PUSH_PREFIX)
         f.write(cmds_abort)
         f.write(FINISH_PUSH_SUFFIX)
+
+def clear_verbs(spec):
+    """
+    Clear all verbs available from this point
+    """
+    shutil.rmtree(layout.verb_dir(spec.base_dir))
+
+def write_verbs(spec, cmds, erase_old_verbs = True):
+    """
+    Writes a finish spec. cmds is a hash of verb -> some text to be evaluated
+    on that verb
+    """
+    if erase_old_verbs:
+        clear_verbs(spec)
+    try:
+        os.mkdir(layout.verb_dir(spec.base_dir), 0755)
+    except:
+        pass
+
+    for (cmd, text) in cmds:
+        with open(layout.verb_file(spec.base_dir, cmd), "w+") as f:
+            f.write(VERB_PREFIX)
+            f.write(cmds)
+            f.write(VERB_SUFFIX)
+
+
+def do_verb(spec, verb, do_clear_verbs = True):
+    """
+    Perform a verb
+    """
+    c = layout.verb_file(spec.base_dir, verb)
+    if (os.path.exists(c)):
+        f = dynamic_load(c, no_pyc = True)
+        if do_clear_verbs:
+            clear_verbs(spec)
+        f.go(spec)
+
+
 
 def do_finish(spec):
     c = layout.complete_file(spec.base_dir)

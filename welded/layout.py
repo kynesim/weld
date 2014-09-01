@@ -7,6 +7,12 @@ import os
 def weld_dir(base_dir):
     return os.path.join(base_dir, ".weld")
 
+def verb_dir(base_dir):
+    return os.path.join(base_dir, '.weld', 'verbs')
+
+def verb_file(base_dir,verb):
+    return os.path.join(base_dir, '.weld', 'verbs', '%s.py'%verb)
+
 def complete_file(base_dir):
     return os.path.join(base_dir, ".weld", "complete.py")
 
