@@ -283,6 +283,9 @@ def tag(where, name, commit_id, force=True, verbose=False):
         cmd = ['git', 'tag', name, commit_id]
     run_silently(cmd, cwd=where, verbose=verbose)
 
+def hard_reset(where):
+    run_silently(['git', 'reset', '--hard'], cwd = where)
+
 def diff_this(where, relative_to, commit_id, verbose=False):
     """Run "git diff" to find the changes 'commit_id' made to 'relative_to'
 

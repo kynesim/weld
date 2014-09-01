@@ -151,7 +151,7 @@ class Look(Command):
         l = ops.list_verbs(self.spec)
         if (len(l) > 0):
             for x in l:
-                print "x\n"%l
+                print "%s"%x
         else:
             print "\nNo verbs available."
 

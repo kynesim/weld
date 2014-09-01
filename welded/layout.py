@@ -19,6 +19,9 @@ def pending_verb_file(base_dir, verb):
 def state_data_file(base_dir):
     return os.path.join(base_dir, '.weld', 'state', 'data.bin')
 
+def state_data_file_x(base_dir):
+    return os.path.join(base_dir, '.weld', 'state', 'data.bin.x')
+
 def verb_dir(base_dir):
     return os.path.join(base_dir, '.weld', 'state', 'verbs')
 

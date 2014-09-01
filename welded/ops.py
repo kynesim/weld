@@ -292,6 +292,17 @@ def write_verbs(spec, cmds, erase_old_verbs = True):
             f.write(VERB_SUFFIX)
 
 
+def repeat_verbs(spec):
+    """
+    Repeat the previous verbs
+    """
+    vb =layout.verb_dir(spec.base_dir)
+    nvb = layout.pending_verb_dir(spec.base_dir)
+    if os.path.exists(vb):
+        if os.path.exists(nvb):
+            shutil.rmtree(nvb)
+        shutil.copytree(vb,nvb)
+
 def next_verbs(spec):
     """
     Remove the currently available verbs and replace them with the
@@ -330,7 +341,8 @@ def list_verbs_from(base_dir):
     if (os.path.exists(c)):
         for l in os.listdir(c):
             if (l[0] != '.'):
-                rv.append(l)
+                dot = l.find('.')
+                rv.append(l[:dot])
 
     return rv
 
@@ -363,8 +375,10 @@ def read_state_data(spec):
     return pickle.loads(some_input)
 
 def write_state_data(spec, data):
-    with open(layout.state_data_file(spec.base_dir), 'w') as f:
+    with open(layout.state_data_file_x(spec.base_dir), 'w') as f:
         f.write(pickle.dumps(data))
+    os.rename(layout.state_data_file_x(spec.base_dir),
+              layout.state_data_file(spec.base_dir))
 
 def ensure_state_dir(weld_dir):
     try:

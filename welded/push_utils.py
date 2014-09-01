@@ -83,7 +83,7 @@ def make_files_match(from_dir, to_dir, do_commits = True, verbose=False):
         git.commit_using_message(to_dir, "Add files from %s"%from_dir, verbose=verbose)
 
     if deleted_files:
-        git.rm(to_dir, deleted_files)
+        git.rm(to_dir, list(deleted_files))
         if do_commits: 
             git.commit_using_message(to_dir, "Delete files no longer in %s"%from_dir)
 

@@ -183,10 +183,13 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
             no_further_commits = True
         else:
             no_further_commits = False
-            if (state['last_committed'] is None):
-                merging_from = state['latest_sync']
+            if (state['current'] is None):
+                if (state['last_committed'] is not None):
+                    merging_from = state['last_committed']
+                else:
+                    merging_from = state['latest_sync']
             else:
-                merging_from = state['last_committed']
+                merging_from = state['current']
                 
             print "Stepping: changes merged to %s"%(state['last_committed'])
             print "          next commit is    %s"%(next_c)
@@ -214,10 +217,11 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
                     to_dir = os.path.join(base_dir, s.source)
                 push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = verbose)
 
-                if (not ('log' in state)):
-                    state['log'] = [ ]
-                if base_changes: 
-                    state['log'].extend(base_changes)
+            if (not ('log' in state)):
+                state['log'] = [ ]
+            if base_changes: 
+                base_changes.extend(state['log'])
+                state['log'] = base_changes
         
         # Stash state.
         state['current'] = next_c
@@ -239,6 +243,11 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
                                 [ 'import push_step',
                                   'push_step.commit(spec, %r, %r, %r, edit_commit_file=%s)'%\
                                   (base_name, working_branch, base_branch, edit_commit_file) ])
+
+        ops.make_verb_available(spec, 'inspect',
+                                [ 'import push_step',
+                                  'push_step.inspect(spec, %r, %r, %r, edit_commit_file=%s)'%\
+                                  (base_name, working_branch, base_branch, edit_commit_file) ])
         
         # Now work out if anything has changed.
         if (git.has_local_changes(base_dir) or no_further_commits):
@@ -248,6 +257,19 @@ def step(spec, base_name, working_branch, base_branch, edit_commit_file, verbose
 
     print "Base stepped to %s - check changes and when you are happy, either step or commit."%next_c
     return True
+
+def inspect(spec, base_name, working_branch, orig_branch, edit_commit_file, verbose = True):
+    """
+    Inspect the current set of changes 
+    """
+    state = ops.read_state_data(spec)
+    print "Commit log: "
+    if ('log' in state):
+        print "\n".join(state['log'])
+    print "\n Files affected: \n"
+    run_to_stdout(['git', 'status'], cwd=state['base_dir'])
+    ops.repeat_verbs(spec)
+
 
 def commit(spec, base_name, working_branch, orig_branch, edit_commit_file, verbose = True):
     """
@@ -289,6 +311,7 @@ def commit(spec, base_name, working_branch, orig_branch, edit_commit_file, verbo
         state['all_done'] = True
     state['log'] = [ ]
     state['commit_list'] = [ ]
+    state['last_committed'] = state['current']
     ops.write_state_data(spec, state)
 
     # From here, you can step, or abort.
@@ -417,6 +440,8 @@ def abort(spec, base_name, working_branch, orig_branch, edit_commit_file = False
     git.switch_branch(weld_root, state['current_commit'])
     # Move back on to the branch we started the base on.
     git.switch_branch(base_dir, orig_branch)
+    # git reset
+    git.hard_reset(base_dir)
     # Erase the working branch (we want to lose all work on it)
     git.remove_branch(base_dir, working_branch, irrespective = True)
     # Erase all state.
