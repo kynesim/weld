@@ -43,6 +43,13 @@ main_parser.add_option("-l", "--long-commit", action="store_true",
 main_parser.add_option("-i", "--ignore-history", action="store_true",
                        dest="ignore_history", default = False,
                        help='Ignore all history when pulling or pushing: DANGEROUS!')
+main_parser.add_option('-f', '--finish-stepping', action="store_true",
+                       dest="finish_stepping", default = False,
+                       help="When in a stepped pull or push, squash the rest of the pull " + 
+                       "or push and get to the end of the change list.")
+main_parser.add_option('--single-commit-stepping', action="store_true",
+                       dest="single_commit_stepping", default = False,
+                       help="When in a stepped pull or push, just replicate commit messages for the rest of the pull/push")
 
 # CommandName -> CommandClass
 g_command_dict = { }
@@ -256,10 +263,7 @@ class PushStep(Command):
             print 'Push-step - bases are: %s'%(', '.join(to_push))
         for base_name in to_push:
             rv = push_step(self.spec, base_name,
-                           edit_commit_file = opts.edit_commit_file,
-                           verbose = opts.verbose,
-                           long_commit = opts.long_commit,
-                           ignore_history = opts.ignore_history)
+                           opts)
             if rv != 0:
                 return rv
 
@@ -342,7 +346,7 @@ class Do(Command):
     def go(self,opts,args):
         if (len(args)  < 1):
             raise GiveUp("No verb supplied to 'do'")
-        ops.do(self.spec, args[0])
+        ops.do(self.spec, args[0], opts = opts)
 
 @command('finish')
 class Finish(Command):
@@ -351,7 +355,7 @@ class Finish(Command):
 
     """
     def go(self, opts, args):
-        ops.do(self.spec, 'finish')
+        ops.do(self.spec, 'finish', opts)
 
 @command('abort')
 class Abort(Command):
@@ -359,7 +363,7 @@ class Abort(Command):
     Abort a "weld pull" or "weld push" that needed user intervention
     """
     def go(self, opts, args):
-        ops.do(self.spec, 'abort')
+        ops.do(self.spec, 'abort', opts)
 
 @command('query')
 class Query(Command):

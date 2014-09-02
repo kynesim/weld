@@ -402,12 +402,15 @@ def has_local_changes(where, verbose=False):
     else:
         return True
 
-def list_changes(where, from_cid, to_cid, paths = None):
+def list_changes(where, from_cid, to_cid, paths = None, kind = None):
     """
     Return a list of commits in where from from_cid to to_cid, including
     to_cid but not from_cid, in the order in which they should be applied
     """
-    cmd = ["git", "rev-list", "%s...%s"%(from_cid, to_cid)]
+    cmd = ["git", "rev-list" ]
+    if (kind is not None):
+        cmd = cmd + [ kind ]
+    cmd = cmd + [ "%s...%s"%(from_cid, to_cid) ]
     if paths:
         cmd += ['--'] + paths
     rv, out = run_silently(cmd, cwd=where)

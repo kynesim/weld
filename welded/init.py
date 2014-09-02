@@ -26,9 +26,7 @@ def init_weld(weld, where):
     weld.write(layout.spec_file(weld.base_dir))
     # Create a .gitignore
     with open(os.path.join(where, ".gitignore"), "wb+") as f:
-        f.write(".weld/complete.*\n")
-        f.write(".weld/continue.*\n")
-        f.write(".weld/abort.*\n")
+        f.write(".weld/state/**\n")
         f.write(".weld/pushing\n")
         f.write(".weld/bases\n")
         # In case you edit stuff.

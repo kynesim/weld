@@ -220,15 +220,15 @@ def add_seams(spec, base_obj, seams, base_commit):
     git.commit(spec.base_dir, hdrs, [] )
 
 FINISH_PULL_PREFIX="import pull\n" + \
-    "def go(spec):\n"
+    "def go(spec, opts):\n"
 FINISH_PULL_SUFFIX="\n"
 
 FINISH_PUSH_PREFIX="import push\n" + \
-    "def go(spec):"
+    "def go(spec, opts):"
 FINISH_PUSH_SUFFIX="\n"
 
 VERB_PREFIX="import ops\n" + \
-    "def go(spec):\n"
+    "def go(spec, opts):\n"
 VERB_SUFFIX="\n"
 
 def write_finish_pull(spec, cmds_ok, cmds_abort):
@@ -257,6 +257,17 @@ def clear_verbs(spec):
     """
     shutil.rmtree(layout.verb_dir(spec.base_dir))
     shuilt.rmtree(layout.pending_verb_dir(spec.base_dir))
+
+def verb_me(spec, module, fn, verb = None):
+    """
+    Given a verb, a module and a function, import that module and call the function when
+    the verb happens, with the current spec and opts as arguments
+    """
+    if verb is None:
+        verb = fn
+    return make_verb_available(spec, verb, [ 'import %s'%module,
+                                             '%s.%s(spec, opts)'%(module, fn) ])
+
 
 def make_verb_available(spec, cmd, code):
     try:
@@ -316,14 +327,14 @@ def next_verbs(spec):
         shutil.move(nvb, vb)
 
 
-def do(spec, verb):
+def do(spec, verb, opts):
     """
     Perform a verb
     """
     c = layout.verb_file(spec.base_dir, verb)
     if (os.path.exists(c)):
         f = dynamic_load(c, no_pyc = True)
-        f.go(spec)
+        f.go(spec, opts)
         # Success!
         next_verbs(spec)
     else:
