@@ -426,6 +426,28 @@ class Query(Command):
         else:
             raise GiveUp("No query subcommand '%s'"%cmd)
 
+@command('debug')
+class Debug(Command):
+    """
+    A debugging aid. There are various subcommands:
+
+    debug state        - Print out the contents of the persistent state
+    """
+    def go(self, opts, args):
+        if (len(args) < 1):
+            raise GiveUp('Too few arguments - "weld debug <verb>"')
+        verbose = opts.verbose
+        cmd = args[0]
+        if cmd == "state":
+            st = ops.read_state_data(self.spec)
+            print "Saved state was: \n"
+            for k in st:
+                print "%s = %s"%(k, st[k])
+
+        else:
+            raise GiveUp("Invalid debug command '%s'"%cmd)
+    
+
 @command('status')
 class Status(Command):
     """
