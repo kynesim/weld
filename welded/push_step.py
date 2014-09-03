@@ -200,8 +200,9 @@ def step(spec, opts):
             print "          next commit is    %s"%(next_c)
             
             weld_directories = state['weld_directories']
-            base_changes = git.what_changed(weld_root, merging_from, next_c,
-                                            weld_directories)
+            base_changes = push_utils.escape_states(
+                git.what_changed(weld_root, merging_from, next_c,
+                                 weld_directories))
 
             if base_changes:
                 if state['verbose']:
