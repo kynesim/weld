@@ -120,15 +120,19 @@ def pull_base(spec, base_name, verbose=False, ignore_history = False):
     # Now added seams
     ops.add_seams(spec, base_obj, added_in_new, base_head)
 
+    state = { }
+    state['spec'] = spec
+    state['base_name'] = base_obj.name
+    state['orig_branch'] = orig_branch
+    state['weld_head'] = weld_head
+    state['working_branch'] = working_branch
+    state['last_base_sync'] = last_base_sync
+    state['base_head'] = base_head
+    ops.write_state_data(spec, state)
+    
     # Write some stuff to the completion file.
-    ops.make_verb_available(spec,
-                            'finish',
-                            " pull.finish_pull(spec, %r, %r, %r, %r, %r, %r)"%
-                            (base_obj.name, orig_branch, weld_head, working_branch,
-                             last_base_sync, base_head))
-    ops.make_verb_available(spec, 
-                            'abort',
-                            " pull.abort_pull(spec, %r, %r)"%(working_branch, orig_branch))
+    ops.verb_me(spec, 'pull', 'finish')
+    ops.verb_me(spec, 'pull', 'abort')
 
     ops.next_verbs(spec)
 
@@ -147,11 +151,18 @@ def pull_base(spec, base_name, verbose=False, ignore_history = False):
     ops.do(spec, 'finish')
     return 0
 
-def finish_pull(spec, base_name, orig_branch, weld_head, working_branch,
-                base_commit, base_head):
+def finish(spec, opts):
     """
     Finish a merge.
     """
+    state = ops.read_state_data(spec)
+    base_name = state['base_name']
+    orig_branch = state['orig_branch']
+    weld_head = state['weld_head']
+    working_branch = state['working_branch']
+    base_commit = state['last_base_sync']
+    base_head = state['base_head']
+
     base_obj = spec.query_base(base_name)
     hdr = merge_marker(base_obj, base_obj.get_seams(), base_head)
 
@@ -179,10 +190,13 @@ def finish_pull(spec, base_name, orig_branch, weld_head, working_branch,
     git.commit(spec.base_dir, hdr, [ ])
 
 
-def abort_pull(spec, working_branch, orig_branch):
+def abort(spec, opts):
     """
     Abort a merge
     """
+    state = ops.read_state_data(spec)
+    working_branch = state['working_branch']
+    orig_branch = state['orig_branch']
     #git.abort_rebase(spec)
     git.switch_branch(spec, orig_branch)
     git.remove_branch(spec.base_dir, working_branch)
