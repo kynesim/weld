@@ -185,6 +185,8 @@ def step(spec, opts):
             print "No further commits to add - try 'weld do commit'"
             next_c = state['current']
             no_further_commits = True
+            changed = False
+            base_changes = [ ]
         else:
             no_further_commits = False
             if (state['current'] is None):
@@ -216,27 +218,27 @@ def step(spec, opts):
             # Check out the right version of the weld
             git.checkout(weld_root, next_c)
 
-            # If nothing ostensibly changed, don't bother with a commit - 
-            #  this will have been a merge from another branch and 
-            #  there is no profit in spuriously building a base commit
-            #  which causes files to appear and disappear at random.
-            #
-            # (but if it is the last commit, we don't have a choice)
-            if changed and (not no_further_commits):
-                # Work out what changed .. 
-                for s in base_seams:
-                    from_dir = os.path.join(s.get_dest())
-                    if s.source is None:
-                        to_dir = base_dir
-                    else:
-                        to_dir = os.path.join(base_dir, s.source)
-                    push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
-
-                if (not ('log' in state)):
-                    state['log'] = [ ]
-                if base_changes: 
-                    base_changes.extend(state['log'])
-                    state['log'] = base_changes
+        # If nothing ostensibly changed, don't bother with a commit - 
+        #  this will have been a merge from another branch and 
+        #  there is no profit in spuriously building a base commit
+        #  which causes files to appear and disappear at random.
+        #
+        # (but if it is the last commit, we don't have a choice)
+        if changed or no_further_commits:
+            # Work out what changed .. 
+            for s in base_seams:
+                from_dir = os.path.join(s.get_dest())
+                if s.source is None:
+                    to_dir = base_dir
+                else:
+                    to_dir = os.path.join(base_dir, s.source)
+                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
+                    
+            if (not ('log' in state)):
+                state['log'] = [ ]
+            if base_changes: 
+                base_changes.extend(state['log'])
+                state['log'] = base_changes
 
         
         # Stash state.
@@ -250,21 +252,34 @@ def step(spec, opts):
         ops.verb_me(spec, 'push_step', 'commit')
         ops.verb_me(spec, 'push_step', 'inspect')
         
+        has_local_changes = git.has_local_changes(base_dir)
+
         # Now work out if anything has changed.
-        if (opts.single_commit_stepping and git.has_local_changes(base_dir)):
-            # Commit and continue.
-            commit(spec, opts, allow_edit = False)
-            # .. and remember to resync our state.
-            state = ops.read_state_data(spec)
-        elif ((not opts.finish_stepping) and git.has_local_changes(base_dir)):
-            break
-        
+        if has_local_changes:
+            if opts.single_commit_stepping:
+                # Commit and continue.
+                commit(spec, opts, allow_edit = False)
+                # .. and remember to resync our state.
+                state = ops.read_state_data(spec)
+            elif (not opts.finish_stepping):
+                break
+        elif no_further_commits:
+            # there are no local changes, and there never will be.
+            # All the commits in the list are non-change commits, so
+            # don't bother recording them.
+            state['all_done'] = True
+            ops.write_state_data(spec, state)
+            
+
         if no_further_commits:
             break
 
         ops.next_verbs(spec)
 
-    print "Base stepped to %s - check changes and when you are happy, either step or commit."%next_c
+    if no_further_commits:
+        print "Stepping is all done. Commit when you are ready and we will finish up."
+    else:
+        print "Base stepped to %s - check changes and when you are happy, either step or commit."%next_c
     return True
 
 def inspect(spec, opts):
