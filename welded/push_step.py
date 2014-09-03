@@ -204,29 +204,38 @@ def step(spec, opts):
                                             weld_directories)
 
             if base_changes:
+                changed = True
                 if state['verbose']:
                     print '\n'.join(base_changes)
             else:
+                changed = False
                 if state['verbose']:
                     print "Nothing changed (apparently)"
           
             # Check out the right version of the weld
             git.checkout(weld_root, next_c)
 
-            # Work out what changed .. 
-            for s in base_seams:
-                from_dir = os.path.join(s.get_dest())
-                if s.source is None:
-                    to_dir = base_dir
-                else:
-                    to_dir = os.path.join(base_dir, s.source)
-                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
+            # If nothing ostensibly changed, don't bother with a commit - 
+            #  this will have been a merge from another branch and 
+            #  there is no profit in spuriously building a base commit
+            #  which causes files to appear and disappear at random.
+            #
+            # (but if it is the last commit, we don't have a choice)
+            if changed and (not no_further_commits):
+                # Work out what changed .. 
+                for s in base_seams:
+                    from_dir = os.path.join(s.get_dest())
+                    if s.source is None:
+                        to_dir = base_dir
+                    else:
+                        to_dir = os.path.join(base_dir, s.source)
+                    push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
 
-            if (not ('log' in state)):
-                state['log'] = [ ]
-            if base_changes: 
-                base_changes.extend(state['log'])
-                state['log'] = base_changes
+                if (not ('log' in state)):
+                    state['log'] = [ ]
+                if base_changes: 
+                    base_changes.extend(state['log'])
+                    state['log'] = base_changes
 
         
         # Stash state.
@@ -241,14 +250,15 @@ def step(spec, opts):
         ops.verb_me(spec, 'push_step', 'inspect')
         
         # Now work out if anything has changed.
-        if no_further_commits:
-            break
         if (opts.single_commit_stepping and git.has_local_changes(base_dir)):
             # Commit and continue.
             commit(spec, opts, allow_edit = False)
             # .. and remember to resync our state.
             state = ops.read_state_data(spec)
         elif ((not opts.finish_stepping) and git.has_local_changes(base_dir)):
+            break
+        
+        if no_further_commits:
             break
 
         ops.next_verbs(spec)
