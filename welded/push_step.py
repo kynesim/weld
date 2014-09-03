@@ -120,7 +120,7 @@ def push_step(spec, base_name, opts):
     
     # @todo There is some controversy over how we should do this, but
     #  I think ancestry-path is the least confusing - rrw 2014-09-02.
-    changes = git.list_changes(weld_root, latest_sync, 'HEAD', kind = "--ancestry-path")
+    changes = git.list_changes(weld_root, latest_sync, 'HEAD')
     state['edit_commit_file'] = opts.edit_commit_file
     state['verbose'] = opts.verbose
     state['changes'] =  changes
