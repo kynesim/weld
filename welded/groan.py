@@ -6,8 +6,9 @@ import os
 import random
 
 MONSTERS = [ 'a newt', 'the giant zworn of azeroth', 'arg\'s debugging skills', 
-             'a giant', 'spong', 'a a bad xkcd', 
+             'a giant', 'spong', 'a bad xkcd', 
              'cracked.com', 
+             'webcomics!',
              'David' ]
 
 LOCATIONS = [ 'the gnomish mines', 
