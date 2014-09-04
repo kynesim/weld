@@ -162,7 +162,11 @@ def log_between(where, from_id, to_id, paths=None, verbose=False):
 
     Returns a sequence of lines.
     """
-    cmd = ['git', '--no-pager', 'log', '--oneline', '%s..%s'%(from_id, to_id)]
+    cmd = ['git', '--no-pager', 'log', '--oneline' ]
+    if (from_id is not None):
+        cmd += [ '%s..%s'%(from_id, to_id)]
+    else:
+        cmd += [ '%s'%to_id ]
     if paths:
         cmd += ['--'] + paths
     rv, changes = run_silently(cmd, cwd=where, verbose=verbose)

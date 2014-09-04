@@ -87,6 +87,7 @@ def pull_step(spec, base_name, opts):
     state['last_idx_committed'] = -1
     state['verbose'] = opts.verbose
     state['edit_commit_file'] = opts.edit_commit_file
+    state['long_commit'] = opts.long_commit
 
     if (state['base_last'] == last_base_sync):
         print "Your last pull from this base was '%s', which is the head of your base repo."%last_base_sync
@@ -114,8 +115,12 @@ def pull_step(spec, base_name, opts):
     # We don't need to modify, because we will do that later.
     print("Bringing weld into line with base seams at last merge")
     base_head = state['base_branch']
-    ops.delete_seams(spec, base_obj, deleted_in_new, last_base_sync)
-    ops.add_seams(spec, base_obj, added_in_new, last_base_sync)
+
+    # Before we sync we need the base to be at last_base_sync
+    if (last_base_sync is not None):
+        git.checkout(base_repo, last_base_sync)
+        ops.delete_seams(spec, base_obj, deleted_in_new, last_base_sync)
+        ops.add_seams(spec, base_obj, added_in_new, last_base_sync)
     
     ops.write_state_data(spec, state)
     ops.verb_me(spec, 'pull_step', 'abort')
@@ -144,7 +149,7 @@ def initial_commit(spec, opts):
     state = ops.read_state_data(spec)
     weld_root = state['weld_root']
     base_name = state['base_name']
-    verbose = state['verbose']
+    verbose = state['verbose'] or opts.verbose
     
     if verbose:
         print "Starting initial_commit"
@@ -176,6 +181,8 @@ def step(spec, opts):
         idx_from = state['last_idx_merged']
         base_repo = state['base_repo']
         base_seams = state['base_seams']
+        long_commit = state['long_commit'] or opts.long_commit
+        verbose = state['verbose'] or verbose
         if idx >= len(changes):
             print("All done")
             raise GiveUp("Finalisation not yet implemented")
@@ -191,11 +198,20 @@ def step(spec, opts):
         # Right. So, does this commit change something we care about?
         print "Stepping:  searching from   %s"%last_cid
         print "                     to     %s"%cid
-        base_changes = push_utils.escape_states(
-            git.what_changed(base_repo, 
-                             last_cid,
-                             cid,
-                             state['weld_directories']))
+        if (long_commit):
+            base_changes =  git.what_changed(base_repo, 
+                                             last_cid,
+                                             cid,
+                                             state['weld_directories'],
+                                             verbose = verbose)
+        else:
+            base_changes = git.log_between(base_repo,
+                                           last_cid,
+                                           cid, 
+                                           state['weld_directories'],
+                                           verbose = verbose)
+            
+        base_changes = push_utils.escape_states(base_changes)
         if base_changes:
             changed = True
             if state['verbose']:
@@ -391,7 +407,7 @@ def finish(spec, opts):
     if verbose:
         if state['verbose']:
             print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-            print 'In', base_dir
+            print 'In', base_repo
             run_to_stdout(['git', 'status'], cwd=weld_root)
             print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
