@@ -382,11 +382,6 @@ def commit_finish(spec, opts):
         print "Check out %s on the root .. "%state['current_branch']
     git.checkout(weld_root, state['current_branch'])
 
-    commit_file = layout.push_commit_file(weld_root, base_name)
-    with open(commit_file, 'w') as f:
-        f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
-        f.write('\n')
-
     mi = layout.push_merging_file(weld_root, base_name)
     if not os.path.exists(mi):
         # We weren't merging, so do ..
@@ -408,33 +403,36 @@ def commit_finish(spec, opts):
                              base_name, '\n'.join(lines), base_dir))
 
     # And then merge *that* back into the original branch
+        
+    if state['verbose']:
+        print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+        print 'In', base_dir
+        run_to_stdout(['git', 'status'], cwd=base_dir)
+        print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
     if state['verbose']:
         print 'Merge base back into original branch (%s -> %s)'%(working_branch, orig_branch)
     git.checkout(base_dir, orig_branch, verbose=verbose)
     git.merge_to_current(base_dir, working_branch, squash=False, verbose=verbose)
 
-    if os.path.exists(commit_file):
-        if state['verbose']:
-            print 'Commit using file %s'%commit_file
-        # We've still to do the commit
-        # This seems like an appropriate time to let the user edit the commit
-        # file, if they've asked to do so
-        if state['edit_commit_file']:
-            push_utils.edit_file(commit_file)
 
-        if state['verbose']:
-            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-            print 'In', base_dir
-            run_to_stdout(['git', 'status'], cwd=base_dir)
-            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    commit_file = layout.push_commit_file(weld_root, base_name)
+    with open(commit_file, 'w') as f:
+        f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
+        f.write('\n')
 
-        git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
-        if verbose:
-            print 'Deleting', commit_file
-        os.remove(commit_file)
-    else:
-        if verbose:
-            print 'There is no commit file %s'%commit_file
+    if state['verbose']:
+        print 'Commit using file %s'%commit_file
+    # We've still to do the commit
+    # This seems like an appropriate time to let the user edit the commit
+    # file, if they've asked to do so
+    if state['edit_commit_file'] or opts.edit_commit_file:
+        push_utils.edit_file(commit_file)
+        
+    git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
+    if verbose:
+        print 'Deleting', commit_file
+    os.remove(commit_file)
 
     head_base_commit = git.query_current_commit_id(base_dir)
 

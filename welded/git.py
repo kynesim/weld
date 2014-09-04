@@ -119,14 +119,13 @@ def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
                      verbose=verbose)
 
 def current_branch(where, verbose=True):
-    rv, out = run_silently(["git", "branch", "-v"], cwd=where, verbose=verbose)
-    lines = out.splitlines()
-    for l in lines:
-        l = l.strip()
-        f = l.split(' ')
-        if (f[0] == '*'):
-            return f[1]
-    return "master"
+    try:
+        rv, out = run_silently(["git", "symbolic-ref", "--short", "-q", "HEAD" ], cwd = where,
+                           verbose = verbose)
+    except GiveUp,g :
+        raise GiveUp("%s - attempt to determine the current branch for a detached HEAD in %s ?"%(g,where))        
+
+    return out
 
 def what_changed(where, commit_from, commit_to, paths = None):
     """
