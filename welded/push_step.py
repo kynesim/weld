@@ -55,8 +55,6 @@ def push_step(spec, base_name, opts):
         raise GiveUp("Half way through a pull - weld finish/weld abort and try again")
     if in_weld_push:
         raise GiveUp("Half way through a push - weld finish/weld abort and try again")
-    if should_git_pull:
-        raise GiveUp("Weld is not up to date - git pull and try again")
     if current_branch.startswith("weld-"):
         raise GiveUp("You are on a branch used by weld (%s) - get off and try again."%current_branch)
     
@@ -123,9 +121,11 @@ def push_step(spec, base_name, opts):
     changes = git.list_changes(weld_root, latest_sync, 'HEAD')
     state['edit_commit_file'] = opts.edit_commit_file
     state['verbose'] = opts.verbose
+    state['long_commits'] = opts.long_commit
     state['changes'] =  changes
-    state['current'] = None
-    state['last_committed'] = None
+    state['current_idx'] = 0
+    state['last_committed_idx'] = -1
+    state['last_merged_idx'] = -1
     state['commit_list'] = [ ]
     state['latest_sync'] = latest_sync
     state['base_seams'] = spec.bases[base_name].get_seams()
@@ -162,61 +162,67 @@ def step(spec, opts):
     Step a step-push; this means that we accumulate changes into the next change up
     """
     state = ops.read_state_data(spec)
+    verbose = opts.verbose or state['verbose']
+    long_commit = opts.long_commit or state['long_commits']
+    edit_commit_file = opts.edit_commit_file or state['edit_commit_file']
+
     # Right oh. Move up a commit in the list .. 
     weld_root = spec.base_dir
     while True:
-        prev_c = None
-        next_c = None
         base_seams = state['base_seams']
         base_dir = state['base_dir']
+        changes = state['changes']
 
-        if state['current'] is None:
-            next_c = state['changes'][0]
-            print "Starting step-push with first step %s"%next_c
+        current_idx = state['current_idx']
+        last_merged_idx = state['last_merged_idx']
+        last_committed_idx = state['last_committed_idx']
+
+        if (last_merged_idx >= 0):
+            last_merged_cid = changes[last_merged_idx]
         else:
-            print " current = %s"%state['current']
-            for c in state['changes']:
-                if prev_c == state['current']:
-                    next_c = c
-                    break
-                prev_c = c
+            last_merged_cid = None
 
-        if next_c is None:
-            print "No further commits to add - try 'weld do commit'"
-            next_c = state['current']
+        if (last_committed_idx >= 0):
+            last_committed_cid = changes[last_committed_idx]
+        else:
+            last_committed_cid = None
+
+        if (current_idx >= len(changes)):
+            print "No further commits to add - try committing."
+            cid = None
             no_further_commits = True
             changed = False
             base_changes = [ ]
         else:
             no_further_commits = False
-            if (state['current'] is None):
-                if (state['last_committed'] is not None):
-                    merging_from = state['last_committed']
-                else:
-                    merging_from = state['latest_sync']
-            else:
-                merging_from = state['current']
-                
-            print "Stepping: changes committed to %s"%(state['last_committed'])
-            print "          merging from      %s"%(merging_from)
-            print "          next commit is    %s"%(next_c)
+            cid = changes[current_idx]
+        
+            print "Stepping: changes committed to %s"%(last_committed_cid)
+            print "          merging from      %s"%(last_merged_cid)
+            print "          next commit is    %s"%(cid)
             
             weld_directories = state['weld_directories']
-            base_changes = push_utils.escape_states(
-                git.what_changed(weld_root, merging_from, next_c,
-                                 weld_directories))
+
+            if long_commit:
+                base_changes = git.what_changed(weld_root, last_merged_cid, cid,
+                                                weld_directories)
+            else:
+                base_changes = git.log_between(weld_root, last_merged_cid, cid,
+                                               weld_directories)
+               
+            base_changes = push_utils.escape_states(base_changes)
 
             if base_changes:
                 changed = True
-                if state['verbose']:
+                if verbose:
                     print '\n'.join(base_changes)
             else:
                 changed = False
-                if state['verbose']:
+                if verbose:
                     print "Nothing changed (apparently)"
           
             # Check out the right version of the weld
-            git.checkout(weld_root, next_c)
+            git.checkout(weld_root, cid)
 
         # If nothing ostensibly changed, don't bother with a commit - 
         #  this will have been a merge from another branch and 
@@ -242,8 +248,9 @@ def step(spec, opts):
 
         
         # Stash state.
-        state['current'] = next_c
-        state['commit_list'].append(next_c)
+        state['last_merged_idx'] = current_idx
+        state['current_idx'] = current_idx + 1
+        state['commit_list'].append(cid)
         ops.write_state_data(spec, state)
         
         # You can now either step, abort, or commit
@@ -300,10 +307,12 @@ def commit(spec, opts, allow_edit = True):
     Commit a compound.
     """
     state = ops.read_state_data(spec)
+    edit_commit_file = opts.edit_commit_file or state['edit_commit_file']
+    verbose = opts.verbose or state['verbose']
     if ('all_done' in state):
         return commit_finish(spec, opts)
 
-    if (state['current'] == state['changes'][-1]):
+    if (state['last_merged_idx'] >= len(state['changes'])-1):
         print 'All commits added. Finishing .. '
         finishing = True
     else:
@@ -322,7 +331,7 @@ def commit(spec, opts, allow_edit = True):
         with open(commit_file, 'w') as f:
             f.write('\n')
             changes = state['commit_list']
-            f.write('X-Weld-Stepwise: %s %s..%s'%(weld_root, changes[0], changes[-1]))
+            f.write('X-Weld-Stepwise-Push: %s %s..%s'%(weld_root, changes[0], changes[-1]))
             f.write('\n')
             if (len(state['log']) > 0):
                 f.write('\n'.join(state['log']))
@@ -330,12 +339,12 @@ def commit(spec, opts, allow_edit = True):
                 f.write('(* This commit was likely from another branch; a merge will reintroduce code higher up *)')
                     
         # Now just commit.
-        if (allow_edit and state['edit_commit_file']):
+        if (allow_edit and edit_commit_file):
             push_utils.edit_file(commit_file)
-        if state['verbose']:
+        if verbose:
             run_to_stdout(['git', 'status'], cwd = base_dir)
         git.commit_using_file(base_dir, commit_file, all= True, verbose = state['verbose'])
-        if state['verbose']:
+        if verbose:
             print "Removing temporary commit file", commit_file
         os.remove(commit_file)
     else:
@@ -345,7 +354,7 @@ def commit(spec, opts, allow_edit = True):
         state['all_done'] = True
     state['log'] = [ ]
     state['commit_list'] = [ ]
-    state['last_committed'] = state['current']
+    state['last_committed_idx'] = state['last_merged_idx']
     ops.write_state_data(spec, state)
 
     # From here, you can step, or abort.
@@ -367,8 +376,9 @@ def commit_finish(spec, opts):
     Finish off this pushed commit.
     """
     state = ops.read_state_data(spec)
-    verbose = state['verbose']
-    if state['verbose']:
+    verbose = state['verbose'] or opts.verbose
+    edit_commit_file = state['edit_commit_file'] or opts.edit_commit_file
+    if verbose:
         print "Merge back and commit this part of the push_step"
     
     weld_root = spec.base_dir
@@ -404,13 +414,13 @@ def commit_finish(spec, opts):
 
     # And then merge *that* back into the original branch
         
-    if state['verbose']:
+    if verbose:
         print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
         print 'In', base_dir
         run_to_stdout(['git', 'status'], cwd=base_dir)
         print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-    if state['verbose']:
+    if verbose:
         print 'Merge base back into original branch (%s -> %s)'%(working_branch, orig_branch)
     git.checkout(base_dir, orig_branch, verbose=verbose)
     git.merge_to_current(base_dir, working_branch, squash=False, verbose=verbose)
@@ -421,12 +431,12 @@ def commit_finish(spec, opts):
         f.write('X-Weld-State: Pushed %s from weld %s\n'%(base_name, spec.name))
         f.write('\n')
 
-    if state['verbose']:
+    if verbose:
         print 'Commit using file %s'%commit_file
     # We've still to do the commit
     # This seems like an appropriate time to let the user edit the commit
     # file, if they've asked to do so
-    if state['edit_commit_file'] or opts.edit_commit_file:
+    if edit_commit_file:
         push_utils.edit_file(commit_file)
         
     git.commit_using_file(base_dir, commit_file, all=True, verbose=verbose)
