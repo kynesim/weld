@@ -3,10 +3,12 @@ pull_step.py - Pull a base into a repo
 """
 
 import os
+import shutil
 
 import welded.git as git
 import welded.ops as ops
 import welded.layout as layout
+import welded.push_utils as push_utils
 
 from welded.headers import merge_marker
 from welded.query import query_last_merge_or_push
@@ -23,6 +25,7 @@ def pull_step(spec, base_name, opts):
     if verbose:
         print "Weld pull-step %s"%base_name
 
+    weld_root = spec.base_dir
     base_obj = spec.query_base(base_name)
     if (base_obj is None):
         raise GiveUp("No such base  '%s'"%base_name)
@@ -33,12 +36,8 @@ def pull_step(spec, base_name, opts):
         
     root_branch = git.current_branch(weld_root)
     
-    if (len(ops.list_verbse) > 0):
+    if (len(ops.list_verbs(spec)) > 0):
         raise GiveUp('We are part way through a weld operation; finish it (or abort it) and try again')
-    
-    (s_pull, s_push) = git.should_we_pull_or_push(None, root_branch, cwd = weld_root, verbose = verbose)
-    if (s_pull):
-        raise GiveUp('You should pull from your origin to make yourself up to date, or changed seams may cause pain.')
     
     if (root_branch.startswith('weld-')):
         raise GiveUp("You are currently on a branch ('%s') used by weld - please " 
@@ -46,15 +45,17 @@ def pull_step(spec, base_name, opts):
 
     root_head = git.query_current_commit_id(weld_root)
     (verb, last_weld_sync, last_base_sync, seams) = query_last_merge_or_push(weld_root, base_name)
-    if ignore_history or (last_weld_sync is None):
+    if opts.ignore_history or (last_weld_sync is None):
         # No previous merge
-        last_base_sync = git.query_init(weld_root)
+        last_weld_sync = git.query_init(weld_root)
+        last_base_sync = None
         if verbose:
             print 'No last push - using weld init at %s'%last_weld_sync[:10]
     else:
         if verbose:
             print 'Last weld sync with this base was %s at %s'%(verb, last_weld_sync[:10])
     
+
     # So, what we do now is to branch the weld at the point where the last
     # sync was. We then modify seams on that branch to what they should be.
     # 
@@ -63,13 +64,377 @@ def pull_step(spec, base_name, opts):
     #
     # Then in finalise() we merge this new weld branch with the original.
     #
-    print("Branching the weld at %s to get the last sync. "%last_base_sync)
     working_branch = git.new_branch_name(weld_root, 'weld-pulling', 
                                          last_weld_sync)
-    git.checkout(weld_root, last_weld_sync, new_branch_name = working_branch)
+    base_repo = layout.base_repo(weld_root, base_name)
 
-    # Now let's do some housekeeping.
+    # Now let's do some housekeeping so that abort() will work properly.
+    state = { }
+    state['base_last'] = git.query_current_commit_id(base_repo)        
+    state['spec'] = spec
+    state['base_name'] = base_name
+    state['base_obj'] = base_obj
+    state['weld_root'] = spec.base_dir
+    state['orig_branch'] = root_branch
+    state['working_branch' ] = working_branch
+    state['base_repo'] = base_repo
+    state['base_branch'] = git.current_branch(base_repo)
+    state['next_idx_to_merge'] = 0
+    state['last_idx_merged'] = -1
+    state['log'] = [ ]
+    state['base_seams'] = spec.bases[base_name].get_seams()
+    state['weld_directories'] = [s.get_source() for s in state['base_seams'] ]
+    state['last_idx_committed'] = -1
+    state['verbose'] = opts.verbose
+    state['edit_commit_file'] = opts.edit_commit_file
+
+    if (state['base_last'] == last_base_sync):
+        print "Your last pull from this base was '%s', which is the head of your base repo."%last_base_sync
+        print "Nothing to do."
+        return
+
+    ops.write_state_data(spec, state)
+    ops.verb_me(spec, 'pull_step', 'abort')
+    # In case initialisation fails.
+    ops.next_verbs(spec)
+
+    print("Enumerating commits on the base between last sync and current branch ('%s')"%state['base_branch'])
+    changes = git.list_changes(base_repo, last_base_sync, 'HEAD')
+    state['changes'] = changes
+
+    print("Branching the weld at %s to get the last sync. "%last_base_sync)
+    git.checkout(weld_root, commit_id = last_weld_sync, new_branch_name = working_branch)
+
+    base_obj = spec.query_base(base_name)
+
+    print("Classifying seams .. ")
+    (deleted_in_new, seams_changed, added_in_new) = classify_seams(seams, base_obj.get_seams())
+
+    # Mess with deleted and added seams since the last pull.
+    # We don't need to modify, because we will do that later.
+    print("Bringing weld into line with base seams at last merge")
+    base_head = state['base_branch']
+    ops.delete_seams(spec, base_obj, deleted_in_new, last_base_sync)
+    ops.add_seams(spec, base_obj, added_in_new, last_base_sync)
     
+    ops.write_state_data(spec, state)
+    ops.verb_me(spec, 'pull_step', 'abort')
+
+    next_action = ''
+    if (len(state.changes) > 0):
+        if git.has_local_changes(weld_root):
+            print "Seams have changed since the last push; issuing an initial commit to adjust for this"
+            state['initial_commit'] = True
+            ops.verb_me(spec, 'pull_step', 'initial_commit', verb = 'commit')
+            next_action = 'commit'
+        else:
+            ops.verb_me(spec, 'pull_step', 'step')
+            next_action = 'step'
+    else:
+        ops.verb_me(spec, 'pull_step', 'finish')
+        next_action = 'finish'
+
+    ops.next_verbs(spec)
+
+    ops.do(spec, 'commit', opts)
+
+def initial_commit(spec, opts):
+    """
+    Do a commit.
+    """
+    state = ops.read_state_data(spec)
+    weld_root = state['weld_root']
+    base_name = state['base_name']
+
+    # This is the initial cleanup commit.
+    commit_file = layout.commit_file(weld_root, base_name)
+    with open(commit_file, 'w') as f:
+        f.write('\n')
+        f.write('Initial weld adjustment for a pull from %s/%s'%(base_name, state['base_list']))
+        f.write('\n')    
+    if (state['edit_commit_file'] or opts.edit_commit_file):
+        push_utils.edit_file(commit_file)
+    git.commit_using_file(spec.base_dir, commit_file, all = True, verbose = state['verbose'])
+    ops.write_state_data(spec, state)
+    ops.verb_me(spec, 'pull_step', 'abort')
+    ops.verb_me(spec, 'pull_step', 'step')
+    ops.next_verbs(spec)
+
+
+def step(spec, opts):
+    """
+    pull-step step function; merge next-idx-to-merge. If you've run out, finish.
+    """
+    while True:
+        state = ops.read_state_data(spec)
+        weld_root = state['weld_root']
+        changes = state['changes']
+        idx = state['next_idx_to_merge']
+        idx_from = state['last_idx_merged']
+        base_root = state['base_root']
+        base_seams = state['seams']
+        if idx >= len(changes):
+            print("All done")
+            raise GiveUp("Finalisation not yet implemented")
+
+        if idx_from >= 0:
+            last_cid = changes[idx_from]
+        else:
+            last_cid = None
+
+        cid = changes[idx]
+
+        # Right. So, does this commit change something we care about?
+        print "Stepping:  merging from   %s"%cid_from
+        print "                   to     %s"%cid_to
+        base_changes = push_utils.escape_states(
+            git.what_changed(base_root, 
+                             cid_from,
+                             cid,
+                             weld_directories))
+        if base_changes:
+            changed = True
+            if state['verbose']:
+                print '\n'.join(base_changes)
+        else:
+            changed = False
+            if state['verbose']:
+                print "No explicit change for these seams in this base commit"
+        
+        if changed or no_further_commits:
+            # Check out the right version of the base.
+            git.checkout(base_dir, cid)
+
+            # Sync up the seams. There is no need for modify_seams, we can just sync.
+            for s in base_seams:
+                if s.source is None:
+                    from_dir = base_dir
+                else:
+                    from_dir = os.path.join(base_dir, s.source)
+                to_dir = os.path.join(s.get_dest())
+                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
+
+            if (not('log' in state)):
+                state['log'] = [ ]
+            if base_changes:
+                base_changes.extend(state['log'])
+                state['log'] = base_changes
+            state['last_idx_merged'] = state['next_idx_to_merge']
+
+        state['next_idx_to_merge'] = state['next_idx_to_merge'] + 1
+        # .. aaand stash everything so that commit can find it.
+
+        ops.write_state_data(spec, state)
+        ops.verb_me(spec, 'pull_step', 'step')
+        ops.verb_me(spec, 'pull_step', 'commit')
+        ops.verb_me(spec, 'pull_step', 'inspect')
+        ops.verb_me(spec, 'pull_step', 'abort')
+        
+        has_local_changes = git.has_local_changes(weld_root)
+        if has_local_changes:
+            if opts.single_commit_stepping:
+                commit(spec, opts, allow_edit = False)
+                state = ops.read_state_data(spec)
+            elif (not opts.finish_stepping):
+                break
+        elif no_further_commits:
+            state['all_done'] = True
+            
+        if no_further_commits:
+            break
+        
+        ops.next_verbs(spec)
+    
+    if no_further_commits:
+        print "Stepping complete. Commit when you are ready and we will finish the pull"
+    else:
+        print "Weld stepped to %s - check changes and when you are happy, either step or commit"%cid
+    return True
+
+def inspect(spec, opts):
+    """
+    Inspect the current log
+    """
+    state = ops.read_state_data(spec)
+    print "Commit log: "
+    if ('log' in state):
+        print "\n".join(state['log'])
+    print "\n Files affected: \n"
+    run_to_stdout(['git', 'status'], cwd=state['base_dir'])
+    ops.repeat_verbs(spec)
+
+
+def commit(spec, opts, allow_edit= True):
+    """
+    It's now time for a commit.
+    """
+    state = ops.read_state_data(spec)
+    base_name = state['base_name']
+    last_cid_committed = None
+    changes = state['changes']
+    verbose = state['verbose']
+    if (state['last_idx_committed'] >= 0):
+        last_cid_committed = changes[state['last_idx_committed']]
+    last_cid_merged = changes[state['last_idx_merged']]
+    if ('all_done' in state):
+        return commit_finish(spec, opts)
+
+    if (len(changes) == 0 or last_cid_merged == changes[-1]):
+        print "All commits added. Finishing.."
+        finishing = True
+    else:
+        finishing = False
+
+    weld_root = spec.base_dir
+    try:
+        os.makedirs(layout.pushing_dir(weld_root))
+    except:
+        pass
+
+    if (state['last_idx_committed'] != state['last_idx_merged']):
+        commit_file = layout.commit_file(weld_root, base_name)
+        with open(commit_file, 'w') as f:
+            f.write('\n')
+            if (last_cid_committed is not None):
+                dots_string = "%s..%s"%(last_cid_committed, last_cid_merged)
+            else:
+                dots_string = "%s"%last_cid_merged
+            f.write('X-Weld-Stepwise-Pull: %s %s'%(base_name, dots_string))
+            f.write('\n')
+            if (len(state['log']) > 0):
+                f.write('\n'.join(state['log']))
+            else:
+                f.write('(* No log: this commit was likely a branch switch  *)')
+        
+        # Now just commit.
+        if (allow_edit and state['edit_commit_file']):
+            push_utils.edit_file(commit_file)
+        if verbose:
+            run_to_stdout(['git', 'status'], cwd = weld_root)
+        git.commit_using_file(weld_root, commit_file, all = True, verbose = state['verbose'])
+        if verbose:
+            print "Removing temporary commit file."
+        os.remove(commit_file)
+    else:
+        print "Skipping commit - no changes to commit"
+    
+    if finishing:
+        state['all_done'] = True
+    state['log'] = [ ]
+    state['commit_list'] = [ ]
+    state['last_idx_committed'] = state['last_idx_merged']
+    ops.write_state_data(spec, state)
+    
+    if not finishing:
+        ops.verb_me(spec, 'pull_step', 'step')
+    else:
+        try:
+            commit_finish(spce, opts)
+            return
+        except:
+            ops.verb_me(spec, 'pull_step', 'commit')
+    ops.verb_me(spec, 'pull_step', 'abort')
+    
+def commit_finish(spec, opts):
+    """
+    Finish off this pull. 
+    
+    Merge the working branch back to the main weld branch.
+    """
+    state = ops.read_state_data(spec)
+    verbose = state['verbose']
+    weld_root = state['weld_root']
+    working_branch = state['working_branch']
+    orig_branch = state['orig_branch']
+    base_obj = state['base_obj']
+    base_last = state['base_last']
+    
+    if verbose:
+        print "Merging main branch into working branch .. "
+    mi = layout.merging_file(weld_root, base_name)
+    if not os.path.exists(mi):
+        # Weren't merging, so ..
+        try:
+            run_silently(['touch', mi ])
+            git.merge_to_current(weld_root, orig_branch, verbose = verbose)
+        except GiveUp as e:
+            lines = e.message.splitlines()
+            lines = ['  %s'%line for line in lines]
+            raise GiveUp('Error merging patches to base %s\n'
+                         '%s\n'
+                         'Fix the problems:\n'
+                         '  pushd %s\n'
+                         '  git status\n'
+                         '  edit <the appropriate files>\n'
+                         '  git commit -a\n'
+                         '  popd\n'
+                         'and do "weld commit", or abort using "weld abort"'%(
+                             base_name, '\n'.join(lines), base_dir))
+    if verbose:
+        if state['verbose']:
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+            print 'In', base_dir
+            run_to_stdout(['git', 'status'], cwd=weld_root)
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+    if verbose:
+        print "Merging back to orig branch .. "
+    git.checkout(weld_root, orig_branch)
+    git.merge_to_current(weld_root, working_branch, squash = False, verbose = verbose)
+    
+    commit_file = layout.commit_file(weld_root, base_name)
+    hdr = merge_marker(base_obj, base_obj.get_seams(), base_last)
+    with open(commit_file, 'w') as f:
+        write(f, '\n')
+        write(f, hdr)
+        write(f, '\n')
+    if (state['edit_commit_file'] or opts.edit_commit_file):
+        push_utils.edit_file(commit_file)
+    
+    git.commit_using_file(weld_root, commit_file, all = True, verbose = verbose)
+    if verbose:
+        print "Deleting %s"%commit_file
+    os.remove(commit_file)
+
+    # .. and that's all, folks.
+    if os.path.exists(layout.state_dir(weld_root)):
+        shutil.rmtree(layout.state_dir(weld_root))
+    
+    print "pull_step complete. Yay! "
+
+
+# End file.
+        
+    
+    
+            
+            
+    
+        
+    
+
+    
+    
+   
+
+
+def abort(spec, opts):
+    state = ops.read_state_data(spec)
+    weld_root = state['weld_root']
+    # Move the weld back to its old branch
+    git.checkout(weld_root, state['orig_branch'])
+    # Remove the working branch
+    try:
+         git.remove_branch(weld_root, state['working_branch'], irrespective = True)
+    except:
+        pass
+    # Erase all state.
+    if (os.path.exists(layout.state_dir(weld_root))):
+        shutil.rmtree(layout.state_dir(weld_root))
+
+
+
+# End file.
     
     
     

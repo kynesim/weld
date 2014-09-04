@@ -134,8 +134,11 @@ def what_changed(where, commit_from, commit_to, paths = None):
     
     Changes are returned in a list, one at a time.
     """
-    cmd = ["git", "whatchanged", "-m",
-           "%s..%s"%(commit_from,commit_to) ]
+    cmd = ["git", "whatchanged", "-m" ]
+    if (commit_from is None):
+        cmd += [ '%s'%commit_to ]
+    else:
+        cmd += [ "%s..%s"%(commit_from,commit_to) ]
     if (paths is not None):
         cmd += [ '--' ] + paths
     rv, out = run_silently(cmd, cwd = where)
@@ -409,7 +412,10 @@ def list_changes(where, from_cid, to_cid, paths = None, kind = None):
     cmd = ["git", "rev-list" ]
     if (kind is not None):
         cmd = cmd + [ kind ]
-    cmd = cmd + [ "%s...%s"%(from_cid, to_cid) ]
+    if from_cid is None:
+        cmd += [ '%s'%to_cid ]
+    else:
+        cmd = cmd + [ "%s...%s"%(from_cid, to_cid) ]
     if paths:
         cmd += ['--'] + paths
     rv, out = run_silently(cmd, cwd=where)

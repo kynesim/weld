@@ -25,6 +25,7 @@ from welded.layout import spec_file
 from welded.pull import pull_base
 from welded.push import push_base, report_status
 from welded.push_step import push_step
+from welded.pull_step import pull_step
 from welded.utils import Bug, GiveUp, find_weld_dir
 
 main_parser = OptionParser(usage = __doc__)
@@ -235,6 +236,27 @@ class Pull(Command):
         for p in to_pull:
             rv = pull_base(self.spec, p, verbose=opts.verbose, ignore_history=opts.ignore_history)
             if rv != 0:
+                return rv
+
+@command('pull-step')
+class PullStep(Command):
+    """
+    Pull the named base a step at a time.
+    
+    A pullstep is exactly like a pull (and takes the same options)
+    except that the individual commits from the base are merged into
+    the weld.
+    """
+    def go(self, opts, args):
+        to_pull = self.base_set_from_args(args)
+        if len(to_pull) == 0:
+            print "You must name a base to pull"
+            return 1
+        if opts.verbose:
+            print 'Pull-step - bases are: %s'%(', '.join(to_pull))
+        for base_name in to_pull:
+            rv = pull_step(self.spec, base_name, opts)
+            if (rv != 0):
                 return rv
 
 @command('push-step')

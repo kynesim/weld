@@ -40,10 +40,16 @@ def count_file(base_dir):
 def pushing_dir(base_dir):
     return os.path.join(base_dir, '.weld', 'state', 'pushing')
 
+def commit_file(base_dir, base_name):
+    return os.path.join(base_dir, '.weld', 'state', '_commit_%s.txt'%base_name)
+
 def push_commit_file(base_dir, base_name):
     return os.path.join(base_dir, '.weld', 'state', 'pushing', '_commit_%s.txt'%base_name)
 
 def push_merging_file(base_dir, base_name):
     return os.path.join(base_dir, '.weld', 'state', 'pushing', '_merging_%s'%base_name)
+
+def merging_file(base_dir, base_name):
+    return os.path.join(base_dir, '.weld', 'state', 'merging_%s'%base_name)
 
 # End file.

@@ -147,7 +147,7 @@ def pull_base(spec, base_name, verbose=False, ignore_history = False):
         print "or do 'weld abort' to give up."
         return 1
 
-    print("Rebase succeeded. Committing .. \n")
+    print("Merge succeeded. Committing .. \n")
     ops.do(spec, 'finish')
     return 0
 

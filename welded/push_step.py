@@ -483,7 +483,10 @@ def abort(spec, opts):
     # git reset
     git.hard_reset(base_dir)
     # Erase the working branch (we want to lose all work on it)
-    git.remove_branch(base_dir, working_branch, irrespective = True)
+    try:
+        git.remove_branch(base_dir, working_branch, irrespective = True)
+    except:
+        pass
     # Erase all state.
     if (os.path.exists(layout.state_dir(weld_root))):
         shutil.rmtree(layout.state_dir(weld_root))
