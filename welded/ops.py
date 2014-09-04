@@ -319,6 +319,7 @@ def next_verbs(spec):
     Remove the currently available verbs and replace them with the
     pending verbs
     """
+    #traceback.print_stack()
     vb =layout.verb_dir(spec.base_dir)
     nvb = layout.pending_verb_dir(spec.base_dir)
     if os.path.exists(vb):
@@ -327,7 +328,7 @@ def next_verbs(spec):
         shutil.move(nvb, vb)
 
 
-def do(spec, verb, opts):
+def do(spec, verb, opts, do_next_verbs = False):
     """
     Perform a verb
     """
@@ -336,7 +337,8 @@ def do(spec, verb, opts):
         f = dynamic_load(c, no_pyc = True)
         f.go(spec, opts)
         # Success!
-        next_verbs(spec)
+        if do_next_verbs:
+            next_verbs(spec)
     else:
         raise GiveUp("You see no '%s' here. %s "%(verb, groan.with_demise()))
 

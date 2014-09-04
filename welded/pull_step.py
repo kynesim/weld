@@ -175,7 +175,7 @@ def step(spec, opts):
         idx = state['next_idx_to_merge']
         idx_from = state['last_idx_merged']
         base_repo = state['base_repo']
-        base_seams = state['seams']
+        base_seams = state['base_seams']
         if idx >= len(changes):
             print("All done")
             raise GiveUp("Finalisation not yet implemented")
@@ -186,15 +186,16 @@ def step(spec, opts):
             last_cid = None
 
         cid = changes[idx]
+        no_further_commits = (idx == len(changes)-1)
 
         # Right. So, does this commit change something we care about?
-        print "Stepping:  merging from   %s"%cid_from
-        print "                   to     %s"%cid_to
+        print "Stepping:  searching from   %s"%last_cid
+        print "                     to     %s"%cid
         base_changes = push_utils.escape_states(
             git.what_changed(base_repo, 
-                             cid_from,
+                             last_cid,
                              cid,
-                             weld_directories))
+                             state['weld_directories']))
         if base_changes:
             changed = True
             if state['verbose']:
@@ -227,18 +228,22 @@ def step(spec, opts):
         state['next_idx_to_merge'] = state['next_idx_to_merge'] + 1
         # .. aaand stash everything so that commit can find it.
 
+        print("AAAA")
         ops.write_state_data(spec, state)
         ops.verb_me(spec, 'pull_step', 'step')
-        ops.verb_me(spec, 'pull_step', 'commit')
+        if (state['last_idx_merged'] >= 0):
+            ops.verb_me(spec, 'pull_step', 'commit')
         ops.verb_me(spec, 'pull_step', 'inspect')
         ops.verb_me(spec, 'pull_step', 'abort')
         
+        print("BBBB")
         has_local_changes = git.has_local_changes(weld_root)
         if has_local_changes:
             if opts.single_commit_stepping:
                 commit(spec, opts, allow_edit = False)
                 state = ops.read_state_data(spec)
             elif (not opts.finish_stepping):
+                print("CCCC");
                 break
         elif no_further_commits:
             state['all_done'] = True
@@ -246,13 +251,15 @@ def step(spec, opts):
         if no_further_commits:
             break
         
+        print("DDDD")
         ops.next_verbs(spec)
     
     if no_further_commits:
         print "Stepping complete. Commit when you are ready and we will finish the pull"
     else:
         print "Weld stepped to %s - check changes and when you are happy, either step or commit"%cid
-    return True
+        print "%s"%ops.list_verbs(spec)
+
 
 def inspect(spec, opts):
     """

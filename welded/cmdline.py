@@ -368,7 +368,7 @@ class Do(Command):
     def go(self,opts,args):
         if (len(args)  < 1):
             raise GiveUp("No verb supplied to 'do'")
-        ops.do(self.spec, args[0], opts = opts)
+        ops.do(self.spec, args[0], opts = opts, do_next_verbs = True)
 
 @command('finish')
 class Finish(Command):
@@ -377,7 +377,7 @@ class Finish(Command):
 
     """
     def go(self, opts, args):
-        ops.do(self.spec, 'finish', opts)
+        ops.do(self.spec, 'finish', opts, do_next_verbs = True)
 
 @command('abort')
 class Abort(Command):
@@ -385,7 +385,7 @@ class Abort(Command):
     Abort a "weld pull" or "weld push" that needed user intervention
     """
     def go(self, opts, args):
-        ops.do(self.spec, 'abort', opts)
+        ops.do(self.spec, 'abort', opts, do_next_verbs = True)
 
 @command('query')
 class Query(Command):
