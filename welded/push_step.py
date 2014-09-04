@@ -477,7 +477,7 @@ def abort(spec, opts):
         pass
         
     # Move back on the weld.
-    git.switch_branch(weld_root, state['current_commit'])
+    git.switch_branch(weld_root, state['current_branch'])
     # Move back on to the branch we started the base on.
     git.switch_branch(base_dir, state['base_branch'])
     # git reset

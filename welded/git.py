@@ -125,7 +125,7 @@ def current_branch(where, verbose=True):
     except GiveUp,g :
         raise GiveUp("%s - attempt to determine the current branch for a detached HEAD in %s ?"%(g,where))        
 
-    return out
+    return out.strip()
 
 def what_changed(where, commit_from, commit_to, paths = None):
     """
