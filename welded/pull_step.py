@@ -121,7 +121,7 @@ def pull_step(spec, base_name, opts):
     ops.verb_me(spec, 'pull_step', 'abort')
 
     next_action = ''
-    if (len(state.changes) > 0):
+    if (len(state['changes']) > 0):
         if git.has_local_changes(weld_root):
             print "Seams have changed since the last push; issuing an initial commit to adjust for this"
             state['initial_commit'] = True
@@ -135,8 +135,7 @@ def pull_step(spec, base_name, opts):
         next_action = 'finish'
 
     ops.next_verbs(spec)
-
-    ops.do(spec, 'commit', opts)
+    ops.do(spec, next_action, opts)
 
 def initial_commit(spec, opts):
     """
@@ -145,12 +144,16 @@ def initial_commit(spec, opts):
     state = ops.read_state_data(spec)
     weld_root = state['weld_root']
     base_name = state['base_name']
+    verbose = state['verbose']
+    
+    if verbose:
+        print "Starting initial_commit"
 
     # This is the initial cleanup commit.
     commit_file = layout.commit_file(weld_root, base_name)
     with open(commit_file, 'w') as f:
         f.write('\n')
-        f.write('Initial weld adjustment for a pull from %s/%s'%(base_name, state['base_list']))
+        f.write('Initial weld adjustment for a pull from %s/%s'%(base_name, state['base_last']))
         f.write('\n')    
     if (state['edit_commit_file'] or opts.edit_commit_file):
         push_utils.edit_file(commit_file)
@@ -159,7 +162,7 @@ def initial_commit(spec, opts):
     ops.verb_me(spec, 'pull_step', 'abort')
     ops.verb_me(spec, 'pull_step', 'step')
     ops.next_verbs(spec)
-
+    ops.do(spec, 'step', opts)
 
 def step(spec, opts):
     """
@@ -171,7 +174,7 @@ def step(spec, opts):
         changes = state['changes']
         idx = state['next_idx_to_merge']
         idx_from = state['last_idx_merged']
-        base_root = state['base_root']
+        base_repo = state['base_repo']
         base_seams = state['seams']
         if idx >= len(changes):
             print("All done")
@@ -188,7 +191,7 @@ def step(spec, opts):
         print "Stepping:  merging from   %s"%cid_from
         print "                   to     %s"%cid_to
         base_changes = push_utils.escape_states(
-            git.what_changed(base_root, 
+            git.what_changed(base_repo, 
                              cid_from,
                              cid,
                              weld_directories))
@@ -210,7 +213,7 @@ def step(spec, opts):
                 if s.source is None:
                     from_dir = base_dir
                 else:
-                    from_dir = os.path.join(base_dir, s.source)
+                    from_dir = os.path.join(base_repo, s.source)
                 to_dir = os.path.join(s.get_dest())
                 push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
 
@@ -369,7 +372,7 @@ def commit_finish(spec, opts):
                          '  git commit -a\n'
                          '  popd\n'
                          'and do "weld commit", or abort using "weld abort"'%(
-                             base_name, '\n'.join(lines), base_dir))
+                    base_name, '\n'.join(lines), base_dir))
     if verbose:
         if state['verbose']:
             print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
