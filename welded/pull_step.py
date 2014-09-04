@@ -13,7 +13,7 @@ import welded.push_utils as push_utils
 from welded.headers import merge_marker
 from welded.query import query_last_merge_or_push
 from welded.status import get_status
-from welded.utils import GiveUp, classify_seams
+from welded.utils import GiveUp, classify_seams, run_to_stdout, run_silently
 
 def pull_step(spec, base_name, opts):
     """
@@ -207,15 +207,16 @@ def step(spec, opts):
         
         if changed or no_further_commits:
             # Check out the right version of the base.
-            git.checkout(base_dir, cid)
+            git.checkout(base_repo, cid)
 
             # Sync up the seams. There is no need for modify_seams, we can just sync.
             for s in base_seams:
                 if s.source is None:
-                    from_dir = base_dir
+                    from_dir = base_repo
                 else:
                     from_dir = os.path.join(base_repo, s.source)
-                to_dir = os.path.join(s.get_dest())
+                to_dir = os.path.join(weld_root, s.get_dest())
+                #print "s = %s"%s
                 push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
 
             if (not('log' in state)):
@@ -227,38 +228,45 @@ def step(spec, opts):
 
         state['next_idx_to_merge'] = state['next_idx_to_merge'] + 1
         # .. aaand stash everything so that commit can find it.
+        has_local_changes = git.has_local_changes(weld_root)
 
-        print("AAAA")
         ops.write_state_data(spec, state)
-        ops.verb_me(spec, 'pull_step', 'step')
-        if (state['last_idx_merged'] >= 0):
-            ops.verb_me(spec, 'pull_step', 'commit')
+        if ((not has_local_changes) and no_further_commits):
+            ops.verb_me(spec, 'pull_step', 'finish')
+        else:
+            ops.verb_me(spec, 'pull_step', 'step')
+            if (state['last_idx_merged'] >= 0):
+                ops.verb_me(spec, 'pull_step', 'commit')
+
         ops.verb_me(spec, 'pull_step', 'inspect')
         ops.verb_me(spec, 'pull_step', 'abort')
         
-        print("BBBB")
-        has_local_changes = git.has_local_changes(weld_root)
         if has_local_changes:
-            if opts.single_commit_stepping:
+            if opts.single_commit_stepping and state['last_idx_merged'] >= 0:
                 commit(spec, opts, allow_edit = False)
                 state = ops.read_state_data(spec)
-            elif (not opts.finish_stepping):
-                print("CCCC");
+            elif (not opts.finish_stepping) or state['last_idx_merged'] < 0 :
                 break
         elif no_further_commits:
             state['all_done'] = True
+            ops.write_state_data(spec, state)
+        
             
         if no_further_commits:
             break
         
-        print("DDDD")
         ops.next_verbs(spec)
     
     if no_further_commits:
-        print "Stepping complete. Commit when you are ready and we will finish the pull"
+        if ('all_done' in state):
+            print "All done. Do 'weld finish' when ready"
+        else:
+            print "Stepping complete. Commit when you are ready and we will finish the pull"
     else:
         print "Weld stepped to %s - check changes and when you are happy, either step or commit"%cid
-        print "%s"%ops.list_verbs(spec)
+        if (state['last_idx_merged'] < 0):
+            print(" - We stopped because there are local changes here that don't correspond to a \n" 
+                  "   base commit; you likely need to commit a .gitignore or those changes manually.\n")
 
 
 def inspect(spec, opts):
@@ -270,7 +278,7 @@ def inspect(spec, opts):
     if ('log' in state):
         print "\n".join(state['log'])
     print "\n Files affected: \n"
-    run_to_stdout(['git', 'status'], cwd=state['base_dir'])
+    run_to_stdout(['git', 'status'], cwd=state['base_repo'])
     ops.repeat_verbs(spec)
 
 
@@ -282,12 +290,11 @@ def commit(spec, opts, allow_edit= True):
     base_name = state['base_name']
     last_cid_committed = None
     changes = state['changes']
-    verbose = state['verbose']
+    verbose = state['verbose'] or opts.verbose
+    edit_commit_file = state['edit_commit_file'] or opts.edit_commit_file
     if (state['last_idx_committed'] >= 0):
         last_cid_committed = changes[state['last_idx_committed']]
     last_cid_merged = changes[state['last_idx_merged']]
-    if ('all_done' in state):
-        return commit_finish(spec, opts)
 
     if (len(changes) == 0 or last_cid_merged == changes[-1]):
         print "All commits added. Finishing.."
@@ -317,7 +324,7 @@ def commit(spec, opts, allow_edit= True):
                 f.write('(* No log: this commit was likely a branch switch  *)')
         
         # Now just commit.
-        if (allow_edit and state['edit_commit_file']):
+        if (allow_edit and edit_commit_file):
             push_utils.edit_file(commit_file)
         if verbose:
             run_to_stdout(['git', 'status'], cwd = weld_root)
@@ -338,26 +345,27 @@ def commit(spec, opts, allow_edit= True):
     if not finishing:
         ops.verb_me(spec, 'pull_step', 'step')
     else:
-        try:
-            commit_finish(spce, opts)
-            return
-        except:
-            ops.verb_me(spec, 'pull_step', 'commit')
+        ops.verb_me(spec, 'pull_step', 'finish')
+        print "We are all done; use 'weld finish' to finish the pull"
+
     ops.verb_me(spec, 'pull_step', 'abort')
     
-def commit_finish(spec, opts):
+def finish(spec, opts):
     """
     Finish off this pull. 
     
     Merge the working branch back to the main weld branch.
     """
     state = ops.read_state_data(spec)
-    verbose = state['verbose']
+    verbose = state['verbose'] or opts.verbose
     weld_root = state['weld_root']
     working_branch = state['working_branch']
     orig_branch = state['orig_branch']
     base_obj = state['base_obj']
     base_last = state['base_last']
+    base_name = state['base_name']
+    base_repo = state['base_repo']
+    edit_commit_file = state['edit_commit_file'] or opts.edit_commit_file
     
     if verbose:
         print "Merging main branch into working branch .. "
@@ -378,8 +386,8 @@ def commit_finish(spec, opts):
                          '  edit <the appropriate files>\n'
                          '  git commit -a\n'
                          '  popd\n'
-                         'and do "weld commit", or abort using "weld abort"'%(
-                    base_name, '\n'.join(lines), base_dir))
+                         'and do "weld finish", or abort using "weld abort"'%(
+                    base_name, '\n'.join(lines), base_repo))
     if verbose:
         if state['verbose']:
             print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -392,13 +400,15 @@ def commit_finish(spec, opts):
     git.checkout(weld_root, orig_branch)
     git.merge_to_current(weld_root, working_branch, squash = False, verbose = verbose)
     
+    if verbose:
+        print "Leaving pull marker .. "
     commit_file = layout.commit_file(weld_root, base_name)
     hdr = merge_marker(base_obj, base_obj.get_seams(), base_last)
     with open(commit_file, 'w') as f:
-        write(f, '\n')
-        write(f, hdr)
-        write(f, '\n')
-    if (state['edit_commit_file'] or opts.edit_commit_file):
+        f.write('\n')
+        f.write(hdr)
+        f.write('\n')
+    if (edit_commit_file):
         push_utils.edit_file(commit_file)
     
     git.commit_using_file(weld_root, commit_file, all = True, verbose = verbose)
@@ -412,25 +422,13 @@ def commit_finish(spec, opts):
     
     print "pull_step complete. Yay! "
 
-
-# End file.
-        
-    
-    
-            
-            
-    
-        
-    
-
-    
-    
-   
-
-
 def abort(spec, opts):
     state = ops.read_state_data(spec)
     weld_root = state['weld_root']
+    # Check out the right version of the base.
+    git.checkout(state['base_repo'], state['base_branch'])
+    # Remove anything compromising ..
+    git.hard_reset(weld_root)
     # Move the weld back to its old branch
     git.checkout(weld_root, state['orig_branch'])
     # Remove the working branch
