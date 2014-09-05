@@ -127,7 +127,8 @@ def current_branch(where, verbose=True):
 
     return out.strip()
 
-def what_changed(where, commit_from, commit_to, paths = None):
+def what_changed(where, commit_from, commit_to, paths = None, verbose = False, opts = None,
+                 splitre = 'commit '):
     """
     Retrieves the full log entry for a commit, as given by 
     'git whatchanged', with a list of changes.
@@ -139,14 +140,20 @@ def what_changed(where, commit_from, commit_to, paths = None):
         cmd += [ '%s'%commit_to ]
     else:
         cmd += [ "%s..%s"%(commit_from,commit_to) ]
+    if (opts is not None):
+        cmd += opts
     if (paths is not None):
         cmd += [ '--' ] + paths
     rv, out = run_silently(cmd, cwd = where)
-    # ugh.
-    return map(lambda x : "commit " + x, 
-               filter(lambda x: len(x) > 0 and True or False,
-                      re.split(r'^commit ', out, flags = re.MULTILINE)))
-
+    an_array = re.split('(^%s)'%splitre, out, flags=re.MULTILINE)
+    # Kill anything before the first marker.
+    ra = [ ]
+    if (len(an_array) > 0):
+        an_array = an_array[1:]
+        while (len(an_array) > 0):
+            ra.append( (an_array[0] + an_array[1]) )
+            an_array = an_array[2:]
+    return ra
    
 
 def log(where, commit_id):
@@ -157,12 +164,16 @@ def log(where, commit_id):
                        cwd=where)
     return out
 
-def log_between(where, from_id, to_id, paths=None, verbose=False):
+def log_between(where, from_id, to_id, paths=None, verbose=False, opts = None):
     """Do a git log for "<from_id>..<to_id> -- <paths>"
 
     Returns a sequence of lines.
     """
-    cmd = ['git', '--no-pager', 'log', '--oneline' ]
+    cmd = ['git', '--no-pager', 'log' ]
+    if (opts is not None):
+        cmd += opts
+    else:
+        cmd += [ '--oneline' ]
     if (from_id is not None):
         cmd += [ '%s..%s'%(from_id, to_id)]
     else:
@@ -380,17 +391,17 @@ def ff_merge(where, branch_name, verbose=False):
     run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where,
                  verbose=verbose)
 
-def merge_to_current(where, branch_name, squash=False, verbose=False):
+def merge_to_current(where, branch_name, squash=False, verbose=False, commit = False):
     """Do a "normal" merge of branch 'branch_name' to the current branch.
 
-    Do not commit.
+    Do not commit unless commit is set to try.
 
     If 'squash' is true, then do a squash merge with --squash.
     """
     cmd = ['git', 'merge', branch_name]
     if squash:
         cmd.append('--squash')
-    else:
+    elif not commit:
         cmd.append('--no-commit')
     run_silently(cmd, cwd=where, verbose=verbose)
 
@@ -408,12 +419,14 @@ def has_local_changes(where, verbose=False):
     else:
         return True
 
-def list_changes(where, from_cid, to_cid, paths = None, kind = None):
+def list_changes(where, from_cid, to_cid, paths = None, kind = None, opts = None):
     """
     Return a list of commits in where from from_cid to to_cid, including
     to_cid but not from_cid, in the order in which they should be applied
     """
     cmd = ["git", "rev-list" ]
+    if (opts is not None):
+        cmd = cmd + opts
     if (kind is not None):
         cmd = cmd + [ kind ]
     if from_cid is None:

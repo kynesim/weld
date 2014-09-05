@@ -13,7 +13,8 @@ import welded.push_utils as push_utils
 from welded.headers import merge_marker
 from welded.query import query_last_merge_or_push
 from welded.status import get_status
-from welded.utils import GiveUp, classify_seams, run_to_stdout, run_silently
+from welded.utils import GiveUp, classify_seams, run_to_stdout, run_silently, \
+    get_default_commit_style
 
 def pull_step(spec, base_name, opts):
     """
@@ -87,7 +88,10 @@ def pull_step(spec, base_name, opts):
     state['last_idx_committed'] = -1
     state['verbose'] = opts.verbose
     state['edit_commit_file'] = opts.edit_commit_file
-    state['long_commit'] = opts.long_commit
+    if (opts.commit_style is None):
+        state['commit_style'] = get_default_commit_style()
+    else:
+        state['commit_style'] = opts.commit_style
 
     if (state['base_last'] == last_base_sync):
         print "Your last pull from this base was '%s', which is the head of your base repo."%last_base_sync
@@ -100,7 +104,7 @@ def pull_step(spec, base_name, opts):
     ops.next_verbs(spec)
 
     print("Enumerating commits on the base between last sync and current branch ('%s')"%state['base_branch'])
-    changes = git.list_changes(base_repo, last_base_sync, 'HEAD')
+    changes = ops.list_changes(base_repo, last_base_sync, 'HEAD')
     state['changes'] = changes
 
     print("Branching the weld at %s to get the last sync. "%last_base_sync)
@@ -150,7 +154,6 @@ def initial_commit(spec, opts):
     weld_root = state['weld_root']
     base_name = state['base_name']
     verbose = state['verbose'] or opts.verbose
-    
     if verbose:
         print "Starting initial_commit"
 
@@ -181,8 +184,12 @@ def step(spec, opts):
         idx_from = state['last_idx_merged']
         base_repo = state['base_repo']
         base_seams = state['base_seams']
-        long_commit = state['long_commit'] or opts.long_commit
-        verbose = state['verbose'] or verbose
+        verbose = state['verbose'] or opts.verbose
+        if opts.commit_style is not None:
+            commit_style = opts.commit_style
+        else:
+            commit_style = state['commit_style']
+
         if idx >= len(changes):
             print("All done")
             raise GiveUp("Finalisation not yet implemented")
@@ -198,18 +205,9 @@ def step(spec, opts):
         # Right. So, does this commit change something we care about?
         print "Stepping:  searching from   %s"%last_cid
         print "                     to     %s"%cid
-        if (long_commit):
-            base_changes =  git.what_changed(base_repo, 
-                                             last_cid,
-                                             cid,
-                                             state['weld_directories'],
-                                             verbose = verbose)
-        else:
-            base_changes = git.log_between(base_repo,
-                                           last_cid,
-                                           cid, 
-                                           state['weld_directories'],
-                                           verbose = verbose)
+        base_changes = ops.log_changes(base_repo, last_cid, cid,
+                                       state['weld_directories'],
+                                       commit_style)
             
         base_changes = push_utils.escape_states(base_changes)
         if base_changes:
@@ -294,7 +292,7 @@ def inspect(spec, opts):
     if ('log' in state):
         print "\n".join(state['log'])
     print "\n Files affected: \n"
-    run_to_stdout(['git', 'status'], cwd=state['base_repo'])
+    run_to_stdout(['git', 'status'], cwd=state['weld_root'])
     ops.repeat_verbs(spec)
 
 
@@ -383,27 +381,23 @@ def finish(spec, opts):
     base_repo = state['base_repo']
     edit_commit_file = state['edit_commit_file'] or opts.edit_commit_file
     
-    if verbose:
-        print "Merging main branch into working branch .. "
     mi = layout.merging_file(weld_root, base_name)
     if not os.path.exists(mi):
         # Weren't merging, so ..
         try:
+            if verbose:
+                print "Merging main branch into working branch .. "
             run_silently(['touch', mi ])
-            git.merge_to_current(weld_root, orig_branch, verbose = verbose)
+            git.merge_to_current(weld_root, orig_branch, verbose = verbose, commit = True)
         except GiveUp as e:
             lines = e.message.splitlines()
             lines = ['  %s'%line for line in lines]
-            raise GiveUp('Error merging patches to base %s\n'
-                         '%s\n'
-                         'Fix the problems:\n'
-                         '  pushd %s\n'
-                         '  git status\n'
-                         '  edit <the appropriate files>\n'
-                         '  git commit -a\n'
-                         '  popd\n'
-                         'and do "weld finish", or abort using "weld abort"'%(
+            raise GiveUp(ops.merge_advice(
                     base_name, '\n'.join(lines), base_repo))
+    else:
+        if verbose:
+            print "Merge complete."
+
     if verbose:
         if state['verbose']:
             print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'

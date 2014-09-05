@@ -38,9 +38,12 @@ main_parser.add_option("-t", "--tuple", action="store_true",
 main_parser.add_option("-e", "--edit", action="store_true",
                        dest="edit_commit_file", default = False,
                        help='edit the "weld push" commit file for each base before using it')
-main_parser.add_option("-l", "--long-commit", action="store_true",
-                       dest="long_commit", default = False,
-                       help='Use long commit messages rather than the default summary message')
+main_parser.add_option("--commit-style", action="store",
+                       dest="commit_style", default = None,
+                       help=( "Indicate the desired commit style for this operation:\n"
+                              "  oneline       (default) git log --oneline \n"
+                              "  long          The whatchanged summary of changes\n"
+                              "  summary       The summary list of changes (default)\n") )
 main_parser.add_option("-i", "--ignore-history", action="store_true",
                        dest="ignore_history", default = False,
                        help='Ignore all history when pulling or pushing: DANGEROUS!')
@@ -234,7 +237,8 @@ class Pull(Command):
         if opts.verbose:
             print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
-            rv = pull_base(self.spec, p, verbose=opts.verbose, ignore_history=opts.ignore_history)
+            opts.finish_stepping = True
+            rv = pull_step(self.spec, base_name, opts)
             if rv != 0:
                 return rv
 
@@ -327,11 +331,8 @@ class Push(Command):
         if opts.verbose:
             print "Pushing bases: %s"%(', '.join(to_push))
         for base_name in to_push:
-            rv = push_base(self.spec, base_name,
-                           edit_commit_file=opts.edit_commit_file,
-                           verbose=opts.verbose,
-                           long_commit = opts.long_commit,
-                           ignore_history = opts.ignore_history)
+            opts.finish_stepping = True
+            rv = push_step(sefl.spec, base_name, opts)
             if rv != 0:
                 return rv
 
@@ -342,7 +343,7 @@ class Help(Command):
     """
     def go(self, opts, args):
         print("Weld: \n")
-        print(" --verbose             Be verbose \n")
+        print main_parser.print_help()
         print("\nWeld commands: \n ")
         for c in g_command_names:
             obj = g_command_dict[c]()
@@ -454,6 +455,7 @@ class Debug(Command):
     A debugging aid. There are various subcommands:
 
     debug state        - Print out the contents of the persistent state
+    debug log style cid1 cid2  - Print a summary log for cid, to check whatchanged.
     """
     def go(self, opts, args):
         if (len(args) < 1):
@@ -465,7 +467,13 @@ class Debug(Command):
             print "Saved state was: \n"
             for k in st:
                 print "%s = %s"%(k, st[k])
-
+        elif cmd == "log":
+            if (len(args) < 4):
+                raise GiveUp('too few arguments - "log <style> <cid1> <cid2>"')
+            some_things = ops.log_changes(self.spec.base_dir, args[2], args[3], None,
+                                          style = args[1])
+            for x in some_things:
+                print "THING>%s"%x
         else:
             raise GiveUp("Invalid debug command '%s'"%cmd)
     

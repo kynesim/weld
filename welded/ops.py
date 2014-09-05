@@ -399,5 +399,43 @@ def ensure_state_dir(weld_dir):
     except:
         pass
 
+def list_changes(where, cid_from, cid_to):
+    return git.list_changes(where, cid_from, cid_to, opts = [ '--topo-order' ])
+
+def log_changes(where, cid_from, cid_to, directories, style, verbose = False):
+    if (style == "long"):
+        return git.what_changed(where, 
+                                cid_from,
+                                cid_to,
+                                directories,
+                                verbose = verbose)
+    elif (style == "oneline"):
+        return git.log_between(where,
+                               cid_from,
+                               cid_to,
+                               directories,
+                               verbose = verbose)
+    elif (style == "summary"):
+        return git.what_changed(where,
+                                cid_from,
+                                cid_to,
+                                directories,
+                                verbose = verbose,
+                                opts = [ '--pretty=%n%H %ci %an <%ae> %n %B' ],
+                                splitre = '[0-9a-f]+')
+    else:
+        raise GiveUp("I do not understand the log style '%s'"%style)
+
+def merge_advice(base, lines,base_repo):
+    return ('Error merging patches to base %s\n'
+            '%s\n'
+            'Fix the problems:\n'
+            '  pushd %s\n'
+            '  git status\n'
+            '  edit <the appropriate files>\n'
+            '  git commit -a\n'
+            '  popd\n'
+            'and do "weld finish", or abort using "weld abort"'%\
+            (base, lines, base_repo))
 
 # End file.

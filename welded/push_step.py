@@ -15,7 +15,8 @@ import welded.query as query
 
 from welded.headers import pickle_seams
 from welded.status import get_status
-from welded.utils import run_silently, run_to_stdout, GiveUp
+from welded.utils import run_silently, run_to_stdout, GiveUp, get_default_commit_style, \
+    get_login, get_hostname
 import welded.push_utils as push_utils
 
 class ApplyError(Exception):
@@ -118,10 +119,9 @@ def push_step(spec, base_name, opts):
     
     # @todo There is some controversy over how we should do this, but
     #  I think ancestry-path is the least confusing - rrw 2014-09-02.
-    changes = git.list_changes(weld_root, latest_sync, 'HEAD')
+    changes = ops.list_changes(weld_root, latest_sync, 'HEAD')
     state['edit_commit_file'] = opts.edit_commit_file
     state['verbose'] = opts.verbose
-    state['long_commits'] = opts.long_commit
     state['changes'] =  changes
     state['current_idx'] = 0
     state['last_committed_idx'] = -1
@@ -136,8 +136,14 @@ def push_step(spec, base_name, opts):
     state['base_name'] = base_name
     state['base_branch'] = base_branch
     state['current_branch'] = current_branch
+    state['legend'] = '%s (%s@%s)'%(spec.name, get_login(), get_hostname())
+    if (opts.commit_style is None):
+        state['commit_style'] = get_default_commit_style()
+    else:
+        state['commit_style'] = opts.commit_style
+        
 
-#
+        #
     # Now let's create a branch on to which to port all the changes from
     # the weld
     working_branch = git.new_branch_name(base_dir,
@@ -163,7 +169,11 @@ def step(spec, opts):
     """
     state = ops.read_state_data(spec)
     verbose = opts.verbose or state['verbose']
-    long_commit = opts.long_commit or state['long_commits']
+    if opts.commit_style is not None:
+        commit_style = opts.commit_style
+    else:
+        commit_style = state['commit_style']
+
     edit_commit_file = opts.edit_commit_file or state['edit_commit_file']
 
     # Right oh. Move up a commit in the list .. 
@@ -203,13 +213,9 @@ def step(spec, opts):
             
             weld_directories = state['weld_directories']
 
-            if long_commit:
-                base_changes = git.what_changed(weld_root, last_merged_cid, cid,
-                                                weld_directories)
-            else:
-                base_changes = git.log_between(weld_root, last_merged_cid, cid,
-                                               weld_directories)
-               
+            base_changes = ops.log_changes(weld_root, last_merged_cid, cid,
+                                           weld_directories, 
+                                           commit_style)
             base_changes = push_utils.escape_states(base_changes)
 
             if base_changes:
@@ -253,13 +259,18 @@ def step(spec, opts):
         state['commit_list'].append(cid)
         ops.write_state_data(spec, state)
         
+        has_local_changes = git.has_local_changes(base_dir)
+
         # You can now either step, abort, or commit
         ops.verb_me(spec, 'push_step', 'step')
         ops.verb_me(spec, 'push_step', 'abort')
-        ops.verb_me(spec, 'push_step', 'commit')
+        if has_local_changes or not no_further_commits:
+            ops.verb_me(spec, 'push_step', 'commit')
+        else:
+            ops.verb_me(spec, 'push_step', 'finish')
+            
         ops.verb_me(spec, 'push_step', 'inspect')
-        
-        has_local_changes = git.has_local_changes(base_dir)
+
 
         # Now work out if anything has changed.
         if has_local_changes:
@@ -310,7 +321,7 @@ def commit(spec, opts, allow_edit = True):
     edit_commit_file = opts.edit_commit_file or state['edit_commit_file']
     verbose = opts.verbose or state['verbose']
     if ('all_done' in state):
-        return commit_finish(spec, opts)
+        return finish(spec, opts)
 
     if (state['last_merged_idx'] >= len(state['changes'])-1):
         print 'All commits added. Finishing .. '
@@ -331,7 +342,7 @@ def commit(spec, opts, allow_edit = True):
         with open(commit_file, 'w') as f:
             f.write('\n')
             changes = state['commit_list']
-            f.write('X-Weld-Stepwise-Push: %s %s..%s'%(weld_root, changes[0], changes[-1]))
+            f.write('X-Weld-Stepwise-Push: %s %s..%s'%(state['legend'], changes[0], changes[-1]))
             f.write('\n')
             if (len(state['log']) > 0):
                 f.write('\n'.join(state['log']))
@@ -359,19 +370,17 @@ def commit(spec, opts, allow_edit = True):
 
     # From here, you can step, or abort.
     if not finishing:
+        print "Committed. You can now continue to step."
         ops.verb_me(spec, 'push_step', 'step')
     else:
-        try:
-            commit_finish(spec, opts)
-            return
-        except:
-            ops.verb_me(spec, 'push_step', 'commit')
+        print "All done. Do weld finish to finish."
+        ops.verb_me(spec, 'push_step', 'finish')
 
     ops.verb_me(spec, 'push_step', 'abort')
 
 
 
-def commit_finish(spec, opts):
+def finish(spec, opts):
     """
     Finish off this pushed commit.
     """
@@ -397,19 +406,11 @@ def commit_finish(spec, opts):
         # We weren't merging, so do ..
         try:
             run_silently(['touch', mi ])
-            git.merge_to_current(base_dir, orig_branch, verbose = state['verbose'])
+            git.merge_to_current(base_dir, orig_branch, verbose = state['verbose'], commit = True)
         except GiveUp as e:
             lines = e.message.splitlines()
             lines = ['  %s'%line for line in lines]
-            raise GiveUp('Error merging patches to base %s\n'
-                         '%s\n'
-                         'Fix the problems:\n'
-                         '  pushd %s\n'
-                         '  git status\n'
-                         '  edit <the appropriate files>\n'
-                         '  git commit -a\n'
-                         '  popd\n'
-                         'and do "weld commit", or abort using "weld abort"'%(
+            raise GiveUp(ops.merge_advice(
                              base_name, '\n'.join(lines), base_dir))
 
     # And then merge *that* back into the original branch

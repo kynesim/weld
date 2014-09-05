@@ -8,6 +8,8 @@ import subprocess
 import hashlib
 import imp
 import traceback
+import getpass
+import socket
 
 class GiveUp(Exception):
     """Something has gone wrong - tell the user
@@ -41,6 +43,14 @@ class Bug(GiveUp):
     """
     pass
 
+def get_login():
+    return getpass.getuser()
+
+def get_hostname():
+    return socket.gethostname()
+
+def get_default_commit_style():
+    return "summary"
 
 def run_to_stdout(cmd, allowFailure=False, verbose=True, cwd=None):
     """Runs a command with its output going to stdout/stderr as normal.
