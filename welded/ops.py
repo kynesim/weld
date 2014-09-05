@@ -435,8 +435,12 @@ def log_changes(where, cid_from, cid_to, directories, style, verbose = False):
                                 cid_to,
                                 directories,
                                 verbose = verbose,
-                                opts = [ '--pretty=%n%H %ci %an <%ae> %n %B' ],
+                                opts = [ '--pretty=%n%H %ci %an <%ae> %n%w(160,3,3)%B' ],
                                 splitre = '[0-9a-f]+')
+            
+            
+
+
     else:
         raise GiveUp("I do not understand the log style '%s'"%style)
 
