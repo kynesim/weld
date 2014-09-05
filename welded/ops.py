@@ -231,6 +231,17 @@ VERB_PREFIX="import ops\n" + \
     "def go(spec, opts):\n"
 VERB_SUFFIX="\n"
 
+def have_cmd(base_dir):
+    try:
+        state = read_state_data_with_file(base_dir)
+        if ('cmd' in state):
+            return state['cmd']
+        else:
+            return 'unknown'
+    except:
+        pass
+    return None
+
 def write_finish_pull(spec, cmds_ok, cmds_abort):
     with open(layout.complete_file(spec.base_dir), "w+") as f:
         f.write(FINISH_PULL_PREFIX)
@@ -383,7 +394,10 @@ def spurious_modification(w):
     git.add(w.base_dir, [ a_file ] )
 
 def read_state_data(spec):
-    with open(layout.state_data_file(spec.base_dir), 'r') as f:
+    return read_state_data_with_file(spec.base_dir)
+
+def read_state_data_with_file(base_dir):
+    with open(layout.state_data_file(base_dir), 'r') as f:
         some_input = f.read()
     return pickle.loads(some_input)
 

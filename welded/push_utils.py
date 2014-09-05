@@ -13,7 +13,6 @@ import welded.ops as ops
 import welded.query as query
 
 from welded.headers import pickle_seams
-from welded.status import get_status
 from welded.utils import run_silently, run_to_stdout, GiveUp
 
 def make_files_match(from_dir, to_dir, do_commits = True, verbose=False):

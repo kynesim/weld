@@ -12,7 +12,6 @@ import welded.push_utils as push_utils
 
 from welded.headers import merge_marker
 from welded.query import query_last_merge_or_push
-from welded.status import get_status
 from welded.utils import GiveUp, classify_seams, run_to_stdout, run_silently, \
     get_default_commit_style
 
@@ -37,12 +36,13 @@ def pull_step(spec, base_name, opts):
         
     root_branch = git.current_branch(weld_root)
     
-    if (len(ops.list_verbs(spec)) > 0):
+    if (ops.have_cmd(spec)):
         raise GiveUp('We are part way through a weld operation; finish it (or abort it) and try again')
     
     if (root_branch.startswith('weld-')):
         raise GiveUp("You are currently on a branch ('%s') used by weld - please " 
                      "get iff it and try again"%(root_branch))
+
 
     root_head = git.query_current_commit_id(weld_root)
     (verb, last_weld_sync, last_base_sync, seams) = query_last_merge_or_push(weld_root, base_name)
@@ -71,6 +71,7 @@ def pull_step(spec, base_name, opts):
 
     # Now let's do some housekeeping so that abort() will work properly.
     state = { }
+    state['cmd'] = 'pull_step'
     state['base_last'] = git.query_current_commit_id(base_repo)        
     state['spec'] = spec
     state['base_name'] = base_name

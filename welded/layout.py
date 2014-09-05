@@ -10,6 +10,9 @@ def weld_dir(base_dir):
 def state_dir(base_dir):
     return os.path.join(base_dir, '.weld', 'state')
 
+def command_file(base_dir):
+    return os.path.join(base_dir, '.weld', 'current_cmd')
+
 def pending_verb_dir(base_dir):
     return os.path.join(base_dir, '.weld', 'state', 'pending_verbs')
 

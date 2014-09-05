@@ -22,8 +22,6 @@ import welded.status
 import welded.ops as ops
 
 from welded.layout import spec_file
-from welded.pull import pull_base
-from welded.push import push_base, report_status
 from welded.push_step import push_step
 from welded.pull_step import pull_step
 from welded.utils import Bug, GiveUp, find_weld_dir
@@ -332,7 +330,7 @@ class Push(Command):
             print "Pushing bases: %s"%(', '.join(to_push))
         for base_name in to_push:
             opts.finish_stepping = True
-            rv = push_step(sefl.spec, base_name, opts)
+            rv = push_step(self.spec, base_name, opts)
             if rv != 0:
                 return rv
 
@@ -522,25 +520,15 @@ class Status(Command):
         else:
             remote_name = None
 
-        in_weld_pull, in_weld_push, should_git_pull, should_git_push = \
-                welded.status.get_status(where, remote_name=remote_name,
-                        verbose=verbose)
+            in_op, should_git_pull, should_git_push = \
+                welded.status.get_status_2(where, remote_name=remote_name,
+                                           verbose=verbose)
 
-        if verbose:
-            print
-
-        if in_weld_pull:
-            print 'Part way through "weld pull"'
+        if in_op:
+            print 'Part way through a weld command - %s'%in_op
             print 'Fix any problems and then "weld finish", or give up using "weld abort"'
         elif verbose:
             print 'Not part way through a "weld pull"'
-
-        if in_weld_push:
-            print 'Part way through "weld push"'
-            report_status(self.spec)
-            print 'Fix any problems and then "weld finish", or give up using "weld abort"'
-        elif verbose:
-            print 'Not part way through a "weld push"'
 
         if should_git_pull: print 'You should do "git pull"'
         if should_git_push: print 'You should do "git push"'
@@ -552,6 +540,6 @@ class Status(Command):
                 print 'No need to "git pull" or "git push"'
 
         if output_tuple:
-            print in_weld_pull, in_weld_push, should_git_pull, should_git_push
+            print in_op, should_git_pull, should_git_push
 
 # End file.

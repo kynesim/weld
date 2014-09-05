@@ -14,7 +14,7 @@ import welded.ops as ops
 import welded.query as query
 
 from welded.headers import pickle_seams
-from welded.status import get_status
+from welded.status import get_status_2
 from welded.utils import run_silently, run_to_stdout, GiveUp, get_default_commit_style, \
     get_login, get_hostname
 import welded.push_utils as push_utils
@@ -49,13 +49,11 @@ def push_step(spec, base_name, opts):
     # Where are we?
     current_branch = git.current_branch(weld_root, verbose = opts.verbose)
     
-    in_weld_pull, in_weld_push, should_git_pull, should_git_push =  \
-            get_status(weld_root, branch_name = current_branch, verbose = True)
+    in_cmd, should_git_pull, should_git_push =  \
+            get_status_2(weld_root, branch_name = current_branch, verbose = True)
     
-    if in_weld_pull:
+    if in_cmd:
         raise GiveUp("Half way through a pull - weld finish/weld abort and try again")
-    if in_weld_push:
-        raise GiveUp("Half way through a push - weld finish/weld abort and try again")
     if current_branch.startswith("weld-"):
         raise GiveUp("You are on a branch used by weld (%s) - get off and try again."%current_branch)
     
@@ -120,6 +118,7 @@ def push_step(spec, base_name, opts):
     # @todo There is some controversy over how we should do this, but
     #  I think ancestry-path is the least confusing - rrw 2014-09-02.
     changes = ops.list_changes(weld_root, latest_sync, 'HEAD')
+    state['cmd'] = 'push_step'
     state['edit_commit_file'] = opts.edit_commit_file
     state['verbose'] = opts.verbose
     state['changes'] =  changes
