@@ -236,7 +236,7 @@ class Pull(Command):
             print "Pulling bases: %s"%(', '.join(to_pull))
         for p in to_pull:
             opts.finish_stepping = True
-            rv = pull_step(self.spec, base_name, opts)
+            rv = pull_step(self.spec, p, opts)
             if rv != 0:
                 return rv
 
