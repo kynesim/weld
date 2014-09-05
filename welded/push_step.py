@@ -296,7 +296,7 @@ def step(spec, opts):
     if no_further_commits:
         print "Stepping is all done. Commit when you are ready and we will finish up."
     else:
-        print "Base stepped to %s - check changes and when you are happy, either step or commit."%next_c
+        print "Base stepped to %s - check changes and when you are happy, either step or commit."%cid
     return True
 
 def inspect(spec, opts):
@@ -488,10 +488,10 @@ def abort(spec, opts):
         
     # Move back on the weld.
     git.switch_branch(weld_root, state['current_branch'])
-    # Move back on to the branch we started the base on.
-    git.switch_branch(base_dir, state['base_branch'])
     # git reset
     git.hard_reset(base_dir)
+    # Move back on to the branch we started the base on.
+    git.switch_branch(base_dir, state['base_branch'])
     # Erase the working branch (we want to lose all work on it)
     try:
         git.remove_branch(base_dir, working_branch, irrespective = True)
