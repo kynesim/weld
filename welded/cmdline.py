@@ -52,7 +52,7 @@ main_parser.add_option("-e", "--edit", action="store_true",
 main_parser.add_option("--commit-style", action="store",
                        dest="commit_style", default = None,
                        help=( "[peeved] Indicate the desired commit style for this operation:\n"
-                              "  oneline       (default) git log --oneline \n"
+                              "  oneline       git log --oneline \n"
                               "  long          The whatchanged summary of changes\n"
                               "  summary       The summary list of changes (default)\n") )
 main_parser.add_option("-i", "--ignore-history", action="store_true",
