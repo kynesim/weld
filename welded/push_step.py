@@ -189,12 +189,12 @@ def step(spec, opts):
         if (last_merged_idx >= 0):
             last_merged_cid = changes[last_merged_idx]
         else:
-            last_merged_cid = None
+            last_merged_cid = state['latest_sync']
 
         if (last_committed_idx >= 0):
             last_committed_cid = changes[last_committed_idx]
         else:
-            last_committed_cid = None
+            last_committed_cid = state['latest_sync']
 
         if (current_idx >= len(changes)):
             print "No further commits to add - try committing."
