@@ -6,6 +6,19 @@ Do
 $ weld help
 
 For more detail.
+
+Options are rated on the UK terrorism threat scale:
+
+ watching-eastenders             - Probably safe.
+ miffed                          - Risky. Wear a safety harness.
+ peeved                          - Quite dangerous; take backup.
+ irritated                       - Check your options twice and have
+                                   a cup of tea first.
+ a-bit-cross                     - Godzilla has eaten your bicycle.
+ no-shipping-forecast            - The apocalypse has happened and
+                                   the Archers has been cancelled. 
+                                   Run for the hills if any remain.
+
 """
 # ^^ Doing it this way means we don't need to construct
 # the help message unless you actually ask for it
@@ -38,13 +51,13 @@ main_parser.add_option("-e", "--edit", action="store_true",
                        help='edit the "weld push" commit file for each base before using it')
 main_parser.add_option("--commit-style", action="store",
                        dest="commit_style", default = None,
-                       help=( "Indicate the desired commit style for this operation:\n"
+                       help=( "[peeved] Indicate the desired commit style for this operation:\n"
                               "  oneline       (default) git log --oneline \n"
                               "  long          The whatchanged summary of changes\n"
                               "  summary       The summary list of changes (default)\n") )
 main_parser.add_option("-i", "--ignore-history", action="store_true",
                        dest="ignore_history", default = False,
-                       help='Ignore all history when pulling or pushing: DANGEROUS!')
+                       help='[miffed] Ignore all history when pulling or pushing.')
 main_parser.add_option('-f', '--finish-stepping', action="store_true",
                        dest="finish_stepping", default = False,
                        help="When in a stepped pull or push, squash the rest of the pull " + 
@@ -54,17 +67,18 @@ main_parser.add_option('--single-commit-stepping', action="store_true",
                        help="When in a stepped pull or push, just replicate commit messages for the rest of the pull/push")
 main_parser.add_option("--force-latest-sync", action="store", dest="force_latest_sync",
                        default = None,
-                       help=( "THIS IS THE MOST DANGEROUS OPTION IN THE WORLD. IT CAN LITERALLY DESTROY TOKYO.\n"
-                              "It forces push to consider the last commit shared by the base and weld to be the commit"
+                       help=( "[a-bit-cross] "
+                              "This option forces push to consider the last commit shared by the base and weld to be "
+                              "the commit"
                               " given by its argument. This allows you to recover from various rather horrid situations"
                               " (in particular, the one where you have separated a seam into its own base) "
                               " but because it affects the history assumed by weld, this can result in some very nasty"
                               " side-effects - such as time going in the reverse direction to the commits you are"
-                              " attempting to apply. Be careful."))
+                              " attempting to apply. We mean it about Godzilla."))
 main_parser.add_option("--step-until-git-change", action="store_true",
                        default = False,
                        dest = "step_until_git_change",
-                       help = ("When stepping, step until the git log says something has changed."
+                       help = ("[peeved] When stepping, step until the git log says something has changed."
                                "Terror level = mildly miffed."
                                ))
                        
