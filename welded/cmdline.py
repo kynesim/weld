@@ -52,6 +52,17 @@ main_parser.add_option('-f', '--finish-stepping', action="store_true",
 main_parser.add_option('--single-commit-stepping', action="store_true",
                        dest="single_commit_stepping", default = False,
                        help="When in a stepped pull or push, just replicate commit messages for the rest of the pull/push")
+main_parser.add_option("--force-latest-sync", action="store", dest="force_latest_sync",
+                       default = None,
+                       help=( "THIS IS THE MOST DANGEROUS OPTION IN THE WORLD. IT CAN LITERALLY DESTROY TOKYO.\n"
+                              "It forces push to consider the last commit shared by the base and weld to be the commit"
+                              " given by its argument. This allows you to recover from various rather horrid situations"
+                              " (in particular, the one where you have separated a seam into its own base) "
+                              " but because it affects the history assumed by weld, this can result in some very nasty"
+                              " side-effects - such as time going in the reverse direction to the commits you are"
+                              " attempting to apply. Be careful."))
+                              
+
 
 # CommandName -> CommandClass
 g_command_dict = { }
