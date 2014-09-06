@@ -16,7 +16,7 @@ Options are rated on the UK terrorism threat scale:
                                    a cup of tea first.
  a-bit-cross                     - Godzilla has eaten your bicycle.
  no-shipping-forecast            - The apocalypse has happened and
-                                   the Archers has been cancelled. 
+                                   the News Quiz has been cancelled. 
                                    Run for the hills if any remain.
 
 """
