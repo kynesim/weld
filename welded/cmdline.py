@@ -61,6 +61,13 @@ main_parser.add_option("--force-latest-sync", action="store", dest="force_latest
                               " but because it affects the history assumed by weld, this can result in some very nasty"
                               " side-effects - such as time going in the reverse direction to the commits you are"
                               " attempting to apply. Be careful."))
+main_parser.add_option("--step-until-git-change", action="store_true",
+                       default = False,
+                       dest = "step_until_git_change",
+                       help = ("When stepping, step until the git log says something has changed."
+                               "Terror level = mildly miffed."
+                               ))
+                       
                               
 
 

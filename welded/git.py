@@ -127,6 +127,7 @@ def current_branch(where, verbose=True):
 
     return out.strip()
 
+
 def what_changed(where, commit_from, commit_to, paths = None, verbose = False, opts = None,
                  splitre = 'commit '):
     """

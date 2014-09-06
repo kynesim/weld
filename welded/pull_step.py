@@ -260,7 +260,8 @@ def step(spec, opts):
             if opts.single_commit_stepping and state['last_idx_merged'] >= 0:
                 commit(spec, opts, allow_edit = False)
                 state = ops.read_state_data(spec)
-            elif (not opts.finish_stepping) or state['last_idx_merged'] < 0 :
+            elif ((not opts.finish_stepping) or state['last_idx_merged'] < 0) and \
+            ((not opts.step_until_git_change) or (changed or no_further_commits)):
                 break
         elif no_further_commits:
             state['all_done'] = True

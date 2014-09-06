@@ -283,7 +283,7 @@ def step(spec, opts):
                 commit(spec, opts, allow_edit = False)
                 # .. and remember to resync our state.
                 state = ops.read_state_data(spec)
-            elif (not opts.finish_stepping):
+            elif (not opts.finish_stepping) and ((not opts.step_until_git_change) or (changed or no_further_commits)):
                 break
         elif no_further_commits:
             # there are no local changes, and there never will be.
