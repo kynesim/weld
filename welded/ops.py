@@ -18,7 +18,7 @@ import welded.git as git
 import welded.headers as headers
 import welded.layout as layout
 
-from welded.utils import GiveUp, run_silently, dynamic_load
+from welded.utils import GiveUp, run_silently, dynamic_load, run_to_stdout
 
 def update_base(spec, base):
     """
@@ -435,7 +435,7 @@ def log_changes(where, cid_from, cid_to, directories, style, verbose = False):
                                 cid_to,
                                 directories,
                                 verbose = verbose,
-                                opts = [ '--pretty=%n%H %ci %an <%ae> %n%w(120,3,3)%B' ],
+                                opts = [ '--pretty=%n%H %ci %an <%ae> %n%w(,3,3)%B' ],
                                 splitre = '[0-9a-f]+')
             
             
@@ -455,5 +455,39 @@ def merge_advice(base, lines,base_repo):
             '  popd\n'
             'and do "weld finish", or abort using "weld abort"'%\
             (base, lines, base_repo))
+
+def sanitise(in_dir, state, opts, verbose = False):
+    if opts.sanitise_script is not None:
+        scname = os.path.join(opts.cwd, opts.sanitise_script)
+    elif 'sanitise_script' in state:
+        scname = state['sanitise_script']
+    else:
+        scname = None
+    if (scname is None):
+        # Nothing to do.
+        return
+    # Otherwise .. 
+    fn = tempfile.mktemp(prefix='weld_log')
+    with open(fn, 'w') as f:
+        for l in state['log']:
+            f.write(l)
+    # Sanitise in the context of whatever directory the 
+    #   program was run from.
+    an_env = os.environ.copy()
+    an_env['WELD_LOG'] = fn
+    if 'weld_directories' in state:
+        an_env['WELD_DIRS'] = " ".join(state['weld_directories'])
+    print "Sanitising - run %s in %s with log %s.. "%(scname, in_dir, fn)
+    try:
+        run_to_stdout(scname, cwd = in_dir, verbose = verbose, env = an_env)
+    except Exception, e:
+        print "%s"%e
+        traceback.print_exc()
+        print ("\n"
+               "Retry with 'weld sanitise' and then step or commit (or finish)")
+    # Now read the log back in.
+    with open(fn, 'r') as f:
+        state['log'] = map(lambda x: x.strip(), f.readlines())
+    os.remove(fn)
 
 # End file.

@@ -16,7 +16,7 @@ import welded.query as query
 from welded.headers import pickle_seams
 from welded.status import get_status_2
 from welded.utils import run_silently, run_to_stdout, GiveUp, get_default_commit_style, \
-    get_login, get_hostname
+    get_login, get_hostname, canonicalise
 import welded.push_utils as push_utils
 
 class ApplyError(Exception):
@@ -123,6 +123,7 @@ def push_step(spec, base_name, opts):
     # @todo There is some controversy over how we should do this, but
     #  I think ancestry-path is the least confusing - rrw 2014-09-02.
     changes = ops.list_changes(weld_root, latest_sync, 'HEAD')
+    state['sanitise_script'] = canonicalise(opts, opts.sanitise_script)
     state['cmd'] = 'push_step'
     state['edit_commit_file'] = opts.edit_commit_file
     state['verbose'] = opts.verbose
@@ -268,6 +269,8 @@ def step(spec, opts):
         # You can now either step, abort, or commit
         ops.verb_me(spec, 'push_step', 'step')
         ops.verb_me(spec, 'push_step', 'abort')
+        ops.verb_me(spec, 'push_step', 'sanitise')
+
         if has_local_changes or not no_further_commits:
             ops.verb_me(spec, 'push_step', 'commit')
         else:
@@ -279,11 +282,17 @@ def step(spec, opts):
         # Now work out if anything has changed.
         if has_local_changes:
             if opts.single_commit_stepping:
+                # Sanitising ..
+                ops.sanitise(base_dir, state, opts, verbose  = verbose)
+                ops.write_state_data(spec, state)
                 # Commit and continue.
                 commit(spec, opts, allow_edit = False)
                 # .. and remember to resync our state.
                 state = ops.read_state_data(spec)
             elif (not opts.finish_stepping) and ((not opts.step_until_git_change) or (changed or no_further_commits)):
+                # Sanitising ..
+                ops.sanitise(base_dir, state, opts, verbose  = verbose)
+                ops.write_state_data(spec, state)
                 break
         elif no_further_commits:
             # there are no local changes, and there never will be.
@@ -294,6 +303,9 @@ def step(spec, opts):
             
 
         if no_further_commits:
+            # Sanitising ..
+            ops.sanitise(base_dir, state, opts, verbose  = verbose)
+            ops.write_state_data(spec, state)
             break
 
         ops.next_verbs(spec)
@@ -303,6 +315,16 @@ def step(spec, opts):
     else:
         print "Base stepped to %s - check changes and when you are happy, either step or commit."%cid
     return True
+
+def sanitise(spec, opts):
+    """
+    Sanitise the current set of changes
+    """
+    state = ops.read_state_data(spec)
+    verbose = opts.verbose or state['verbose']
+    ops.sanitise(state['base_dir'], state, opts, verbose = verbose)
+    ops.write_state_data(spec, state)
+    ops.repeat_verbs(spec)
 
 def inspect(spec, opts):
     """
@@ -344,7 +366,6 @@ def commit(spec, opts, allow_edit = True):
     if (len(state['commit_list']) > 0):
         commit_file = layout.push_commit_file(weld_root, base_name)
         with open(commit_file, 'w') as f:
-            f.write('\n')
             changes = state['commit_list']
             f.write('X-Weld-Stepwise-Push: %s %s..%s'%(state['legend'], changes[0], changes[-1]))
             f.write('\n')

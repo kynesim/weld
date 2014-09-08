@@ -80,9 +80,16 @@ main_parser.add_option("--step-until-git-change", action="store_true",
                        dest = "step_until_git_change",
                        help = ("[peeved] When stepping, step until the git log says something has changed."
                                ))
-                       
-                              
-
+main_parser.add_option("--sanitise-script", action = "store",
+                       dest="sanitise_script", default = None,
+                       help = ( "[peeved] If given, this option names an executable (usually a shell script)"
+                                " which will be run just before push-step commits or just after pull-step"
+                                " sync. Environment: \n"
+                                "\n"
+                                "WELD_LOG - Contains the name of a file which contains the current log, which you"
+                                " can sanitise"
+                                "WELD_DIRS - Contains a space-separated list of directories involved in this push or"
+                                " pull"))
 
 # CommandName -> CommandClass
 g_command_dict = { }
@@ -114,6 +121,10 @@ def go(args):
     if (len(args) < 1):
         main_parser.print_usage()
         return 1
+
+    # This is really horrid, but it is necessary for canonicalising
+    # paths to control scripts.
+    opts.cwd = os.getcwd()
 
     cmd = args[0]
     if (cmd in g_command_dict):

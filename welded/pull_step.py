@@ -71,6 +71,7 @@ def pull_step(spec, base_name, opts):
 
     # Now let's do some housekeeping so that abort() will work properly.
     state = { }
+    state['sanitise_script'] = canonicalise(opts, opts.sanitise_script)
     state['cmd'] = 'pull_step'
     state['base_last'] = git.query_current_commit_id(base_repo)        
     state['spec'] = spec
@@ -124,9 +125,10 @@ def pull_step(spec, base_name, opts):
     # Before we sync we need the base to be at last_base_sync
     if (last_base_sync is not None):
         git.checkout(base_repo, last_base_sync)
+        ops.sanitise(weld_root, state, opts, verbose = verbose)
         ops.delete_seams(spec, base_obj, deleted_in_new, last_base_sync)
         ops.add_seams(spec, base_obj, added_in_new, last_base_sync)
-    
+
     ops.write_state_data(spec, state)
     ops.verb_me(spec, 'pull_step', 'abort')
 
@@ -254,21 +256,27 @@ def step(spec, opts):
                 ops.verb_me(spec, 'pull_step', 'commit')
 
         ops.verb_me(spec, 'pull_step', 'inspect')
+        ops.verb_me(spec, 'pull_step', 'sanitise')
         ops.verb_me(spec, 'pull_step', 'abort')
         
         if has_local_changes:
             if opts.single_commit_stepping and state['last_idx_merged'] >= 0:
+                ops.sanitise(weld_root, state, opts, verbose = verbose)
+                ops.write_state_data(spec, state)
                 commit(spec, opts, allow_edit = False)
                 state = ops.read_state_data(spec)
             elif ((not opts.finish_stepping) or state['last_idx_merged'] < 0) and \
             ((not opts.step_until_git_change) or (changed or no_further_commits)):
+                ops.sanitise(weld_root, state, opts, verbose = verbose)
+                ops.write_state_data(spec, state)
                 break
         elif no_further_commits:
             state['all_done'] = True
-            ops.write_state_data(spec, state)
         
             
         if no_further_commits:
+            ops.sanitise(weld_root, state, opts, verbose = verbose)
+            ops.write_state_data(spec, state)
             break
         
         ops.next_verbs(spec)
@@ -284,6 +292,15 @@ def step(spec, opts):
             print(" - We stopped because there are local changes here that don't correspond to a \n" 
                   "   base commit; you likely need to commit a .gitignore or those changes manually.\n")
 
+def sanitise(spec, opts):
+    """
+    Sanitise the current set of changes
+    """
+    state = ops.read_state_data(spec)
+    verbose = opts.verbose or state['verbose']
+    ops.sanitise(state['weld_root'], state, opts, verbose = verbose)
+    ops.write_state_data(spec, state)
+    ops.repeat_verbs(spec)
 
 def inspect(spec, opts):
     """

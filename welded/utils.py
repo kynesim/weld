@@ -52,7 +52,12 @@ def get_hostname():
 def get_default_commit_style():
     return "summary"
 
-def run_to_stdout(cmd, allowFailure=False, verbose=True, cwd=None):
+def canonicalise(opts, name):
+    if (name is None):
+        return None
+    return os.path.join(opts.cwd, name)
+
+def run_to_stdout(cmd, allowFailure=False, verbose=True, cwd=None, env = None):
     """Runs a command with its output going to stdout/stderr as normal.
 
     cmd is an array in the usual way.
@@ -67,7 +72,7 @@ def run_to_stdout(cmd, allowFailure=False, verbose=True, cwd=None):
     try:
         subprocess.check_call(cmd,
                               stderr=subprocess.STDOUT,
-                              cwd=cwd)
+                              cwd=cwd, env = env)
         return
     except subprocess.CalledProcessError as e:
         if allowFailure:
