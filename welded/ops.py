@@ -471,6 +471,7 @@ def sanitise(in_dir, state, opts, verbose = False):
     with open(fn, 'w') as f:
         for l in state['log']:
             f.write(l)
+            f.write('\n')
     # Sanitise in the context of whatever directory the 
     #   program was run from.
     an_env = os.environ.copy()
