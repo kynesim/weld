@@ -152,7 +152,7 @@ def pull_step(spec, base_name, opts):
         next_action = 'finish'
 
     ops.next_verbs(spec)
-    ops.do(spec, next_action, opts)
+    ops.do(spec, next_action, opts, True)
 
 def initial_commit(spec, opts):
     """
@@ -262,10 +262,8 @@ def step(spec, opts):
         if ((not has_local_changes) and no_further_commits):
             ops.verb_me(spec, 'pull_step', 'finish')
         else:
-            print "XX"
             ops.verb_me(spec, 'pull_step', 'step')
             if (state['last_idx_merged'] >= 0):
-                print "YY"
                 ops.verb_me(spec, 'pull_step', 'commit')
 
         ops.verb_me(spec, 'pull_step', 'inspect')

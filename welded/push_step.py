@@ -165,7 +165,7 @@ def push_step(spec, base_name, opts):
     ops.verb_me(spec, 'push_step', 'abort')
     ops.next_verbs(spec)
 
-    return ops.do(spec, 'step', opts)
+    return ops.do(spec, 'step', opts, True)
 
 
 def step(spec, opts):
