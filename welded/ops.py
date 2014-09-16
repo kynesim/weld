@@ -491,4 +491,22 @@ def sanitise(in_dir, state, opts, verbose = False):
         state['log'] = map(lambda x: x.strip(), f.readlines())
     os.remove(fn)
 
+def pull_base(spec, base_name):
+    b = spec.query_base(base_name)
+    repo = layout.base_repo(spec.base_dir, base_name)
+    if not os.path.exists(repo):
+        os.mkdir(repo)
+        git.init(repo)
+    git.pull(repo, b.uri, b.branch, b.tag, b.rev)
+
+def push_base(spec, base_name):
+    b = spec.query_base(base_name)
+    repo = layout.base_repo(spec.base_dir, base_name)
+    if b.branch is None:
+        branch = "master"
+    else:
+        branch = b.branch
+    git.push(repo, b.uri, "+%s:%s"%(branch,branch))
+
+
 # End file.

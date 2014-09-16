@@ -62,6 +62,13 @@ main_parser.add_option('-f', '--finish-stepping', action="store_true",
                        dest="finish_stepping", default = False,
                        help="When in a stepped pull or push, squash the rest of the pull " + 
                        "or push and get to the end of the change list.")
+main_parser.add_option('--bulk', action="store_true",
+                       dest="bulk", default = False,
+                       help = ( "[a-bit-cross] Perform this pull in bulk; this means that no intermediate "
+                                "revisions will even be considered; we just pull the whole content of the "
+                                "base in toto, once. This loses your history, but for very deep histories "
+                                "(e.g. the kernel) it is, sadly, the only way to make weld run in a reasonable "
+                                "time" ) )
 main_parser.add_option('--single-commit-stepping', action="store_true",
                        dest="single_commit_stepping", default = False,
                        help="When in a stepped pull or push, just replicate commit messages for the rest of the pull/push")
@@ -206,7 +213,43 @@ class Look(Command):
         else:
             print "\nNo verbs available."
 
-   
+@command('base-push')
+class BasePush(Command):
+    """Push a base (or all bases)
+    """
+    def go(self,opts,args):
+        to_op = self.base_set_from_args(args)
+        if (len(to_op) == 0):
+            print 'You must name a base to sync'
+            return 1
+        if opts.verbose:
+            print "Syncing bases: %s"%(', '.join(to_op))
+        for o in to_op:
+            if opts.verbose:
+                print "Sync base %s"%o
+            ops.push_base(self.spec, o)
+        return 0
+    
+@command('base-pull')
+class BasePull(Command):
+    """Synchronise a base (or all bases)
+    
+    This just does a git pull in each named base
+    """
+    def go(self,opts,args):
+        to_op = self.base_set_from_args(args)
+        if (len(to_op) == 0):
+            print 'You must name a base to sync'
+            return 1
+        if opts.verbose:
+            print "Syncing bases: %s"%(', '.join(to_op))
+        for o in to_op:
+            if opts.verbose:
+                print "Sync base %s"%o
+            ops.pull_base(self.spec, o)
+        return 0
+    
+
 @command('init')
 class Init(Command):
     """Initialise a new weld in the current directory

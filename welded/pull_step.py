@@ -13,7 +13,7 @@ import welded.push_utils as push_utils
 from welded.headers import merge_marker
 from welded.query import query_last_merge_or_push
 from welded.utils import GiveUp, classify_seams, run_to_stdout, run_silently, \
-    get_default_commit_style
+    get_default_commit_style,canonicalise
 
 def pull_step(spec, base_name, opts):
     """
@@ -90,6 +90,7 @@ def pull_step(spec, base_name, opts):
     state['last_idx_committed'] = -1
     state['verbose'] = opts.verbose
     state['edit_commit_file'] = opts.edit_commit_file
+    state['bulk'] = opts.bulk
     if (opts.commit_style is None):
         state['commit_style'] = get_default_commit_style()
     else:
@@ -106,9 +107,13 @@ def pull_step(spec, base_name, opts):
     ops.next_verbs(spec)
 
     print("Enumerating commits on the base between last sync and current branch ('%s')"%state['base_branch'])
-    changes = ops.list_changes(base_repo, last_base_sync, 'HEAD')
+    if (opts.bulk):
+        print(" .. bulk mode. Just asking for top of tree for speed .. ")
+        changes = [ ops.query_head_of_base(spec, base_obj) ]
+    else:
+        changes = ops.list_changes(base_repo, last_base_sync, 'HEAD')
     state['changes'] = changes
-
+        
     print("Branching the weld at %s to get the last sync. "%last_base_sync)
     git.checkout(weld_root, commit_id = last_weld_sync, new_branch_name = working_branch)
 
@@ -133,7 +138,7 @@ def pull_step(spec, base_name, opts):
     ops.verb_me(spec, 'pull_step', 'abort')
 
     next_action = ''
-    if (len(state['changes']) > 0):
+    if (len(changes) > 0):
         if git.has_local_changes(weld_root):
             print "Seams have changed since the last push; issuing an initial commit to adjust for this"
             state['initial_commit'] = True
@@ -188,10 +193,13 @@ def step(spec, opts):
         base_repo = state['base_repo']
         base_seams = state['base_seams']
         verbose = state['verbose'] or opts.verbose
+        bulk = state['bulk'] or opts.bulk
         if opts.commit_style is not None:
             commit_style = opts.commit_style
         else:
             commit_style = state['commit_style']
+        if bulk:
+            idx = len(state['changes'])-1
 
         if idx >= len(changes):
             print("All done")
@@ -208,7 +216,10 @@ def step(spec, opts):
         # Right. So, does this commit change something we care about?
         print "Stepping:  searching from   %s"%last_cid
         print "                     to     %s"%cid
-        base_changes = ops.log_changes(base_repo, last_cid, cid,
+        if bulk:
+            base_changes = [  "[bulk pull]" ]
+        else:
+            base_changes = ops.log_changes(base_repo, last_cid, cid,
                                        state['weld_directories'],
                                        commit_style)
             
@@ -251,8 +262,10 @@ def step(spec, opts):
         if ((not has_local_changes) and no_further_commits):
             ops.verb_me(spec, 'pull_step', 'finish')
         else:
+            print "XX"
             ops.verb_me(spec, 'pull_step', 'step')
             if (state['last_idx_merged'] >= 0):
+                print "YY"
                 ops.verb_me(spec, 'pull_step', 'commit')
 
         ops.verb_me(spec, 'pull_step', 'inspect')
@@ -328,6 +341,8 @@ def commit(spec, opts, allow_edit= True):
     if (state['last_idx_committed'] >= 0):
         last_cid_committed = changes[state['last_idx_committed']]
     last_cid_merged = changes[state['last_idx_merged']]
+
+    print("Commit last_cid_merged = %s changes = %s"%(last_cid_merged, changes))
 
     if (len(changes) == 0 or last_cid_merged == changes[-1]):
         print "All commits added. Finishing.."

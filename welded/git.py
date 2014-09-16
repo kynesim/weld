@@ -47,12 +47,18 @@ def pull(dir_into, remote, from_branch, from_tag, from_rev):
         cmd.append("master")
     run_to_stdout(cmd, cwd=dir_into)
 
-def push(where, verbose=True):
+def push(where, uri = None, branch = None, verbose=True):
     """Push.
 
     - 'where' is the directory to run the command in.
     """
-    run_silently(['git', 'push'], cwd=where, verbose=verbose)
+    cmd = [ 'git', 'push' ]
+    if (uri is not None):
+        cmd.extend([ uri])
+    if (branch is not None):
+        cmd.extend([ branch ])
+
+    run_silently(cmd, cwd=where, verbose=verbose)
 
 def commit(where, comment, headers):
     """Do a git commit with a given set of headers.

@@ -9,7 +9,9 @@ MONSTERS = [ 'a newt', 'the giant zworn of azeroth', 'arg\'s debugging skills',
              'a giant', 'spong', 'a bad xkcd', 
              'cracked.com', 
              'webcomics!',
-             'David' ]
+             'David',
+             'an uncooperative radio transmitter',
+             'crump']
 
 LOCATIONS = [ 'the gnomish mines', 
               'Hogwarts',
