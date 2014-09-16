@@ -340,8 +340,6 @@ def commit(spec, opts, allow_edit= True):
         last_cid_committed = changes[state['last_idx_committed']]
     last_cid_merged = changes[state['last_idx_merged']]
 
-    print("Commit last_cid_merged = %s changes = %s"%(last_cid_merged, changes))
-
     if (len(changes) == 0 or last_cid_merged == changes[-1]):
         print "All commits added. Finishing.."
         finishing = True
