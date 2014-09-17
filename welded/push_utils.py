@@ -15,9 +15,17 @@ import welded.query as query
 from welded.headers import pickle_seams
 from welded.utils import run_silently, run_to_stdout, GiveUp
 
-def make_files_match(from_dir, to_dir, do_commits = True, verbose=False):
+def make_files_match(from_dir, to_dir, do_commits = True, verbose=False, delete_missing_from = False):
     """Make the git handled files in 'to_dir' match those in 'from_dir'
     """
+
+    # if from dir doesn't exist, delete to dir
+    # This is used by pull_step.
+    if (not os.path.exists(from_dir)):
+        if delete_missing_from:
+            shutil.rmtree(to_dir)
+        return
+
 
     # if to_dir doesn't exist, create it - we are probably pushing
     # for the first time - Issue #2

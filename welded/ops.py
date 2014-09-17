@@ -212,9 +212,16 @@ def add_seams(spec, base_obj, seams, base_commit):
         # this level? Is the naive answer of just copying them good enough?)
 
         # Now just rsync it all over
-        run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
+        # The exists test copes with the case where the seam has not yet been added
+        # to the base - rrw 2014-09-15
+        # 
+        if (os.path.exists(src)):
+            run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
+        else:
+            shutil.rmtree(dest)
+
         # Make sure you add all the files in the subdirectory
-        git.add_in_subdir(spec.base_dir, dest)
+        git.add_in_subdir(spec.base_dir, dest)            
     # Now commit them with an appropriate header.
     hdrs = headers.seam_op(headers.SEAM_VERB_ADDED, base_obj, seams, base_commit)
     git.commit(spec.base_dir, hdrs, [] )

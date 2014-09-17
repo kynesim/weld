@@ -15,7 +15,10 @@ def init(where):
     run_silently(["git", "init"], cwd=where)
 
 def add_in_subdir(where, dirname):
-    run_silently(["git", "add", "-A", "%s/**"%dirname], cwd=where)
+    if (not os.path.exists(dirname)):
+        run_silently(["git", "rm", "--ignore-unmatch", "-f", "-r", dirname], cwd = where)
+    else:
+        run_silently(["git", "add", "-A", "%s/**"%dirname], cwd=where)
 
 def add(where, files, verbose=True):
     run_silently(["git", "add"] + files, cwd=where, verbose=verbose)

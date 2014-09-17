@@ -54,7 +54,7 @@ def pull_step(spec, base_name, opts):
             print 'No last push - using weld init at %s'%last_weld_sync[:10]
     else:
         if verbose:
-            print 'Last weld sync with this base was %s at %s'%(verb, last_weld_sync[:10])
+            print 'Last weld sync with this base was %s at %s with last base sync %s'%(verb, last_weld_sync[:10], last_base_sync)
     
 
     # So, what we do now is to branch the weld at the point where the last
@@ -74,6 +74,7 @@ def pull_step(spec, base_name, opts):
     state['sanitise_script'] = canonicalise(opts, opts.sanitise_script)
     state['cmd'] = 'pull_step'
     state['base_last'] = git.query_current_commit_id(base_repo)        
+    state['last_base_sync'] = last_base_sync
     state['spec'] = spec
     state['base_name'] = base_name
     state['base_obj'] = base_obj
@@ -208,7 +209,7 @@ def step(spec, opts):
         if idx_from >= 0:
             last_cid = changes[idx_from]
         else:
-            last_cid = None
+            last_cid = state['last_base_sync']
 
         cid = changes[idx]
         no_further_commits = (idx == len(changes)-1)
@@ -245,7 +246,11 @@ def step(spec, opts):
                     from_dir = os.path.join(base_repo, s.source)
                 to_dir = os.path.join(weld_root, s.get_dest())
                 #print "s = %s"%s
-                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
+                # delete_missing_from == True because if the seam target exists in the weld, but not in the
+                # base, we want to erase it until the weld reintroduces it in a later merge.
+                # this allows seam removal to ever work - rrw 2014-09-17
+                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'], 
+                                            delete_missing_from = True)
 
             if (not('log' in state)):
                 state['log'] = [ ]
