@@ -18,10 +18,10 @@ def add_in_subdir(where, dirname):
     if (not os.path.exists(dirname)):
         run_silently(["git", "rm", "--ignore-unmatch", "-f", "-r", dirname], cwd = where)
     else:
-        run_silently(["git", "add", "-A", "%s/**"%dirname], cwd=where)
+        run_silently(["git", "add", "-f", "-A", "%s/**"%dirname], cwd=where)
 
 def add(where, files, verbose=True):
-    run_silently(["git", "add"] + files, cwd=where, verbose=verbose)
+    run_silently(["git", "add", "-f" ] + files, cwd=where, verbose=verbose)
 
 def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
     cmd = [ "git", "clone" ]

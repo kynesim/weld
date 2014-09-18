@@ -99,8 +99,7 @@ def pull_step(spec, base_name, opts):
 
     if (state['base_last'] == last_base_sync):
         print "Your last pull from this base was '%s', which is the head of your base repo."%last_base_sync
-        print "Nothing to do."
-        return
+        print "Any updates will only be from changed seams."
 
     ops.write_state_data(spec, state)
     ops.verb_me(spec, 'pull_step', 'abort')
@@ -460,6 +459,9 @@ def finish(spec, opts):
     if verbose:
         print "Deleting %s"%commit_file
     os.remove(commit_file)
+
+    # Move the base back onto its branch
+    git.checkout(state['base_repo'], state['base_branch'])
 
     # .. and that's all, folks.
     if os.path.exists(layout.state_dir(weld_root)):

@@ -22,7 +22,7 @@ def make_files_match(from_dir, to_dir, do_commits = True, verbose=False, delete_
     # if from dir doesn't exist, delete to dir
     # This is used by pull_step.
     if (not os.path.exists(from_dir)):
-        if delete_missing_from:
+        if delete_missing_from and os.path.exists(to_dir):
             shutil.rmtree(to_dir)
         return
 
