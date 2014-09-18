@@ -244,7 +244,7 @@ def step(spec, opts):
         if changed or no_further_commits:
             # Work out what changed .. 
             for s in base_seams:
-                from_dir = os.path.join(s.get_dest())
+                from_dir = os.path.join(weld_root, s.get_dest())
                 if s.source is None:
                     to_dir = base_dir
                 else:
