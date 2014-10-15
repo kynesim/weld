@@ -487,7 +487,7 @@ def sanitise(in_dir, state, opts, verbose = False):
         an_env['WELD_DIRS'] = " ".join(state['weld_directories'])
     print "Sanitising - run %s in %s with log %s.. "%(scname, in_dir, fn)
     try:
-        run_to_stdout(scname, cwd = in_dir, verbose = verbose, env = an_env)
+        run_to_stdout([ scname ], cwd = in_dir, verbose = verbose, env = an_env)
     except Exception, e:
         print "%s"%e
         traceback.print_exc()
