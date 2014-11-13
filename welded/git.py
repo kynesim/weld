@@ -108,6 +108,7 @@ def commit_using_message(where, message, all=False, verbose=True):
     cmd += ["-m", message]
     run_silently(cmd, cwd=where, verbose=verbose)
 
+
 def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
     """Checkout a commit, or create and checkout a branch.
 

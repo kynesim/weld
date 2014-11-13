@@ -213,6 +213,25 @@ class Look(Command):
         else:
             print "\nNo verbs available."
 
+@command('reassociate')
+class Reassociate(Command):
+    """
+    Reassociate a base with its upstream according to the 
+    weld
+    """
+    def go(self, opts, args):
+        to_op = self.base_set_from_args(args)
+        if (len(to_op) == 0):
+            print 'You must name a base to associate'
+            return 1
+        if opts.verbose:
+            print "Reassociating bases: %s"%(', '.join(to_op))
+        for o in to_op:
+            if opts.verbose:
+                print " - %s"%o
+            ops.reassociate_base(self.spec, o)
+        return 0
+        
 @command('base-push')
 class BasePush(Command):
     """Push a base (or all bases)

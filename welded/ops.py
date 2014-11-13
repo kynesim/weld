@@ -498,6 +498,12 @@ def sanitise(in_dir, state, opts, verbose = False):
         state['log'] = map(lambda x: x.strip(), f.readlines())
     os.remove(fn)
 
+def reassociate_base(spec, base_name, verbose = False):
+    b = spec.query_base(base_name)
+    repo = layout.base_repo(spec.base_dir, base_name)
+    git.set_remote(repo, 'origin', b.uri)
+    git.pull(repo, b.uri, b.branch, b.tag, b.rev)
+
 def pull_base(spec, base_name):
     b = spec.query_base(base_name)
     repo = layout.base_repo(spec.base_dir, base_name)
