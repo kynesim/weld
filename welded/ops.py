@@ -502,7 +502,7 @@ def pull_base(spec, base_name):
     b = spec.query_base(base_name)
     repo = layout.base_repo(spec.base_dir, base_name)
     if not os.path.exists(repo):
-        os.mkdir(repo)
+        os.makedirs(repo)
         git.init(repo)
     git.pull(repo, b.uri, b.branch, b.tag, b.rev)
 
