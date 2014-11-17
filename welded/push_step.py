@@ -362,7 +362,6 @@ def commit(spec, opts, allow_edit = True):
         os.makedirs(layout.pushing_dir(weld_root))
     except:
         pass
-
     if (len(state['commit_list']) > 0):
         commit_file = layout.push_commit_file(weld_root, base_name)
         with open(commit_file, 'w') as f:
@@ -420,6 +419,11 @@ def finish(spec, opts):
     base_name = state['base_name']
     orig_branch = state['base_branch']
     working_branch = state['working_branch']
+
+    try:
+        os.makedirs(layout.pushing_dir(weld_root))
+    except:
+        pass
 
     # Now check out the place we want to be on the main branch.
     if verbose:
