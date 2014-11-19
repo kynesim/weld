@@ -314,7 +314,7 @@ def tag(where, name, commit_id, force=True, verbose=False):
 def hard_reset(where):
     run_silently(['git', 'reset', '--hard'], cwd = where)
 
-def diff_this(where, relative_to, commit_id, verbose=False):
+def diff_this(where, relative_to, commit_id, verbose=False, from_commit_id = None):
     """Run "git diff" to find the changes 'commit_id' made to 'relative_to'
 
     - 'where' is the directory to run the command in
@@ -328,8 +328,13 @@ def diff_this(where, relative_to, commit_id, verbose=False):
 
     Raises GiveUp if the command fails.
     """
-    rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
-        '%s^!'%commit_id], cwd=where, verbose=verbose)
+    if from_commit_id is None:
+        rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
+                             '%s^!'%commit_id], cwd=where, verbose=verbose)
+    else:
+        rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
+                                 '%s..%s'%(from_commit_id, commit_id)], cwd=where, verbose=verbose)
+        
     if verbose:
         print diff
     return diff
@@ -401,6 +406,17 @@ def ff_merge(where, branch_name, verbose=False):
     """
     run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where,
                  verbose=verbose)
+
+def rebase_to_current(where, branch_name, squash = False, verbose = False, commit = False):
+    """
+    Do a rebase - take the patches between the common ancestor of branch_name and
+    the current branch and apply them over current_branch
+    """
+    cb = current_branch(where)
+    checkout(where, branch_name)
+    cmd = ['git', 'rebase', cb ]
+    run_silently(cmd, cwd = where, verbose = verbose)
+
 
 def merge_to_current(where, branch_name, squash=False, verbose=False, commit = False):
     """Do a "normal" merge of branch 'branch_name' to the current branch.

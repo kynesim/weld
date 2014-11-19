@@ -4,6 +4,8 @@ pull_step.py - Pull a base into a repo
 
 import os
 import shutil
+import sys # For debugging.
+import tempfile
 
 import welded.git as git
 import welded.ops as ops
@@ -184,6 +186,8 @@ def step(spec, opts):
     """
     pull-step step function; merge next-idx-to-merge. If you've run out, finish.
     """
+    ignore_bad_patches = opts.ignore_bad_patches
+
     while True:
         state = ops.read_state_data(spec)
         weld_root = state['weld_root']
@@ -216,10 +220,8 @@ def step(spec, opts):
         # Right. So, does this commit change something we care about?
         print "Stepping:  searching from   %s"%last_cid
         print "                     to     %s"%cid
-        if bulk:
-            base_changes = [  "[bulk pull]" ]
-        else:
-            base_changes = ops.log_changes(base_repo, last_cid, cid,
+
+        base_changes = ops.log_changes(base_repo, last_cid, cid,
                                        state['weld_directories'],
                                        commit_style)
             
@@ -233,23 +235,70 @@ def step(spec, opts):
             if state['verbose']:
                 print "No explicit change for these seams in this base commit"
         
+        print "changed = %s nfc = %s"%(changed, no_further_commits)
         if changed or no_further_commits:
-            # Check out the right version of the base.
-            git.checkout(base_repo, cid)
+            # This is rather horrific. For each change in base_changes,
+            #  we mark any seam that has changed.
+            #
+            #  Then we can use diff_this() to find each diff in turn.
+            #   .. and apply_patch to apply it.
+            change_records = [ ]
+            for q in base_changes:
+                change_records.extend(q.split('\n'))
 
-            # Sync up the seams. There is no need for modify_seams, we can just sync.
+            involved = ops.list_files_involved(change_records)
+            
+            prefixes = { }
+            for i in involved:
+                path = i[1]
+                if (i[0] == 'D'):
+                    print " Deleting %s "%i[1]
+                    if os.path.exists(i[1]):
+                        if os.path.isdir(i[1]):
+                            shutil.rmtree(i[1])
+                        else:
+                            os.unlink(i[1])
+                        continue
+                while True:
+                    (path,k) = os.path.split(path)
+                    if path is None or len(path) == 0:
+                        break
+                    else:
+                        #print "Entering path %s"%path
+                        prefixes[path] = True
+                    
+            f = False
             for s in base_seams:
-                if s.source is None:
-                    from_dir = base_repo
-                else:
-                    from_dir = os.path.join(base_repo, s.source)
-                to_dir = os.path.join(weld_root, s.get_dest())
-                #print "s = %s"%s
-                # delete_missing_from == True because if the seam target exists in the weld, but not in the
-                # base, we want to erase it until the weld reintroduces it in a later merge.
-                # this allows seam removal to ever work - rrw 2014-09-17
-                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'], 
-                                            delete_missing_from = True)
+                src = s.get_source()
+                #print "Testing seam %s"%s.get_source()
+                if src in prefixes:
+                    print "Seam %s is involved in this change"%s
+                    # Get me the git diff for these changes.
+                    (os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
+                    os.close(os_handle)
+
+                    some_data = git.diff_this(base_repo, src, cid, verbose = verbose,
+                                              from_commit_id = last_cid)
+                    # Write it out, rename all the little as and bs and apply it.
+                    with open(name, 'w') as fh:
+                        fh.write(some_data)
+                    try:
+                        git.apply_patch(weld_root, name, directory = s.get_dest(), verbose = verbose)
+                    except GiveUp as e:
+                        if (ignore_bad_patches):
+                            print "Ignoring bad patch - eeek!"
+                        else:
+                            raise e
+                    os.unlink(name)
+
+            ignore_bad_patches = False
+
+            # Add the relevant changes.
+            to_add = [ ]
+            for i in involved:
+                if (i[0] != 'D'):
+                    to_add.append(i[1])
+            git.add(weld_root, to_add)
 
             if (not('log' in state)):
                 state['log'] = [ ]
@@ -257,10 +306,10 @@ def step(spec, opts):
                 base_changes.extend(state['log'])
                 state['log'] = base_changes
             state['last_idx_merged'] = state['next_idx_to_merge']
+            # .. aaand stash everything so that commit can find it.
 
-        state['next_idx_to_merge'] = state['next_idx_to_merge'] + 1
-        # .. aaand stash everything so that commit can find it.
         has_local_changes = git.has_local_changes(weld_root)
+        state['next_idx_to_merge'] = state['next_idx_to_merge'] + 1
 
         ops.write_state_data(spec, state)
         if ((not has_local_changes) and no_further_commits):
@@ -275,11 +324,15 @@ def step(spec, opts):
         ops.verb_me(spec, 'pull_step', 'abort')
         
         if has_local_changes:
-            if opts.single_commit_stepping and state['last_idx_merged'] >= 0:
-                ops.sanitise(weld_root, state, opts, verbose = verbose)
-                ops.write_state_data(spec, state)
-                commit(spec, opts, allow_edit = False)
-                state = ops.read_state_data(spec)
+            print " we have local changes "
+            if opts.single_commit_stepping:
+                if (state['last_idx_merged'] >= 0):
+                    ops.sanitise(weld_root, state, opts, verbose = verbose)
+                    ops.write_state_data(spec, state)
+                    commit(spec, opts, allow_edit = False)
+                    state = ops.read_state_data(spec)
+                else:
+                    continue
             elif ((not opts.finish_stepping) or state['last_idx_merged'] < 0) and \
             ((not opts.step_until_git_change) or (changed or no_further_commits)):
                 ops.sanitise(weld_root, state, opts, verbose = verbose)
@@ -444,6 +497,73 @@ def finish(spec, opts):
     git.checkout(weld_root, orig_branch)
     git.merge_to_current(weld_root, working_branch, squash = False, verbose = verbose)
     
+    if verbose:
+        print "Leaving pull marker .. "
+    commit_file = layout.commit_file(weld_root, base_name)
+    hdr = merge_marker(base_obj, base_obj.get_seams(), base_last)
+    with open(commit_file, 'w') as f:
+        f.write('\n')
+        f.write(hdr)
+        f.write('\n')
+    if (edit_commit_file):
+        push_utils.edit_file(commit_file)
+    
+    git.commit_using_file(weld_root, commit_file, all = True, verbose = verbose)
+    if verbose:
+        print "Deleting %s"%commit_file
+    os.remove(commit_file)
+
+    # Move the base back onto its branch
+    git.checkout(state['base_repo'], state['base_branch'])
+
+    # .. and that's all, folks.
+    if os.path.exists(layout.state_dir(weld_root)):
+        shutil.rmtree(layout.state_dir(weld_root))
+    
+    print "pull_step complete. Yay! "
+
+
+def finish_rebase(spec, opts):
+    """
+    Finish off this pull with a rebase - not currently used.
+    
+    Merge the working branch back to the main weld branch.
+    """
+    state = ops.read_state_data(spec)
+    verbose = state['verbose'] or opts.verbose
+    weld_root = state['weld_root']
+    working_branch = state['working_branch']
+    orig_branch = state['orig_branch']
+    base_obj = state['base_obj']
+    base_last = state['base_last']
+    base_name = state['base_name']
+    base_repo = state['base_repo']
+    edit_commit_file = state['edit_commit_file'] or opts.edit_commit_file
+
+    # All we can really do here is to rebase the branch onto main ..
+    mi = layout.merging_file(weld_root, base_name)
+    if not os.path.exists(mi):
+        try:
+            print "Check out %s"%orig_branch
+            git.checkout(weld_root, orig_branch)
+            print "Rebasing %s to %s "%(working_branch,orig_branch)
+            git.rebase_to_current(weld_root, working_branch, squash = False, verbose = verbose)
+        except GiveUp as e:
+            lines = e.message.splitlines()
+            lines = ['  %s'%line for line in lines]
+            raise GiveUp(ops.merge_advice(
+                    base_name, '\n'.join(lines), base_repo))
+    else:
+        if verbose:
+            print "Rebase complete."
+
+    if verbose:
+        if state['verbose']:
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+            print 'In', base_repo
+            run_to_stdout(['git', 'status'], cwd=weld_root)
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
     if verbose:
         print "Leaving pull marker .. "
     commit_file = layout.commit_file(weld_root, base_name)

@@ -128,6 +128,29 @@ def rewrite_diff(infile, cid, changes):
 
     return (are_any, outfile)
 
+def list_files_involved(base_changes):
+    """
+    Returns a list of (letter, path) pairs.
+    """
+    r = re.compile(r'^:([0-9]+)\s+([0-9]+)\s+([0-9a-f]+)...\s+([0-9a-f]+)...\s+([A-Z])\s+(.*)$')
+    rv = [ ]
+    for b in base_changes:
+        m = r.match(b)
+        if (m is not None):
+            rv.append((m.group(5), m.group(6).strip()))
+    return rv
+    
+
+def list_files_by_attribute(base_changes, attr):
+    r = re.compile(r'^:([0-9]+)\s+([0-9]+)\s+([0-9a-f]+)...\s+([0-9a-f]+)...\s+([A-Z])\s+(.*)$')
+    rv = [ ]
+    for b in base_changes:
+        m = r.match(b)
+        if (m is not None) and (attr == m.group(5)):
+            rv.append(m.group(6).strip())
+    return rv
+
+
         
 def modify_seams(spec, base_obj, changes, old_commit, new_commit):
     """
