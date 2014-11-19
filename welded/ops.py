@@ -51,8 +51,9 @@ def delete_seams(spec, base_obj, seams, base_commit):
 
     for s in seams:
         to_zap = os.path.join(spec.base_dir, s.dest)
-        print("W: Remove %s\n"%to_zap)
-        shutil.rmtree(to_zap)
+        if os.path.exists(to_zap): 
+            print("W: Remove %s\n"%to_zap)
+            shutil.rmtree(to_zap)
         git.add_in_subdir(spec.base_dir, s.dest )
     
     # Now create the header for all this ..
