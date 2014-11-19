@@ -97,6 +97,10 @@ main_parser.add_option("--sanitise-script", action = "store",
                                 " can sanitise"
                                 "WELD_DIRS - Contains a space-separated list of directories involved in this push or"
                                 " pull"))
+main_parser.add_option("--ignore-bad-patches", action="store_true",
+                       dest="ignore_bad_patches", default = False,
+                       help = ( "[a_bit_cross] Ignore any bad patches in (just this!) step - used to fix horrific"
+                              "bugs left over from previous bad merges" ))
 
 # CommandName -> CommandClass
 g_command_dict = { }

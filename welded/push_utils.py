@@ -15,7 +15,8 @@ import welded.query as query
 from welded.headers import pickle_seams
 from welded.utils import run_silently, run_to_stdout, GiveUp
 
-def make_files_match(from_dir, to_dir, do_commits = True, verbose=False, delete_missing_from = False):
+def make_files_match(from_dir, to_dir, do_commits = True, verbose=False, delete_missing_from = False, 
+                     do_delete_files = True):
     """Make the git handled files in 'to_dir' match those in 'from_dir'
     """
 
@@ -89,7 +90,7 @@ def make_files_match(from_dir, to_dir, do_commits = True, verbose=False, delete_
     if do_commits:
         git.commit_using_message(to_dir, "Add files from %s"%from_dir, verbose=verbose)
 
-    if deleted_files:
+    if deleted_files and do_delete_files:
         git.rm(to_dir, list(deleted_files))
         if do_commits: 
             git.commit_using_message(to_dir, "Delete files no longer in %s"%from_dir)
