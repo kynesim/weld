@@ -239,7 +239,6 @@ def step(spec, opts):
             if state['verbose']:
                 print "No explicit change for these seams in this base commit"
         
-        print "changed = %s nfc = %s"%(changed, no_further_commits)
         if changed or no_further_commits:
             if bulk:
                 git.checkout(base_repo, cid)
@@ -570,7 +569,11 @@ def abort(spec, opts):
     state = ops.read_state_data(spec)
     weld_root = state['weld_root']
     # Abort any ongoing rebase.
-    git.abort_rebase(spec)
+    try:
+        git.abort_rebase(spec)
+    except:
+        pass
+
     # Check out the right version of the base.
     git.checkout(state['base_repo'], state['base_branch'])
     # Remove anything compromising ..

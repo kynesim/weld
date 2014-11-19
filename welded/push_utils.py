@@ -38,14 +38,28 @@ def list_files_by_attribute(base_changes, attr):
     return rv
 
 
-def make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid, cid, ignore_bad_patches, verbose = False):
+def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, cid, ignore_bad_patches, verbose = False,
+                       is_source_to_dest = True
+                       ):
+    """
+    source_repo - where the data is coming from
+    last_cid .. cid - The changes to apply from source_repo
+    dest_repo - The repository to apply the changes to.
+    what_changed - the output of git whatchanged(last_cid .. cid) - tell us
+                    which files to alter.
+    seams -  the list of seams to consider.
+    ignore_bad_patches - Ignore bad patches?
+    is_source_to_dest - if True, take seams src->dest (for merging into the working repo from a base),
+                        if False take seams dest->src (for merging into the base from a working repo)
+    
+    """
     # This is rather horrific. For each change in base_changes,
     #  we mark any seam that has changed.
     #
     #  Then we can use diff_this() to find each diff in turn.
     #   .. and apply_patch to apply it.
     change_records = [ ]
-    for q in base_changes:
+    for q in what_changed:
         change_records.extend(q.split('\n'))
 
         involved = list_files_involved(change_records)
@@ -71,8 +85,13 @@ def make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid,
                     prefixes[path] = True
                     
         f = False
-        for s in base_seams:
-            src = s.get_source()
+        for s in seams:
+            if is_source_to_dest:
+                src = s.get_source()
+                dest_dir = s.get_dest()
+            else:
+                src = s.get_dest()
+                dest_dir = s.get_source()
             #print "Testing seam %s"%s.get_source()
             if src in prefixes:
                 print "Seam %s is involved in this change"%s
@@ -80,13 +99,13 @@ def make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid,
                 (os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
                 os.close(os_handle)
 
-                some_data = git.diff_this(base_repo, src, cid, verbose = verbose,
+                some_data = git.diff_this(source_repo, src, cid, verbose = verbose,
                                           from_commit_id = last_cid)
                 # Write it out, rename all the little as and bs and apply it.
                 with open(name, 'w') as fh:
                     fh.write(some_data)
                 try:
-                    git.apply_patch(weld_root, name, directory = s.get_dest(), verbose = verbose)
+                    git.apply_patch(dest_repo, name, directory = dest_dir, verbose = verbose)
                 except GiveUp as e:
                     if (ignore_bad_patches):
                         print "Ignoring bad patch - eeek!"
@@ -100,7 +119,7 @@ def make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid,
         for i in involved:
             if (i[0] != 'D'):
                 to_add.append(i[1])
-        git.add(weld_root, to_add)
+        git.add(dest_repo, to_add)
 
         # That's all folks
 
