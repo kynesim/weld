@@ -241,11 +241,24 @@ def add_seams(spec, base_obj, seams, base_commit):
         # 
         if (os.path.exists(src)):
             run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
-        else:
-            shutil.rmtree(dest)
 
-        # Make sure you add all the files in the subdirectory
-        git.add_in_subdir(spec.base_dir, dest)            
+            # You really don't want to remove anything, because it is likely that if there are files
+            # here, the seam was already added to the repository at the branch point 
+            # and was not added to the base. You will get some patch issues, since the
+            # base may well try to re-add this from elsewhere, but that is kind of
+            # to be expected.
+        else:
+            # Make sure the dest directory exists, or we will have trouble later.
+            if not os.path.exists(dest):
+                os.mkdir(dest)
+
+        # Make sure you add all the files in the subdirectory, if there are any.
+        if len(os.listdir(dest)) > 0:
+            git.add_in_subdir(spec.base_dir, dest)            
+        else:
+            # Just add the directory
+            git.add(spec.base_dir, [ dest ])
+
     # Now commit them with an appropriate header.
     hdrs = headers.seam_op(headers.SEAM_VERB_ADDED, base_obj, seams, base_commit)
     git.commit(spec.base_dir, hdrs, [] )

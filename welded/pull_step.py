@@ -189,6 +189,7 @@ def step(spec, opts):
     ignore_bad_patches = opts.ignore_bad_patches
 
     while True:
+        in_error = False
         state = ops.read_state_data(spec)
         weld_root = state['weld_root']
         changes = state['changes']
@@ -288,7 +289,8 @@ def step(spec, opts):
                         if (ignore_bad_patches):
                             print "Ignoring bad patch - eeek!"
                         else:
-                            raise e
+                            in_error = True
+                            # .. and carry on.
                     os.unlink(name)
 
             ignore_bad_patches = False
@@ -316,13 +318,20 @@ def step(spec, opts):
             ops.verb_me(spec, 'pull_step', 'finish')
         else:
             ops.verb_me(spec, 'pull_step', 'step')
-            if (state['last_idx_merged'] >= 0):
+            if (state['last_idx_merged'] >= 0 or in_error):
                 ops.verb_me(spec, 'pull_step', 'commit')
 
         ops.verb_me(spec, 'pull_step', 'inspect')
         ops.verb_me(spec, 'pull_step', 'sanitise')
         ops.verb_me(spec, 'pull_step', 'abort')
-        
+
+        if in_error:
+            print " Some patches failed to apply cleanly. Please clear this up and then weld commit"
+            print " to continue"
+            ops.sanitise(weld_root, state, opts, verbose = verbose)
+            ops.write_state_data(spec, state)
+            break
+
         if has_local_changes:
             print " we have local changes "
             if opts.single_commit_stepping:
@@ -451,7 +460,10 @@ def commit(spec, opts, allow_edit= True):
 
     ops.verb_me(spec, 'pull_step', 'abort')
     
-def finish(spec, opts):
+def finish(spec,opts):
+    return finish_rebase(spec,opts)
+
+def finish_merge(spec, opts):
     """
     Finish off this pull. 
     
