@@ -62,6 +62,7 @@ main_parser.add_option('-f', '--finish-stepping', action="store_true",
                        dest="finish_stepping", default = False,
                        help="When in a stepped pull or push, squash the rest of the pull " + 
                        "or push and get to the end of the change list.")
+# Sadly, no longer works.
 main_parser.add_option('--bulk', action="store_true",
                        dest="bulk", default = False,
                        help = ( "[a-bit-cross] Perform this pull in bulk; this means that no intermediate "
@@ -101,6 +102,12 @@ main_parser.add_option("--ignore-bad-patches", action="store_true",
                        dest="ignore_bad_patches", default = False,
                        help = ( "[a_bit_cross] Ignore any bad patches in (just this!) step - used to fix horrific"
                               "bugs left over from previous bad merges" ))
+main_parser.add_option("--combine-style", action="store",
+                       dest="combine_style", default= None,
+                       help = ( "[miffed] Tells pull-step and other commands what combine style to use once they have"
+                                " imported all their patches. 'merge' means do a git merge with the pulling branch,  "
+                                " 'rebase' means rebase the base changes over the pulling branch. rebase means you   "
+                                "  end up doing a lot of rebase --continue but reduces the chances of a mismerge. " ))
 
 # CommandName -> CommandClass
 g_command_dict = { }

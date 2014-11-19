@@ -12,6 +12,8 @@ import welded.ops as ops
 import welded.layout as layout
 import welded.push_utils as push_utils
 
+from welded.push_utils import make_files_match, make_patches_match
+
 from welded.headers import merge_marker
 from welded.query import query_last_merge_or_push
 from welded.utils import GiveUp, classify_seams, run_to_stdout, run_silently, \
@@ -94,6 +96,7 @@ def pull_step(spec, base_name, opts):
     state['verbose'] = opts.verbose
     state['edit_commit_file'] = opts.edit_commit_file
     state['bulk'] = opts.bulk
+    state['combine_style'] = opts.combine_style
     if (opts.commit_style is None):
         state['commit_style'] = get_default_commit_style()
     else:
@@ -238,69 +241,22 @@ def step(spec, opts):
         
         print "changed = %s nfc = %s"%(changed, no_further_commits)
         if changed or no_further_commits:
-            # This is rather horrific. For each change in base_changes,
-            #  we mark any seam that has changed.
-            #
-            #  Then we can use diff_this() to find each diff in turn.
-            #   .. and apply_patch to apply it.
-            change_records = [ ]
-            for q in base_changes:
-                change_records.extend(q.split('\n'))
-
-            involved = ops.list_files_involved(change_records)
-            
-            prefixes = { }
-            for i in involved:
-                path = i[1]
-                if (i[0] == 'D'):
-                    print " Deleting %s "%i[1]
-                    if os.path.exists(i[1]):
-                        if os.path.isdir(i[1]):
-                            shutil.rmtree(i[1])
-                        else:
-                            os.unlink(i[1])
-                        continue
-                while True:
-                    (path,k) = os.path.split(path)
-                    if path is None or len(path) == 0:
-                        break
+            if bulk:
+                git.checkout(base_repo, cid)
+                # Just make files the same.
+                for s in base_seams:
+                    if s.source is None:
+                        from_dir = base_repo
                     else:
-                        #print "Entering path %s"%path
-                        prefixes[path] = True
-                    
-            f = False
-            for s in base_seams:
-                src = s.get_source()
-                #print "Testing seam %s"%s.get_source()
-                if src in prefixes:
-                    print "Seam %s is involved in this change"%s
-                    # Get me the git diff for these changes.
-                    (os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
-                    os.close(os_handle)
-
-                    some_data = git.diff_this(base_repo, src, cid, verbose = verbose,
-                                              from_commit_id = last_cid)
-                    # Write it out, rename all the little as and bs and apply it.
-                    with open(name, 'w') as fh:
-                        fh.write(some_data)
-                    try:
-                        git.apply_patch(weld_root, name, directory = s.get_dest(), verbose = verbose)
-                    except GiveUp as e:
-                        if (ignore_bad_patches):
-                            print "Ignoring bad patch - eeek!"
-                        else:
-                            in_error = True
-                            # .. and carry on.
-                    os.unlink(name)
-
-            ignore_bad_patches = False
-
-            # Add the relevant changes.
-            to_add = [ ]
-            for i in involved:
-                if (i[0] != 'D'):
-                    to_add.append(i[1])
-            git.add(weld_root, to_add)
+                        from_dir = os.path.join(base_repo, s.source)
+                    to_dir = os.path.join(weld_root, s.get_dest())
+                    push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'], 
+                                                delete_missing_from = True)
+            else:
+                # Process patches. 
+                make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid, cid, ignore_bad_patches, verbose = verbose)
+                ignore_bad_patches = False
+                
 
             if (not('log' in state)):
                 state['log'] = [ ]
@@ -461,7 +417,16 @@ def commit(spec, opts, allow_edit= True):
     ops.verb_me(spec, 'pull_step', 'abort')
     
 def finish(spec,opts):
-    return finish_rebase(spec,opts)
+    cs = opts.combine_style
+    if (cs is None):
+        state = ops.read_state_data(spec)
+        cs = state["combine_style"]
+    if (cs is None):
+        cs = 'merge'
+    if cs == 'merge':
+        return finish_merge(spec, opts)
+    else:
+        return finish_rebase(spec,opts)
 
 def finish_merge(spec, opts):
     """
@@ -604,6 +569,8 @@ def finish_rebase(spec, opts):
 def abort(spec, opts):
     state = ops.read_state_data(spec)
     weld_root = state['weld_root']
+    # Abort any ongoing rebase.
+    git.abort_rebase(spec)
     # Check out the right version of the base.
     git.checkout(state['base_repo'], state['base_branch'])
     # Remove anything compromising ..
