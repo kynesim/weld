@@ -392,7 +392,7 @@ def merge(where, to_branch, from_branch, msg, squashed = False):
     Note that merge leaves you on the to_branch
     """
     switch_branch(where, to_branch)
-    cmd = [ "git", "merge" ]
+    cmd = [ "git", "-c", "merge.renamelimit=1000000000", "merge" ]
     if (squashed):
         cmd.append("--squash")
     #cmd.append("--no-ff") # To make sure we always get our commit
@@ -425,7 +425,7 @@ def merge_to_current(where, branch_name, squash=False, verbose=False, commit = F
 
     If 'squash' is true, then do a squash merge with --squash.
     """
-    cmd = ['git', 'merge', branch_name]
+    cmd = ['git', '-c', 'merge.renamelimit=1000000000', 'merge', branch_name ]
     if squash:
         cmd.append('--squash')
     elif not commit:
@@ -482,13 +482,19 @@ def show(where, cid):
     f.file.write(out)
     return f
 
-def show_diff(where, from_cid, to_cid):
+def show_diff(where, from_cid, to_cid, relative_to = None):
     """
     Returns a temporary file containing the diffs from from to to.
     """
     f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%to_cid, delete=False)
     # @todo Could be very much more efficient (and prolly needs to be)
-    rv, out = run_silently(["git", "diff", "--binary", "%s..%s"%(from_cid, to_cid)], cwd=where)
+    cmd = ["git", "diff", "--binary", "%s..%s"%(from_cid, to_cid)]
+    if (relative_to is not None):
+        if (relative_to[-1] != '/'):
+            cmd.extend([ "--relative=%s/"%relative_to ])
+        else:
+            cmd.extend([ "--relative=%s"%relative_to ])
+    rv, out = run_silently(cmd, cwd=where)
     f.file.write(out)
     return f
 

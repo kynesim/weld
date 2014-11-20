@@ -116,7 +116,7 @@ def pull_step(spec, base_name, opts):
         print(" .. bulk mode. Just asking for top of tree for speed .. ")
         changes = [ ops.query_head_of_base(spec, base_obj) ]
     else:
-        changes = ops.list_changes(base_repo, last_base_sync, 'HEAD')
+        changes = ops.list_sensible_changes(base_repo, last_base_sync, 'HEAD')
     state['changes'] = changes
         
     print("Branching the weld at %s to get the last sync. "%last_base_sync)
@@ -192,7 +192,7 @@ def step(spec, opts):
     ignore_bad_patches = opts.ignore_bad_patches
 
     while True:
-        in_error = False
+        nr_bad = 0
         state = ops.read_state_data(spec)
         weld_root = state['weld_root']
         changes = state['changes']
@@ -253,7 +253,8 @@ def step(spec, opts):
                                                 delete_missing_from = True)
             else:
                 # Process patches. 
-                make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid, cid, ignore_bad_patches, verbose = verbose)
+                nr_bad = make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid, cid, ignore_bad_patches, verbose = verbose,
+                                              bad_patches_file = "/tmp/weld.bad.patches")
                 ignore_bad_patches = False
                 
 
@@ -273,16 +274,16 @@ def step(spec, opts):
             ops.verb_me(spec, 'pull_step', 'finish')
         else:
             ops.verb_me(spec, 'pull_step', 'step')
-            if (state['last_idx_merged'] >= 0 or in_error):
+            if (state['last_idx_merged'] >= 0 or nr_bad != 0):
                 ops.verb_me(spec, 'pull_step', 'commit')
 
         ops.verb_me(spec, 'pull_step', 'inspect')
         ops.verb_me(spec, 'pull_step', 'sanitise')
         ops.verb_me(spec, 'pull_step', 'abort')
 
-        if in_error:
-            print " Some patches failed to apply cleanly. Please clear this up and then weld commit"
-            print " to continue"
+        if nr_bad != 0:
+            print " %d patches failed to apply cleanly. Please clear this up and then weld commit"%(nr_bad)
+            print " to continue. A copy of the bad patches can be found in /tmp/weld.bad.patches.%d ."
             ops.sanitise(weld_root, state, opts, verbose = verbose)
             ops.write_state_data(spec, state)
             break
@@ -456,7 +457,9 @@ def finish_merge(spec, opts):
             lines = e.message.splitlines()
             lines = ['  %s'%line for line in lines]
             raise GiveUp(ops.merge_advice(
-                    base_name, '\n'.join(lines), base_repo))
+                    base_name, '\n'.join(lines), base_repo, 
+                    "HEAD is the weld at point of last pull with the base with the base patches applied on top of it",
+                    "%s is the head of the branch we are merging into"%orig_branch ))
     else:
         if verbose:
             print "Merge complete."
@@ -528,7 +531,8 @@ def finish_rebase(spec, opts):
             lines = e.message.splitlines()
             lines = ['  %s'%line for line in lines]
             raise GiveUp(ops.merge_advice(
-                    base_name, '\n'.join(lines), base_repo))
+                    base_name, '\n'.join(lines), base_repo, 
+                    "This is a rebase  - all branches on %s are being reapplied to %s"%(working_branch, orig_branch)))
     else:
         if verbose:
             print "Rebase complete."

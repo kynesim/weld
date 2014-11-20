@@ -122,7 +122,7 @@ def push_step(spec, base_name, opts):
     
     # @todo There is some controversy over how we should do this, but
     #  I think ancestry-path is the least confusing - rrw 2014-09-02.
-    changes = ops.list_changes(weld_root, latest_sync, 'HEAD')
+    changes = ops.list_sensible_changes(weld_root, latest_sync, 'HEAD')
     state['sanitise_script'] = canonicalise(opts, opts.sanitise_script)
     state['cmd'] = 'push_step'
     state['edit_commit_file'] = opts.edit_commit_file
@@ -187,6 +187,7 @@ def step(spec, opts):
         base_seams = state['base_seams']
         base_dir = state['base_dir']
         changes = state['changes']
+        nr_bad = 0
 
         current_idx = state['current_idx']
         last_merged_idx = state['last_merged_idx']
@@ -242,15 +243,28 @@ def step(spec, opts):
         #
         # (but if it is the last commit, we don't have a choice)
         if changed or no_further_commits:
+            # We want to merge patches from the weld_root
+            nr_bad = push_utils.make_patches_match(source_repo = weld_root,
+                                                     dest_repo = base_dir,
+                                                     what_changed = base_changes,
+                                                     seams = base_seams,
+                                                     last_cid = last_merged_cid,
+                                                     cid = cid,
+                                                     ignore_bad_patches = False,
+                                                     verbose = verbose,
+                                                     is_source_to_dest = False,
+                                                     bad_patches_file = "/tmp/weld.bad.patches")
+                                          
+
             # Work out what changed .. 
-            for s in base_seams:
-                from_dir = os.path.join(weld_root, s.get_dest())
-                if s.source is None:
-                    to_dir = base_dir
-                else:
-                    to_dir = os.path.join(base_dir, s.source)
-                push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
-                    
+            #for s in base_seams:
+            #    from_dir = os.path.join(weld_root, s.get_dest())
+            #    if s.source is None:
+            #        to_dir = base_dir
+            #    else:
+            #        to_dir = os.path.join(base_dir, s.source)
+            #    push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'])
+            #        
             if (not ('log' in state)):
                 state['log'] = [ ]
             if base_changes: 
@@ -278,6 +292,12 @@ def step(spec, opts):
             
         ops.verb_me(spec, 'push_step', 'inspect')
 
+        if nr_bad:
+            print " %s patches failed to apply cleanly. Please clear this up and then weld commit"%nr_bad
+            print " to continue. A copy of the bad patches can be found in /tmp/weld.bad.patches.%d ."
+            ops.sanitise(weld_root, state, opts, verbose = verbose)
+            ops.write_state_data(spec, state)
+            break
 
         # Now work out if anything has changed.
         if has_local_changes:
@@ -311,7 +331,10 @@ def step(spec, opts):
         ops.next_verbs(spec)
 
     if no_further_commits:
-        print "Stepping is all done. Commit when you are ready and we will finish up."
+        if has_local_changes:
+            print "Stepping is all done. Commit and we will start to finish up."
+        else:
+            print "Stepping is all done. You can now 'weld finish' to finish."
     else:
         print "Base stepped to %s - check changes and when you are happy, either step or commit."%cid
     return True
@@ -425,6 +448,19 @@ def finish(spec, opts):
     except:
         pass
 
+
+    # Find any seams where the dest dir is empty and copy over their contents.
+    if verbose:
+        print " Finding any missing seams and copying contents over in case we missed the patches creating them.. "
+        base_seams = state['base_seams']
+        for s in base_seams:
+            to_dir = os.path.join(base_dir,s.get_dest())
+            if (not os.path.exists(to_dir)):
+                print " - Inventing seam %s"%s.name
+                from_dir = os.path.join(weld_root, s.source)
+                push_utils.make_files_match(from_dir, to_dir, do_commits = False,verbose = verbose,
+                                            delete_missing_from = False)
+
     # Now check out the place we want to be on the main branch.
     if verbose:
         print "Check out %s on the root .. "%state['current_branch']
@@ -440,7 +476,9 @@ def finish(spec, opts):
             lines = e.message.splitlines()
             lines = ['  %s'%line for line in lines]
             raise GiveUp(ops.merge_advice(
-                             base_name, '\n'.join(lines), base_dir))
+                    base_name, '\n'.join(lines), base_dir,
+                    "HEAD is formed by taking the base at the point of last merge and applying our tree on top of it",
+                    "%s is where the base was before we pushed"%orig_branch))
 
     # And then merge *that* back into the original branch
         

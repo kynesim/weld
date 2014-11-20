@@ -435,8 +435,24 @@ def ensure_state_dir(weld_dir):
     except:
         pass
 
-def list_changes(where, cid_from, cid_to):
-    return git.list_changes(where, cid_from, cid_to, opts = [ '--topo-order' ])
+def list_changes(where, cid_from, cid_to, opts = [ '--topo-order' ]):
+    return git.list_changes(where, cid_from, cid_to, opts = opts)
+
+def list_sensible_changes(where, cid_from, cid_to):
+    """
+    This produces a "sensible" list of cid_from .. cid_to: this means the 
+    list that you want to process for push_step and pull_step.
+    
+     * Don't follow merges down or you will get into an utter mess =>
+       --first-parent
+     * Topological order to avoid reintroducing patches => --topo-order
+      [ though frankly if this makes any difference, something has gone
+        badly wrong ]
+     * Don't list anything you've already got (--right-only --cherry-pick)
+     """
+    return git.list_changes(where, cid_from, cid_to, opts = 
+                            [ "--first-parent", "--topo-order", 
+                              "--right-only", "--cherry-pick" ])
 
 def log_changes(where, cid_from, cid_to, directories, style, verbose = False):
     if (style == "long"):
@@ -466,8 +482,8 @@ def log_changes(where, cid_from, cid_to, directories, style, verbose = False):
     else:
         raise GiveUp("I do not understand the log style '%s'"%style)
 
-def merge_advice(base, lines,base_repo):
-    return ('Error merging patches to base %s\n'
+def merge_advice(base, lines,base_repo, head_expln, master_expln):
+    return ('Error merging patches to base %s.\n'
             '%s\n'
             'Fix the problems:\n'
             '  pushd %s\n'
@@ -475,8 +491,10 @@ def merge_advice(base, lines,base_repo):
             '  edit <the appropriate files>\n'
             '  git commit -a\n'
             '  popd\n'
-            'and do "weld finish", or abort using "weld abort"'%\
-            (base, lines, base_repo))
+            'and do "weld finish", or abort using "weld abort\n"'
+            ' %s\n'
+            ' %s\n'%\
+            (base, lines, base_repo, head_epxln, master_expln))
 
 def sanitise(in_dir, state, opts, verbose = False):
     if opts.sanitise_script is not None:

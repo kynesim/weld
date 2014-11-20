@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import shutil
 import re
+import glob
 
 import welded.git as git
 import welded.layout as layout
@@ -39,7 +40,8 @@ def list_files_by_attribute(base_changes, attr):
 
 
 def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, cid, ignore_bad_patches, verbose = False,
-                       is_source_to_dest = True
+                       is_source_to_dest = True,
+                       bad_patches_file = "/tmp/weld.bad.patches"
                        ):
     """
     source_repo - where the data is coming from
@@ -59,6 +61,7 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
     #  Then we can use diff_this() to find each diff in turn.
     #   .. and apply_patch to apply it.
     change_records = [ ]
+    nr_bad = 0
     for q in what_changed:
         change_records.extend(q.split('\n'))
 
@@ -85,6 +88,13 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
                     prefixes[path] = True
                     
         f = False
+        nr_bad = 0
+        for i in glob.glob("%s.*"%bad_patches_file):
+            try:
+                os.unlink(i)
+            except:
+                pass
+            
         for s in seams:
             if is_source_to_dest:
                 src = s.get_source()
@@ -96,33 +106,54 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
             if src in prefixes:
                 print "Seam %s is involved in this change"%s
                 # Get me the git diff for these changes.
-                (os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
-                os.close(os_handle)
+                #(os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
+                #os.close(os_handle)
 
-                some_data = git.diff_this(source_repo, src, cid, verbose = verbose,
-                                          from_commit_id = last_cid)
+                tmpfile =  git.show_diff(source_repo, last_cid, cid, relative_to = src)
+                name = tmpfile.name
+                tmpfile.close() #  Make sure that all data is flushed.
+                #some_data = git.diff_this(source_repo, src, cid, verbose = verbose,
+                #                          from_commit_id = last_cid)
                 # Write it out, rename all the little as and bs and apply it.
-                with open(name, 'w') as fh:
-                    fh.write(some_data)
+                #with open(name, 'w') as fh:
+                #    fh.write(some_data)
                 try:
                     git.apply_patch(dest_repo, name, directory = dest_dir, verbose = verbose)
                 except GiveUp as e:
                     if (ignore_bad_patches):
                         print "Ignoring bad patch - eeek!"
                     else:
-                        in_error = True
+                        with open(name, 'r') as g:
+                            with open("%s.%s"%(bad_patches_file, s.name), 'a') as f:
+                                f.write(g.read())
+                        nr_bad = nr_bad + 1
                     # .. and carry on.
                 os.unlink(name)
-
+                
         # Add the relevant changes.
+        # We have to stage this because there could be rather a lot of them.
         to_add = [ ]
+        current = [ ]
         for i in involved:
             if (i[0] != 'D'):
-                to_add.append(i[1])
-        git.add(dest_repo, to_add)
+                current.append(i[1])
+                if (len(current) > 32):
+                    to_add.append(current)
+                    current = [ ]
+        if (len(current)> 0):
+            to_add.append(current)
+                
+        for c in to_add:
+            try:
+                git.add(dest_repo, c)
+            except Exception as e:
+                if nr_bad > 0:
+                    pass
+                else:
+                    raise e
 
-        # That's all folks
-
+    # That's all folks
+    return nr_bad
 
 def make_files_match(from_dir, to_dir, do_commits = True, verbose=False, delete_missing_from = False, 
                      do_delete_files = True):
