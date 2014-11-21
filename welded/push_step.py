@@ -301,7 +301,26 @@ def step(spec, opts):
 
         # Now work out if anything has changed.
         if has_local_changes:
+            continue_now = False
+
             if opts.single_commit_stepping:
+                commit_now = True
+            elif opts.pragmatic_stepping:
+                # If this entry was from the base, and so is the next one,
+                # commit.
+                commit_now = True
+                continue_now = True
+                if (cid is not None):
+                    this_base = push_utils.bases_for_commit(weld_root, cid, 'Stepwise-Pull')
+                    next_idx = state['current_idx']
+                    if (len(changes) > next_idx):
+                        next_cid = changes[next_idx]
+                        next_base = push_utils.bases_for_commit(weld_root, next_cid, 'Stepwise-Pull')
+                        if ((state['base_name'] in this_base) and ((state['base_name'] in next_base))):
+                            print " -- pragmatic_step: Absorbing consecutive pull adjustments from %s"%state['base_name']
+                            commit_now = False
+
+            if commit_now:
                 # Sanitising ..
                 ops.sanitise(base_dir, state, opts, verbose  = verbose)
                 ops.write_state_data(spec, state)
@@ -309,7 +328,7 @@ def step(spec, opts):
                 commit(spec, opts, allow_edit = False)
                 # .. and remember to resync our state.
                 state = ops.read_state_data(spec)
-            elif (not opts.finish_stepping) and ((not opts.step_until_git_change) or (changed or no_further_commits)):
+            elif (not continue_now) and (not opts.finish_stepping) and ((not opts.step_until_git_change) or (changed or no_further_commits)):
                 # Sanitising ..
                 ops.sanitise(base_dir, state, opts, verbose  = verbose)
                 ops.write_state_data(spec, state)

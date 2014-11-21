@@ -14,7 +14,7 @@ SEAM_VERB_MODIFIED = "Changed"
 
 def decode_headers(log_entry):
     """
-    Returns a list of headers [ ( verb, rest ) ]
+    Returns a list of headers [ ( verb, rest ) ] for weld state headers only.
     """
     lines = log_entry.split('\n')
     rv = [ ]
@@ -23,6 +23,19 @@ def decode_headers(log_entry):
         m = rep.match(l)
         if (m is not None):
             rv.append( ( m.group(1), m.group(2) ) )
+    return rv
+
+def decode_commit_headers(log_entry):
+    """
+    Returns a list of commit headers [ (verb, base, cid_from, cid_to) ]
+    """
+    lines = log_entry.split('\n')
+    rv = [ ]
+    rep = re.compile(r'^X-Weld-([^:]+):\s+([^\s]+)\s+([0-9a-f]+)(\.+\s*([0-9a-f]+))?')
+    for l in lines:
+        m = rep.match(l)
+        if (m is not None):
+            rv.append( ( m.group(1), m.group(2), m.group(3), m.group(5) ) )
     return rv
 
 def decode_commit_data(data):

@@ -33,11 +33,14 @@ import welded.parser
 import welded.query as query
 import welded.status
 import welded.ops as ops
+import welded.git as git
 
 from welded.layout import spec_file
 from welded.push_step import push_step
 from welded.pull_step import pull_step
 from welded.utils import Bug, GiveUp, find_weld_dir
+from welded.headers import pickle_seams, decode_log_entry, decode_headers, decode_commit_data
+from welded.headers import decode_commit_headers
 
 main_parser = OptionParser(usage = __doc__)
 main_parser.add_option("-v", "--verbose", action="store_true",
@@ -73,6 +76,11 @@ main_parser.add_option('--bulk', action="store_true",
 main_parser.add_option('--single-commit-stepping', action="store_true",
                        dest="single_commit_stepping", default = False,
                        help="When in a stepped pull or push, just replicate commit messages for the rest of the pull/push")
+
+main_parser.add_option('--pragmatic-stepping', action="store_true",
+                       dest="pragmatic_stepping", default = False,
+                       help=( "When in a stepped pull or push, just replicate commit messages for the rest of the pull/push in an attempt to create" + 
+                              " some kind of sensible history.") )
 main_parser.add_option("--force-latest-sync", action="store", dest="force_latest_sync",
                        default = None,
                        help=( "[a-bit-cross] "
@@ -529,6 +537,10 @@ class Query(Command):
         by seams, and which directories correspond to which seam.
         Files and directories which start with a dot are ignored.
 
+     weld query headers <repo> <cid>
+     
+        Query the weld headers present in the given repo and commit id.
+
     """
     def go(self,opts,args):
         if len(args) < 1:
@@ -538,6 +550,19 @@ class Query(Command):
             if len(args) < 2:
                 raise GiveUp("query base requires a base name")
             query.query_base(self.spec, args[1])
+        elif cmd == "headers":
+            if (len(args) < 3):
+                raise GiveUp("query headers requires a repo dir and commit id")
+            log_entry = git.log(args[1], args[2])
+            hdrs = decode_headers(log_entry)
+            print " There are %d state headers."%(len(hdrs))
+            for verb,data in hdrs:
+                (base,cid,seams) = decode_commit_data(data)
+                print "Header: Verb='%s', base='%s', cid='%s', seams='%s' [from '%s']"%(verb,base,cid,seams,data)
+            hdrs = decode_commit_headers(log_entry)
+            print " There are %d commit headers."%(len(hdrs))
+            for (verb, base, cid_from, cid_to) in hdrs:
+                print "Verb = '%s', base = '%s', cid_from = '%s', cid_to = '%s'"%(verb,base,cid_from,cid_to)
         elif cmd == "bases":
             query.query_bases(self.spec)
         elif cmd == "seam-changes":

@@ -13,8 +13,22 @@ import welded.layout as layout
 import welded.ops as ops
 import welded.query as query
 
-from welded.headers import pickle_seams
+from welded.headers import pickle_seams, decode_log_entry, decode_headers, decode_commit_data
+from welded.headers import decode_commit_headers
 from welded.utils import run_silently, run_to_stdout, GiveUp
+
+def bases_for_commit(repo, cid, inverb):
+    """
+    Returns the set of bases involved in this commit - typically 
+    there will be only one. Returns a set.
+    """
+    log_entry = git.log(repo, cid)
+    hdrs = decode_commit_headers(log_entry)
+    bases = set()
+    for ( verb, base, cid_from, cid_to) in hdrs:
+        if verb == inverb:
+            bases.add(base)
+    return bases
 
 def list_files_involved(base_changes):
     """
@@ -75,7 +89,7 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
     for i in involved:
         path = i[1]
         if (i[0] == 'D'):
-            print " Deleting %s "%i[1]
+            #print " Deleting %s "%i[1]
             if os.path.exists(i[1]):
                 if os.path.isdir(i[1]):
                     shutil.rmtree(i[1])

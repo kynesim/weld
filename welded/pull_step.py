@@ -290,7 +290,7 @@ def step(spec, opts):
 
         if has_local_changes:
             print " we have local changes "
-            if opts.single_commit_stepping:
+            if opts.single_commit_stepping or opts.pragmatic_stepping:
                 if (state['last_idx_merged'] >= 0):
                     ops.sanitise(weld_root, state, opts, verbose = verbose)
                     ops.write_state_data(spec, state)
