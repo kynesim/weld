@@ -20,6 +20,9 @@ def add_in_subdir(where, dirname):
     else:
         run_silently(["git", "add", "-f", "-A", "%s/**"%dirname], cwd=where)
 
+def make_index_match(where, files, verbose = True):
+    run_silently(["git", "add", "-f", "-A" ] + files, cwd=where, verbose=verbose)
+
 def add(where, files, verbose=True):
     run_silently(["git", "add", "-f" ] + files, cwd=where, verbose=verbose)
 
@@ -351,10 +354,9 @@ def apply_patch(where, patch_file, directory=None, verbose=False):
     Raises GiveUp if something goes wrong with the command (i.e., git returns
     a non-zero value)
     """
-    if directory is None:
-        cmd = ['git', 'apply', '--index', patch_file]
-    else:
-        cmd = ['git', 'apply', '--index', '--directory=%s'%directory, patch_file]
+    cmd = ['git', 'apply', '--index', '--whitespace=nowarn' ]
+    if directory is not None:
+        cmd.extend( ['--directory=%s'%directory, patch_file] )
     run_silently(cmd, cwd=where, verbose=verbose)
 
 def abort_rebase(spec):

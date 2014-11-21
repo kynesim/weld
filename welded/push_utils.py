@@ -62,95 +62,114 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
     #   .. and apply_patch to apply it.
     change_records = [ ]
     nr_bad = 0
+    if len(what_changed) == 0:
+        print "Empty change list - nothing to do."
+        return
+
     for q in what_changed:
         change_records.extend(q.split('\n'))
 
-        involved = list_files_involved(change_records)
+    involved = list_files_involved(change_records)
         
-        prefixes = { }
-        for i in involved:
-            path = i[1]
-            if (i[0] == 'D'):
-                print " Deleting %s "%i[1]
-                if os.path.exists(i[1]):
-                    if os.path.isdir(i[1]):
-                        shutil.rmtree(i[1])
-                    else:
-                            os.unlink(i[1])
-                    continue
-
-            while True:
-                (path,k) = os.path.split(path)
-                if path is None or len(path) == 0:
-                    break
+    prefixes = { }
+    for i in involved:
+        path = i[1]
+        if (i[0] == 'D'):
+            print " Deleting %s "%i[1]
+            if os.path.exists(i[1]):
+                if os.path.isdir(i[1]):
+                    shutil.rmtree(i[1])
                 else:
-                    #print "Entering path %s"%path
-                    prefixes[path] = True
-                    
-        f = False
-        nr_bad = 0
-        for i in glob.glob("%s.*"%bad_patches_file):
-            try:
-                os.unlink(i)
-            except:
-                pass
-            
-        for s in seams:
-            if is_source_to_dest:
-                src = s.get_source()
-                dest_dir = s.get_dest()
-            else:
-                src = s.get_dest()
-                dest_dir = s.get_source()
-            #print "Testing seam %s"%s.get_source()
-            if src in prefixes:
-                print "Seam %s is involved in this change"%s
-                # Get me the git diff for these changes.
-                #(os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
-                #os.close(os_handle)
+                    os.unlink(i[1])
+                continue
 
-                tmpfile =  git.show_diff(source_repo, last_cid, cid, relative_to = src)
-                name = tmpfile.name
-                tmpfile.close() #  Make sure that all data is flushed.
-                #some_data = git.diff_this(source_repo, src, cid, verbose = verbose,
-                #                          from_commit_id = last_cid)
-                # Write it out, rename all the little as and bs and apply it.
-                #with open(name, 'w') as fh:
-                #    fh.write(some_data)
+        while True:
+            (path,k) = os.path.split(path)
+            if path is None or len(path) == 0:
+                break
+            else:
+                #print "Entering path %s"%path
+                prefixes[path] = True
+                    
+    f = False
+    nr_bad = 0
+    for i in glob.glob("%s.*"%bad_patches_file):
+        try:
+            os.unlink(i)
+        except:
+            pass
+            
+    for s in seams:
+        if is_source_to_dest:
+            src = s.get_source()
+            dest_dir = s.get_dest()
+        else:
+            src = s.get_dest()
+            dest_dir = s.get_source()
+        #print "Testing seam %s"%s.get_source()
+        if src in prefixes:
+            print "Seam %s is involved in this change"%s
+            # Get me the git diff for these changes.
+            #(os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
+            #os.close(os_handle)
+
+            tmpfile =  git.show_diff(source_repo, last_cid, cid, relative_to = src)
+            name = tmpfile.name
+            tmpfile.close() #  Make sure that all data is flushed.
+            #some_data = git.diff_this(source_repo, src, cid, verbose = verbose,
+            #                          from_commit_id = last_cid)
+            # Write it out, rename all the little as and bs and apply it.
+            #with open(name, 'w') as fh:
+            #    fh.write(some_data)
+            if (os.stat(name).st_size >0):
                 try:
                     git.apply_patch(dest_repo, name, directory = dest_dir, verbose = verbose)
                 except GiveUp as e:
                     if (ignore_bad_patches):
                         print "Ignoring bad patch - eeek!"
                     else:
+                        print "Patch failed to apply correctly - %s. Stashing."%e
                         with open(name, 'r') as g:
                             with open("%s.%s"%(bad_patches_file, s.name), 'a') as f:
                                 f.write(g.read())
                         nr_bad = nr_bad + 1
-                    # .. and carry on.
-                os.unlink(name)
+            else:
+                print " -- %s is empty. Ignoring it."%name
+                # .. and carry on.
+            os.unlink(name)
                 
-        # Add the relevant changes.
-        # We have to stage this because there could be rather a lot of them.
-        to_add = [ ]
-        current = [ ]
-        for i in involved:
-            if (i[0] != 'D'):
-                current.append(i[1])
-                if (len(current) > 32):
-                    to_add.append(current)
-                    current = [ ]
-        if (len(current)> 0):
-            to_add.append(current)
+    # Add the relevant changes.
+    # We have to stage this because there could be rather a lot of them.
+    to_add = [ ]
+    current = [ ]
+    already_done = set()
+    deleted = set()
+    
+    # Build the deleted set, and mark them all done.
+    for i in involved:
+        if (i[0] == 'D'):
+            deleted.add(i[1])
+            already_done.add(i[1])
+
+    for i in involved:
+        if ((i[1] not in already_done)):
+            #print "Process %s %s"%(i[0], i[1])
+            already_done.add(i[1])
+            current.append(i[1])
+            if (len(current) > 32):
+                to_add.append(current)
+                current = [ ]
+    if (len(current)> 0):
+        to_add.append(current)
                 
-        for c in to_add:
-            try:
-                git.add(dest_repo, c)
-            except Exception as e:
-                if nr_bad > 0:
-                    pass
-                else:
-                    raise e
+    for c in to_add:
+        try:
+            git.make_index_match(dest_repo, c)
+        except Exception as e:
+            if nr_bad > 0:
+                pass
+            else:
+                raise e
 
     # That's all folks
     return nr_bad

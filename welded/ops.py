@@ -494,7 +494,7 @@ def merge_advice(base, lines,base_repo, head_expln, master_expln):
             'and do "weld finish", or abort using "weld abort\n"'
             ' %s\n'
             ' %s\n'%\
-            (base, lines, base_repo, head_epxln, master_expln))
+            (base, lines, base_repo, head_expln, master_expln))
 
 def sanitise(in_dir, state, opts, verbose = False):
     if opts.sanitise_script is not None:
