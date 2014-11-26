@@ -330,6 +330,42 @@ class Init(Command):
         # init doesn't need a weld.
         return False
 
+
+@command('adopt')
+class Adopt(Command):
+    """Initialise a new weld in an existing git repository.
+
+    This command:
+
+    1. Parses the XML file to determine the description of the weld
+    2. Writes out its understanding of that XML to ".weld/welded.xml"
+       (the order of entities may change, and any XML comments will be lost)
+    3. Does a "git init" in the current directory.
+    4. Writes a ".gitignore" file to ignore various transient files that may
+       appear in the ".weld" directory.
+    5. Commits the ".gitignore" and ".weld/welded.xml" files to git, with the
+       commit message::
+
+          X-Weld-State: Init
+
+          Weld initialisation
+    """
+
+    def syntax(self):
+        return "adopt <weld-xml-file>"
+
+    def go(self, opts, args):
+        if (len(args) != 1):
+            raise GiveUp("Missing <weld-xml-file>")
+        
+        p = welded.parser.Parser()
+        weld = p.parse(args[0])
+        welded.init.adopt_weld(weld, os.getcwd())
+
+    def needs_weld(self):
+        # init doesn't need a weld.
+        return False
+
 @command('pull')
 class Pull(Command):
     """

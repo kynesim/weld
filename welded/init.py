@@ -10,22 +10,17 @@ import welded.git as git
 from welded.utils import GiveUp
 from welded.headers import header_init
 
-def init_weld(weld, where):
+def adopt_weld(weld,where):
     """
-    Initialise the given weld in the given directory
+    Adopt a weld
     """
-    
-    # Initialise a repository.
-    if (os.path.exists(os.path.join(where, ".git"))):
-        raise GiveUp("Cannot initialise a weld where there is already a git repo")
-    git.init(where)
     weld.set_dir(where)
     # Write the weld directory.
     os.mkdir(layout.weld_dir(weld.base_dir))
     # Create a spec file (the current file can be empty)
     weld.write(layout.spec_file(weld.base_dir))
     # Create a .gitignore
-    with open(os.path.join(where, ".gitignore"), "wb+") as f:
+    with open(os.path.join(where, ".gitignore"), "a") as f:
         f.write(".weld/state/**\n")
         f.write(".weld/pushing\n")
         f.write(".weld/bases\n")
@@ -42,6 +37,18 @@ def init_weld(weld, where):
     git.commit(where, "Weld initialisation", [ header_init() ])
     print("Weld initialised OK.\n")
 
+    
+
+def init_weld(weld, where):
+    """
+    Initialise the given weld in the given directory
+    """
+    
+    # Initialise a repository.
+    if (os.path.exists(os.path.join(where, ".git"))):
+        raise GiveUp("Cannot initialise a weld where there is already a git repo")
+    git.init(where)
+    adopt_weld(weld, where)
 
 # End file.
     
