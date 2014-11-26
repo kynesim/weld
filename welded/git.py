@@ -490,8 +490,10 @@ def show_diff(where, from_cid, to_cid, relative_to = None):
     """
     f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%to_cid, delete=False)
     # @todo Could be very much more efficient (and prolly needs to be)
-    cmd = ["git", "diff", "--binary", "%s..%s"%(from_cid, to_cid)]
-    if (relative_to is not None):
+    cmd = ["git", "diff", "--binary"]
+    cmd.append("%s..%s"%(from_cid, to_cid))
+    if (relative_to is not None and 
+        (len(relative_to) > 0)):
         if (relative_to[-1] != '/'):
             cmd.extend([ "--relative=%s/"%relative_to ])
         else:

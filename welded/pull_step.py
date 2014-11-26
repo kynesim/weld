@@ -243,7 +243,9 @@ def step(spec, opts):
                 print "No explicit change for these seams in this base commit"
         
         if changed or no_further_commits:
-            if bulk:
+            # Need to use file match if the last cid is None, because you
+            # can't diff from None.
+            if bulk or (last_cid is None):
                 git.checkout(base_repo, cid)
                 # Just make files the same.
                 for s in base_seams:
@@ -252,12 +254,14 @@ def step(spec, opts):
                     else:
                         from_dir = os.path.join(base_repo, s.source)
                     to_dir = os.path.join(weld_root, s.get_dest())
-                    push_utils.make_files_match(from_dir, to_dir, do_commits = False, verbose = state['verbose'], 
+                    push_utils.make_files_match(from_dir, to_dir, 
+                                                do_commits = False, verbose = verbose,
                                                 delete_missing_from = True)
             else:
                 # Process patches. 
-                nr_bad = make_patches_match(base_repo, weld_root, base_changes, base_seams, last_cid, cid, ignore_bad_patches, verbose = verbose,
-                                              bad_patches_file = "/tmp/weld.bad.patches")
+                nr_bad = make_patches_match(base_repo, weld_root, base_changes, 
+                                            base_seams, last_cid, cid, ignore_bad_patches, verbose = verbose,
+                                            bad_patches_file = "/tmp/weld.bad.patches")
                 ignore_bad_patches = False
                 
 

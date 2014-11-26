@@ -52,6 +52,27 @@ def list_files_by_attribute(base_changes, attr):
             rv.append(m.group(6).strip())
     return rv
 
+def transform_directory_prefix(source_dest_table, orig_fn):
+    remainder = None
+    fn = orig_fn
+    while True:
+        if (fn in source_dest_table):
+            # Got it!
+            if (remainder is None):
+                return source_dest_table[fn]
+            else:
+                return os.path.join(source_dest_table[fn], remainder)
+        elif (fn == ""):
+            raise GiveUp("Could not map %s via %s"%(orig_fn,source_dest_table))
+        else:
+            # Break it down.
+            (left, right) = os.path.split(fn)
+            fn = left
+            if (remainder is None):
+                remainder = right
+            else:
+                remainder = os.path.join(right, remainder)
+
 
 def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, cid, ignore_bad_patches, verbose = False,
                        is_source_to_dest = True,
@@ -69,6 +90,7 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
                         if False take seams dest->src (for merging into the base from a working repo)
     
     """
+    DEBUG = False
     # This is rather horrific. For each change in base_changes,
     #  we mark any seam that has changed.
     #
@@ -83,10 +105,13 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
     for q in what_changed:
         change_records.extend(q.split('\n'))
 
+
     involved = list_files_involved(change_records)
         
     prefixes = { }
     for i in involved:
+        if DEBUG:
+            print "%s %s"%(i[0],i[1])
         path = i[1]
         if (i[0] == 'D'):
             #print " Deleting %s "%i[1]
@@ -96,7 +121,7 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
                 else:
                     os.unlink(i[1])
                 continue
-
+            
         while True:
             (path,k) = os.path.split(path)
             if path is None or len(path) == 0:
@@ -113,6 +138,11 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
         except:
             pass
             
+    # Whilst we are about this, build up a table of 
+    # src -> dest prefixes that we can use later to
+    # work out which files need git adding.
+    source_dest_table = { }
+
     for s in seams:
         if is_source_to_dest:
             src = s.get_source()
@@ -120,9 +150,11 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
         else:
             src = s.get_dest()
             dest_dir = s.get_source()
-        #print "Testing seam %s"%s.get_source()
-        if src in prefixes:
+        if DEBUG:
+            print "Testing seam %s (src *%s* ,dest %s)"%(s.name, src,dest_dir)
+        if (len(src)==0) or (src in prefixes):
             print "Seam %s is involved in this change"%s
+            source_dest_table[src] = dest_dir
             # Get me the git diff for these changes.
             #(os_handle, name) = tempfile.mkstemp(suffix = 'patch', prefix = 'tmpweld')
             #os.close(os_handle)
@@ -159,6 +191,7 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
     already_done = set()
     deleted = set()
     
+
     # Build the deleted set, and mark them all done.
     for i in involved:
         if (i[0] == 'D'):
@@ -169,7 +202,9 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
         if ((i[1] not in already_done)):
             #print "Process %s %s"%(i[0], i[1])
             already_done.add(i[1])
-            current.append(i[1])
+            # So, i[1] is in the source's notation.
+            # We want it in the target's.
+            current.append(transform_directory_prefix(source_dest_table, i[1]))
             if (len(current) > 32):
                 to_add.append(current)
                 current = [ ]
@@ -178,6 +213,7 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
                 
     for c in to_add:
         try:
+            print "make_index_match %s"%dest_repo
             git.make_index_match(dest_repo, c)
         except Exception as e:
             if nr_bad > 0:
