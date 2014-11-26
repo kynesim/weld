@@ -138,6 +138,9 @@ def pull_step(spec, base_name, opts):
         ops.sanitise(weld_root, state, opts, verbose = verbose)
         ops.delete_seams(spec, base_obj, deleted_in_new, last_base_sync)
         ops.add_seams(spec, base_obj, added_in_new, last_base_sync)
+    else:
+        ops.add_seams(spec, base_obj, added_in_new, last_base_sync)
+
 
     ops.write_state_data(spec, state)
     ops.verb_me(spec, 'pull_step', 'abort')
