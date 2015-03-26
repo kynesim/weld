@@ -150,9 +150,12 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
         else:
             src = s.get_dest()
             dest_dir = s.get_source()
+        # "." is a synonym for the root.
+        if src == ".":
+            src = ""
         if DEBUG:
             print "Testing seam %s (src *%s* ,dest %s)"%(s.name, src,dest_dir)
-        if (len(src)==0) or (src in prefixes):
+        if (len(src)==0)  or  (src in prefixes):
             print "Seam %s is involved in this change"%s
             source_dest_table[src] = dest_dir
             # Get me the git diff for these changes.
