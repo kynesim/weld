@@ -268,8 +268,9 @@ def step(spec, opts):
             if (not ('log' in state)):
                 state['log'] = [ ]
             if base_changes: 
-                base_changes.extend(state['log'])
-                state['log'] = base_changes
+                human_readable = ops.make_human_readable_changes(base_changes)
+                human_readable.extend(state['log'])
+                state['log'] = human_readable
 
         
         # Stash state.

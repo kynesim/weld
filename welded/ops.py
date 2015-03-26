@@ -555,4 +555,31 @@ def push_base(spec, base_name):
     git.push(repo, b.uri, "+%s:%s"%(branch,branch))
 
 
+def make_human_readable_changes(base_changes):
+    """
+    Make base changes human readable. This means removing whatchanged lines,
+    and moving the first line, plus anything which looks like X-Escaped-* to
+    the bottom
+    """
+    r = re.compile(r'^:([0-9]+)\s+([0-9]+)\s+([0-9a-f]+)...\s+([0-9a-f]+)...\s+([A-Z])\s+(.*)$')
+    q = re.compile(r'^X-Escaped-')
+    result = [ ]
+    for c in base_changes:
+        c_lines = c.split('\n')
+        top_lines = [ ]
+        bottom_lines = [ "( %s )"%c_lines[0] ]
+        for l in c_lines[1:]:
+            m = r.match(l)
+            if (m is None):
+                m2 = q.match(l)
+                if (m2 is None):
+                    top_lines.append(l)
+                else:
+                    bottom_lines.append(l)
+        top_lines.append('\n')
+        top_lines.extend(bottom_lines)
+        result.append("\n".join(top_lines))
+    
+    return result
+
 # End file.

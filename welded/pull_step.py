@@ -227,10 +227,10 @@ def step(spec, opts):
         # Right. So, does this commit change something we care about?
         print "Stepping:  searching from   %s"%last_cid
         print "                     to     %s"%cid
-
+        
         base_changes = ops.log_changes(base_repo, last_cid, cid,
-                                       state['weld_directories'],
-                                       commit_style)
+                                                        state['weld_directories'],
+                                                        commit_style)
             
         base_changes = push_utils.escape_states(base_changes)
         if base_changes:
@@ -268,8 +268,10 @@ def step(spec, opts):
             if (not('log' in state)):
                 state['log'] = [ ]
             if base_changes:
-                base_changes.extend(state['log'])
-                state['log'] = base_changes
+                human_readable = ops.make_human_readable_changes(base_changes)
+                print "human_readable = %s"%human_readable
+                human_readable.extend(state['log'])
+                state['log'] = human_readable
             state['last_idx_merged'] = state['next_idx_to_merge']
             # .. aaand stash everything so that commit can find it.
 
@@ -389,12 +391,14 @@ def commit(spec, opts, allow_edit= True):
                 dots_string = "%s..%s"%(last_cid_committed, last_cid_merged)
             else:
                 dots_string = "%s"%last_cid_merged
-            f.write('X-Weld-Stepwise-Pull: %s %s'%(base_name, dots_string))
-            f.write('\n')
             if (len(state['log']) > 0):
                 f.write('\n'.join(state['log']))
             else:
                 f.write('(* No log: this commit was likely a branch switch  *)')
+            f.write('\n')
+            f.write('X-Weld-Stepwise-Pull: %s %s'%(base_name, dots_string))
+            f.write('\n')
+
         
         # Now just commit.
         if (allow_edit and edit_commit_file):
