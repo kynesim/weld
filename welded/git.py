@@ -15,10 +15,16 @@ def init(where):
     run_silently(["git", "init"], cwd=where)
 
 def add_in_subdir(where, dirname):
-    run_silently(["git", "add", "-A", "%s/**"%dirname], cwd=where)
+    if (not os.path.exists(dirname)):
+        run_silently(["git", "rm", "--ignore-unmatch", "-f", "-r", dirname], cwd = where)
+    else:
+        run_silently(["git", "add", "-f", "-A", "%s/**"%dirname], cwd=where)
+
+def make_index_match(where, files, verbose = True):
+    run_silently(["git", "add", "-f", "-A" ] + files, cwd=where, verbose=verbose)
 
 def add(where, files, verbose=True):
-    run_silently(["git", "add"] + files, cwd=where, verbose=verbose)
+    run_silently(["git", "add", "-f" ] + files, cwd=where, verbose=verbose)
 
 def clone(dir_into, from_repo, from_branch, from_tag, from_rev):
     cmd = [ "git", "clone" ]
@@ -47,12 +53,18 @@ def pull(dir_into, remote, from_branch, from_tag, from_rev):
         cmd.append("master")
     run_to_stdout(cmd, cwd=dir_into)
 
-def push(where, verbose=True):
+def push(where, uri = None, branch = None, verbose=True):
     """Push.
 
     - 'where' is the directory to run the command in.
     """
-    run_silently(['git', 'push'], cwd=where, verbose=verbose)
+    cmd = [ 'git', 'push' ]
+    if (uri is not None):
+        cmd.extend([ uri])
+    if (branch is not None):
+        cmd.extend([ branch ])
+
+    run_silently(cmd, cwd=where, verbose=verbose)
 
 def commit(where, comment, headers):
     """Do a git commit with a given set of headers.
@@ -99,6 +111,7 @@ def commit_using_message(where, message, all=False, verbose=True):
     cmd += ["-m", message]
     run_silently(cmd, cwd=where, verbose=verbose)
 
+
 def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
     """Checkout a commit, or create and checkout a branch.
 
@@ -119,32 +132,42 @@ def checkout(where, commit_id=None, new_branch_name=None, verbose=False):
                      verbose=verbose)
 
 def current_branch(where, verbose=True):
-    rv, out = run_silently(["git", "branch", "-v"], cwd=where, verbose=verbose)
-    lines = out.splitlines()
-    for l in lines:
-        l = l.strip()
-        f = l.split(' ')
-        if (f[0] == '*'):
-            return f[1]
-    return "master"
+    try:
+        rv, out = run_silently(["git", "symbolic-ref", "--short", "-q", "HEAD" ], cwd = where,
+                           verbose = verbose)
+    except GiveUp,g :
+        raise GiveUp("%s - attempt to determine the current branch for a detached HEAD in %s ?"%(g,where))        
 
-def what_changed(where, commit_from, commit_to, paths = None):
+    return out.strip()
+
+
+def what_changed(where, commit_from, commit_to, paths = None, verbose = False, opts = None,
+                 splitre = 'commit '):
     """
     Retrieves the full log entry for a commit, as given by 
     'git whatchanged', with a list of changes.
     
     Changes are returned in a list, one at a time.
     """
-    cmd = ["git", "whatchanged", "-m",
-           "%s..%s"%(commit_from,commit_to) ]
+    cmd = ["git", "whatchanged", "-m" ]
+    if (commit_from is None):
+        cmd += [ '%s'%commit_to ]
+    else:
+        cmd += [ "%s..%s"%(commit_from,commit_to) ]
+    if (opts is not None):
+        cmd += opts
     if (paths is not None):
         cmd += [ '--' ] + paths
     rv, out = run_silently(cmd, cwd = where)
-    # ugh.
-    return map(lambda x : "commit " + x, 
-               filter(lambda x: len(x) > 0 and True or False,
-                      re.split(r'^commit ', out, flags = re.MULTILINE)))
-
+    an_array = re.split('(^%s)'%splitre, out, flags=re.MULTILINE)
+    # Kill anything before the first marker.
+    ra = [ ]
+    if (len(an_array) > 0):
+        an_array = an_array[1:]
+        while (len(an_array) > 0):
+            ra.append( (an_array[0] + an_array[1]) )
+            an_array = an_array[2:]
+    return ra
    
 
 def log(where, commit_id):
@@ -155,12 +178,20 @@ def log(where, commit_id):
                        cwd=where)
     return out
 
-def log_between(where, from_id, to_id, paths=None, verbose=False):
+def log_between(where, from_id, to_id, paths=None, verbose=False, opts = None):
     """Do a git log for "<from_id>..<to_id> -- <paths>"
 
     Returns a sequence of lines.
     """
-    cmd = ['git', '--no-pager', 'log', '--oneline', '%s..%s'%(from_id, to_id)]
+    cmd = ['git', '--no-pager', 'log' ]
+    if (opts is not None):
+        cmd += opts
+    else:
+        cmd += [ '--oneline' ]
+    if (from_id is not None):
+        cmd += [ '%s..%s'%(from_id, to_id)]
+    else:
+        cmd += [ '%s'%to_id ]
     if paths:
         cmd += ['--'] + paths
     rv, changes = run_silently(cmd, cwd=where, verbose=verbose)
@@ -283,7 +314,10 @@ def tag(where, name, commit_id, force=True, verbose=False):
         cmd = ['git', 'tag', name, commit_id]
     run_silently(cmd, cwd=where, verbose=verbose)
 
-def diff_this(where, relative_to, commit_id, verbose=False):
+def hard_reset(where):
+    run_silently(['git', 'reset', '--hard'], cwd = where)
+
+def diff_this(where, relative_to, commit_id, verbose=False, from_commit_id = None):
     """Run "git diff" to find the changes 'commit_id' made to 'relative_to'
 
     - 'where' is the directory to run the command in
@@ -297,8 +331,13 @@ def diff_this(where, relative_to, commit_id, verbose=False):
 
     Raises GiveUp if the command fails.
     """
-    rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
-        '%s^!'%commit_id], cwd=where, verbose=verbose)
+    if from_commit_id is None:
+        rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
+                             '%s^!'%commit_id], cwd=where, verbose=verbose)
+    else:
+        rv, diff = run_silently(['git', 'diff', '--relative=%s'%relative_to,
+                                 '%s..%s'%(from_commit_id, commit_id)], cwd=where, verbose=verbose)
+        
     if verbose:
         print diff
     return diff
@@ -315,10 +354,9 @@ def apply_patch(where, patch_file, directory=None, verbose=False):
     Raises GiveUp if something goes wrong with the command (i.e., git returns
     a non-zero value)
     """
-    if directory is None:
-        cmd = ['git', 'apply', '--index', patch_file]
-    else:
-        cmd = ['git', 'apply', '--index', '--directory=%s'%directory, patch_file]
+    cmd = ['git', 'apply', '--index', '--whitespace=nowarn' ]
+    if directory is not None:
+        cmd.extend( ['--directory=%s'%directory, patch_file] )
     run_silently(cmd, cwd=where, verbose=verbose)
 
 def abort_rebase(spec):
@@ -356,7 +394,7 @@ def merge(where, to_branch, from_branch, msg, squashed = False):
     Note that merge leaves you on the to_branch
     """
     switch_branch(where, to_branch)
-    cmd = [ "git", "merge" ]
+    cmd = [ "git", "-c", "merge.renamelimit=1000000000", "merge" ]
     if (squashed):
         cmd.append("--squash")
     #cmd.append("--no-ff") # To make sure we always get our commit
@@ -371,17 +409,28 @@ def ff_merge(where, branch_name, verbose=False):
     run_silently(['git', 'merge', branch_name, '--ff-only'], cwd=where,
                  verbose=verbose)
 
-def merge_to_current(where, branch_name, squash=False, verbose=False):
+def rebase_to_current(where, branch_name, squash = False, verbose = False, commit = False):
+    """
+    Do a rebase - take the patches between the common ancestor of branch_name and
+    the current branch and apply them over current_branch
+    """
+    cb = current_branch(where)
+    checkout(where, branch_name)
+    cmd = ['git', 'rebase', cb ]
+    run_silently(cmd, cwd = where, verbose = verbose)
+
+
+def merge_to_current(where, branch_name, squash=False, verbose=False, commit = False):
     """Do a "normal" merge of branch 'branch_name' to the current branch.
 
-    Do not commit.
+    Do not commit unless commit is set to try.
 
     If 'squash' is true, then do a squash merge with --squash.
     """
-    cmd = ['git', 'merge', branch_name]
+    cmd = ['git', '-c', 'merge.renamelimit=1000000000', 'merge', branch_name ]
     if squash:
         cmd.append('--squash')
-    else:
+    elif not commit:
         cmd.append('--no-commit')
     run_silently(cmd, cwd=where, verbose=verbose)
 
@@ -399,12 +448,20 @@ def has_local_changes(where, verbose=False):
     else:
         return True
 
-def list_changes(where, from_cid, to_cid, paths = None):
+def list_changes(where, from_cid, to_cid, paths = None, kind = None, opts = None):
     """
     Return a list of commits in where from from_cid to to_cid, including
     to_cid but not from_cid, in the order in which they should be applied
     """
-    cmd = ["git", "rev-list", "%s...%s"%(from_cid, to_cid)]
+    cmd = ["git", "rev-list" ]
+    if (opts is not None):
+        cmd = cmd + opts
+    if (kind is not None):
+        cmd = cmd + [ kind ]
+    if from_cid is None:
+        cmd += [ '%s'%to_cid ]
+    else:
+        cmd = cmd + [ "%s...%s"%(from_cid, to_cid) ]
     if paths:
         cmd += ['--'] + paths
     rv, out = run_silently(cmd, cwd=where)
@@ -427,13 +484,21 @@ def show(where, cid):
     f.file.write(out)
     return f
 
-def show_diff(where, from_cid, to_cid):
+def show_diff(where, from_cid, to_cid, relative_to = None):
     """
     Returns a temporary file containing the diffs from from to to.
     """
     f = tempfile.NamedTemporaryFile(prefix="/tmp/weldcid%s"%to_cid, delete=False)
     # @todo Could be very much more efficient (and prolly needs to be)
-    rv, out = run_silently(["git", "diff", "--binary", "%s..%s"%(from_cid, to_cid)], cwd=where)
+    cmd = ["git", "diff", "--binary"]
+    cmd.append("%s..%s"%(from_cid, to_cid))
+    if (relative_to is not None and 
+        (len(relative_to) > 0)):
+        if (relative_to[-1] != '/'):
+            cmd.extend([ "--relative=%s/"%relative_to ])
+        else:
+            cmd.extend([ "--relative=%s"%relative_to ])
+    rv, out = run_silently(cmd, cwd=where)
     f.file.write(out)
     return f
 
@@ -461,12 +526,15 @@ def list_files(where, verbose=False):
     lines = text.splitlines()
     return lines
 
-def rm(where, files, verbose=True):
+def rm(where, files, verbose=True, force = True):
     """Delete the named files
 
     'files' should be a list of file names
     """
-    run_silently(["git", "rm"] + files, cwd=where, verbose=verbose)
+    cmd = [ "git", "rm" ]
+    if force:
+        cmd.append('-f')
+    run_silently(cmd + files, cwd=where, verbose=verbose)
 
 def should_we_pull_or_push(remote_name='origin', branch_name='master', cwd=None, verbose=False):
     """Is there something to pull from/push to our remote?

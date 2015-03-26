@@ -4,10 +4,11 @@
 import os
 
 import welded.git as git
+import welded.ops as ops
 
-from welded.layout import pushing_dir, complete_file
+from welded.layout import pushing_dir
 
-def get_status(where, remote_name=None, branch_name=None, verbose=False):
+def get_status_2(where, remote_name=None, branch_name=None, verbose=False):
     """Report on the weld status.
 
     - 'where' is the directory to do this all in.
@@ -35,16 +36,15 @@ def get_status(where, remote_name=None, branch_name=None, verbose=False):
     if remote_name is None:
         remote_name = 'origin'
 
+
+    cmd = ops.have_cmd(where)
+    if (cmd is not None):
+        return cmd, None, None
+
     if branch_name is None:
         branch_name = git.current_branch(where, verbose=verbose)
-
-    if os.path.exists(pushing_dir(where)):
-        return False, True, None, None
-
-    if os.path.exists(complete_file(where)):
-        return True, None, None, None
 
     should_pull, should_push = git.should_we_pull_or_push(remote_name,
             branch_name, cwd=where, verbose=verbose)
 
-    return False, False, should_pull, should_push
+    return None, should_pull, should_push

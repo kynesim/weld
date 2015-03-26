@@ -7,12 +7,18 @@ import re
 import shutil
 import tempfile
 import traceback
+import groan
+
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 import welded.git as git
 import welded.headers as headers
 import welded.layout as layout
 
-from welded.utils import GiveUp, run_silently, dynamic_load
+from welded.utils import GiveUp, run_silently, dynamic_load, run_to_stdout
 
 def update_base(spec, base):
     """
@@ -45,8 +51,9 @@ def delete_seams(spec, base_obj, seams, base_commit):
 
     for s in seams:
         to_zap = os.path.join(spec.base_dir, s.dest)
-        print("W: Remove %s\n"%to_zap)
-        shutil.rmtree(to_zap)
+        if os.path.exists(to_zap): 
+            print("W: Remove %s\n"%to_zap)
+            shutil.rmtree(to_zap)
         git.add_in_subdir(spec.base_dir, s.dest )
     
     # Now create the header for all this ..
@@ -120,6 +127,7 @@ def rewrite_diff(infile, cid, changes):
                     
 
     return (are_any, outfile)
+
 
         
 def modify_seams(spec, base_obj, changes, old_commit, new_commit):
@@ -206,20 +214,55 @@ def add_seams(spec, base_obj, seams, base_commit):
         # this level? Is the naive answer of just copying them good enough?)
 
         # Now just rsync it all over
-        run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
-        # Make sure you add all the files in the subdirectory
-        git.add_in_subdir(spec.base_dir, dest)
+        # The exists test copes with the case where the seam has not yet been added
+        # to the base - rrw 2014-09-15
+        # 
+        if (os.path.exists(src)):
+            run_silently(["rsync", "-avz", "--exclude", ".git/", os.path.join(src, "."), os.path.join(dest, ".")])
+
+            # You really don't want to remove anything, because it is likely that if there are files
+            # here, the seam was already added to the repository at the branch point 
+            # and was not added to the base. You will get some patch issues, since the
+            # base may well try to re-add this from elsewhere, but that is kind of
+            # to be expected.
+        else:
+            # Make sure the dest directory exists, or we will have trouble later.
+            if not os.path.exists(dest):
+                os.mkdir(dest)
+
+        # Make sure you add all the files in the subdirectory, if there are any.
+        if len(os.listdir(dest)) > 0:
+            git.add_in_subdir(spec.base_dir, dest)            
+        else:
+            # Just add the directory
+            git.add(spec.base_dir, [ dest ])
+
     # Now commit them with an appropriate header.
     hdrs = headers.seam_op(headers.SEAM_VERB_ADDED, base_obj, seams, base_commit)
     git.commit(spec.base_dir, hdrs, [] )
 
 FINISH_PULL_PREFIX="import pull\n" + \
-    "def go(spec):"
+    "def go(spec, opts):\n"
 FINISH_PULL_SUFFIX="\n"
 
 FINISH_PUSH_PREFIX="import push\n" + \
-    "def go(spec):"
+    "def go(spec, opts):"
 FINISH_PUSH_SUFFIX="\n"
+
+VERB_PREFIX="import ops\n" + \
+    "def go(spec, opts):\n"
+VERB_SUFFIX="\n"
+
+def have_cmd(base_dir):
+    try:
+        state = read_state_data_with_file(base_dir)
+        if ('cmd' in state):
+            return state['cmd']
+        else:
+            return 'unknown'
+    except:
+        pass
+    return None
 
 def write_finish_pull(spec, cmds_ok, cmds_abort):
     with open(layout.complete_file(spec.base_dir), "w+") as f:
@@ -241,25 +284,113 @@ def write_finish_push(spec, cmds_ok, cmds_abort):
         f.write(cmds_abort)
         f.write(FINISH_PUSH_SUFFIX)
 
-def do_finish(spec):
-    c = layout.complete_file(spec.base_dir)
-    if (os.path.exists(c)):
-        f = dynamic_load(c, no_pyc=True)
-        f.go(spec)
-        os.remove(c)
-        os.remove(layout.abort_file(spec.base_dir))
-    else:
-        raise GiveUp('No pending "weld pull" or "weld push" to complete')
+def clear_verbs(spec):
+    """
+    Clear all verbs, pending and real.
+    """
+    shutil.rmtree(layout.verb_dir(spec.base_dir))
+    shuilt.rmtree(layout.pending_verb_dir(spec.base_dir))
 
-def do_abort(spec):
-    c  = layout.abort_file(spec.base_dir)
+def verb_me(spec, module, fn, verb = None):
+    """
+    Given a verb, a module and a function, import that module and call the function when
+    the verb happens, with the current spec and opts as arguments
+    """
+    if verb is None:
+        verb = fn
+    return make_verb_available(spec, verb, [ 'import %s'%module,
+                                             '%s.%s(spec, opts)'%(module, fn) ])
+
+
+def make_verb_available(spec, cmd, code):
+    try:
+        os.mkdir(layout.pending_verb_dir(spec.base_dir), 0755)
+    except:
+        pass
+
+    with open(layout.pending_verb_file(spec.base_dir, cmd), "w+") as f:
+        f.write(VERB_PREFIX)
+        for l in code:
+            f.write(' ' + l + '\n')
+        f.write(VERB_SUFFIX)
+
+def write_verbs(spec, cmds, erase_old_verbs = True):
+    """
+    Writes a finish spec. cmds is a hash of verb -> some text to be evaluated
+    on that verb
+
+    The finish spec is written in the pending verbs directory.
+    """
+    if erase_old_verbs:
+        shutil.rmtree(layout.pending_verb_dir(spec.base_dir))
+
+    try:
+        os.mkdir(layout.pending_verb_dir(spec.base_dir), 0755)
+    except:
+        pass
+
+    for (cmd, text) in cmds:
+        with open(layout.pending_verb_file(spec.base_dir, cmd), "w+") as f:
+            f.write(VERB_PREFIX)
+            f.write(cmds)
+            f.write(VERB_SUFFIX)
+
+
+def repeat_verbs(spec):
+    """
+    Repeat the previous verbs
+    """
+    vb =layout.verb_dir(spec.base_dir)
+    nvb = layout.pending_verb_dir(spec.base_dir)
+    if os.path.exists(vb):
+        if os.path.exists(nvb):
+            shutil.rmtree(nvb)
+        shutil.copytree(vb,nvb)
+
+def next_verbs(spec):
+    """
+    Remove the currently available verbs and replace them with the
+    pending verbs
+    """
+    #traceback.print_stack()
+    vb =layout.verb_dir(spec.base_dir)
+    nvb = layout.pending_verb_dir(spec.base_dir)
+    if os.path.exists(vb):
+        shutil.rmtree(layout.verb_dir(spec.base_dir))
+    if os.path.exists(nvb):
+        shutil.move(nvb, vb)
+
+
+def do(spec, verb, opts, do_next_verbs = False):
+    """
+    Perform a verb
+    """
+    c = layout.verb_file(spec.base_dir, verb)
     if (os.path.exists(c)):
-        f = dynamic_load(c, no_pyc=True)
-        f.go(spec)
-        os.remove(c)
-        os.remove(layout.complete_file(spec.base_dir))
+        f = dynamic_load(c, no_pyc = True)
+        f.go(spec, opts)
+        # Success!
+        if do_next_verbs:
+            next_verbs(spec)
     else:
-        raise GiveUp('No pending "weld pull" or "weld push" to abort')
+        raise GiveUp("You see no '%s' here. %s "%(verb, groan.with_demise()))
+
+def available_verb(spec, verb):
+    return os.path.exists(layout.verb_file(spec.base_dir, verb))
+
+def list_verbs(spec):
+    return list_verbs_from(spec.base_dir)
+
+def list_verbs_from(base_dir):
+    c = layout.verb_dir(base_dir)
+    rv = [ ]
+    if (os.path.exists(c)):
+        for l in os.listdir(c):
+            if (l[0] != '.'):
+                dot = l.find('.')
+                rv.append(l[:dot])
+
+    return rv
 
 def count(filename):
     contents = ""
@@ -283,5 +414,172 @@ def spurious_modification(w):
     a_file = layout.count_file(w.base_dir)
     count(a_file)
     git.add(w.base_dir, [ a_file ] )
+
+def read_state_data(spec):
+    return read_state_data_with_file(spec.base_dir)
+
+def read_state_data_with_file(base_dir):
+    with open(layout.state_data_file(base_dir), 'r') as f:
+        some_input = f.read()
+    return pickle.loads(some_input)
+
+def write_state_data(spec, data):
+    with open(layout.state_data_file_x(spec.base_dir), 'w') as f:
+        f.write(pickle.dumps(data))
+    os.rename(layout.state_data_file_x(spec.base_dir),
+              layout.state_data_file(spec.base_dir))
+
+def ensure_state_dir(weld_dir):
+    try:
+        os.mkdir(layout.state_dir(weld_dir), 0755)
+    except:
+        pass
+
+def list_changes(where, cid_from, cid_to, opts = [ '--topo-order' ]):
+    return git.list_changes(where, cid_from, cid_to, opts = opts)
+
+def list_sensible_changes(where, cid_from, cid_to):
+    """
+    This produces a "sensible" list of cid_from .. cid_to: this means the 
+    list that you want to process for push_step and pull_step.
+    
+     * Don't follow merges down or you will get into an utter mess =>
+       --first-parent
+     * Topological order to avoid reintroducing patches => --topo-order
+      [ though frankly if this makes any difference, something has gone
+        badly wrong ]
+     * Don't list anything you've already got (--right-only --cherry-pick)
+     """
+    return git.list_changes(where, cid_from, cid_to, opts = 
+                            [ "--first-parent", "--topo-order", 
+                              "--right-only", "--cherry-pick" ])
+
+def log_changes(where, cid_from, cid_to, directories, style, verbose = False):
+    if (style == "long"):
+        return git.what_changed(where, 
+                                cid_from,
+                                cid_to,
+                                directories,
+                                verbose = verbose)
+    elif (style == "oneline"):
+        return git.log_between(where,
+                               cid_from,
+                               cid_to,
+                               directories,
+                               verbose = verbose)
+    elif (style == "summary"):
+        return git.what_changed(where,
+                                cid_from,
+                                cid_to,
+                                directories,
+                                verbose = verbose,
+                                opts = [ '--pretty=%n%H %ci %an <%ae> %n%w(,3,3)%B' ],
+                                splitre = '[0-9a-f]+')
+            
+            
+
+
+    else:
+        raise GiveUp("I do not understand the log style '%s'"%style)
+
+def merge_advice(base, lines,base_repo, head_expln, master_expln):
+    return ('Error merging patches to base %s.\n'
+            '%s\n'
+            'Fix the problems:\n'
+            '  pushd %s\n'
+            '  git status\n'
+            '  edit <the appropriate files>\n'
+            '  git commit -a\n'
+            '  popd\n'
+            'and do "weld finish", or abort using "weld abort\n"'
+            ' %s\n'
+            ' %s\n'%\
+            (base, lines, base_repo, head_expln, master_expln))
+
+def sanitise(in_dir, state, opts, verbose = False):
+    if opts.sanitise_script is not None:
+        scname = os.path.join(opts.cwd, opts.sanitise_script)
+    elif 'sanitise_script' in state:
+        scname = state['sanitise_script']
+    else:
+        scname = None
+    if (scname is None):
+        # Nothing to do.
+        return
+    # Otherwise .. 
+    fn = tempfile.mktemp(prefix='weld_log')
+    with open(fn, 'w') as f:
+        for l in state['log']:
+            f.write(l)
+            f.write('\n')
+    # Sanitise in the context of whatever directory the 
+    #   program was run from.
+    an_env = os.environ.copy()
+    an_env['WELD_LOG'] = fn
+    if 'weld_directories' in state:
+        an_env['WELD_DIRS'] = " ".join(state['weld_directories'])
+    print "Sanitising - run %s in %s with log %s.. "%(scname, in_dir, fn)
+    try:
+        run_to_stdout([ scname ], cwd = in_dir, verbose = verbose, env = an_env)
+    except Exception, e:
+        print "%s"%e
+        traceback.print_exc()
+        print ("\n"
+               "Retry with 'weld sanitise' and then step or commit (or finish)")
+    # Now read the log back in.
+    with open(fn, 'r') as f:
+        state['log'] = map(lambda x: x.strip(), f.readlines())
+    os.remove(fn)
+
+def reassociate_base(spec, base_name, verbose = False):
+    b = spec.query_base(base_name)
+    repo = layout.base_repo(spec.base_dir, base_name)
+    git.set_remote(repo, 'origin', b.uri)
+    git.pull(repo, b.uri, b.branch, b.tag, b.rev)
+
+def pull_base(spec, base_name):
+    b = spec.query_base(base_name)
+    repo = layout.base_repo(spec.base_dir, base_name)
+    if not os.path.exists(repo):
+        os.makedirs(repo)
+        git.init(repo)
+    git.pull(repo, b.uri, b.branch, b.tag, b.rev)
+
+def push_base(spec, base_name):
+    b = spec.query_base(base_name)
+    repo = layout.base_repo(spec.base_dir, base_name)
+    if b.branch is None:
+        branch = "master"
+    else:
+        branch = b.branch
+    git.push(repo, b.uri, "+%s:%s"%(branch,branch))
+
+
+def make_human_readable_changes(base_changes):
+    """
+    Make base changes human readable. This means removing whatchanged lines,
+    and moving the first line, plus anything which looks like X-Escaped-* to
+    the bottom
+    """
+    r = re.compile(r'^:([0-9]+)\s+([0-9]+)\s+([0-9a-f]+)...\s+([0-9a-f]+)...\s+([A-Z])\s+(.*)$')
+    q = re.compile(r'^X-Escaped-')
+    result = [ ]
+    for c in base_changes:
+        c_lines = c.split('\n')
+        top_lines = [ ]
+        bottom_lines = [ "( %s )"%c_lines[0] ]
+        for l in c_lines[1:]:
+            m = r.match(l)
+            if (m is None):
+                m2 = q.match(l)
+                if (m2 is None):
+                    top_lines.append(l)
+                else:
+                    bottom_lines.append(l)
+        top_lines.append('\n')
+        top_lines.extend(bottom_lines)
+        result.append("\n".join(top_lines))
+    
+    return result
 
 # End file.
