@@ -269,7 +269,6 @@ def step(spec, opts):
                 state['log'] = [ ]
             if base_changes:
                 human_readable = ops.make_human_readable_changes(base_changes)
-                print "human_readable = %s"%human_readable
                 human_readable.extend(state['log'])
                 state['log'] = human_readable
             state['last_idx_merged'] = state['next_idx_to_merge']
