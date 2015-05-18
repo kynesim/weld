@@ -357,6 +357,8 @@ def apply_patch(where, patch_file, directory=None, verbose=False):
     cmd = ['git', 'apply', '--index', '--whitespace=nowarn' ]
     if directory is not None:
         cmd.extend( ['--directory=%s'%directory, patch_file] )
+    else:
+        cmd.extend( [ patch_file ] )
     run_silently(cmd, cwd=where, verbose=verbose)
 
 def abort_rebase(spec):

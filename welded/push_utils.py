@@ -172,12 +172,25 @@ def make_patches_match(source_repo, dest_repo, what_changed, seams, last_cid, ci
             #    fh.write(some_data)
             if (os.stat(name).st_size >0):
                 try:
-                    git.apply_patch(dest_repo, name, directory = dest_dir, verbose = verbose)
+                    # Bit annoying: --directory=. fails to work, because you need
+                    # an _exact_ dir match for the git index, not just an
+                    # effective match. So, remove any './' or '.' from the dest_dir
+                    # before git gets hold of it - rrw 2015-05-18
+                    if (dest_dir == '.'):
+                        dir_arg = None
+                    elif (dest_dir[0:2] == './'):
+                        dir_arg = dest_dir[2:]
+                    else:
+                        dir_arg = dest_dir
+                    if ((dir_arg is not None) and len(dir_arg)==0):
+                        dir_arg = None
+                    
+                    git.apply_patch(dest_repo, name, directory = dir_arg, verbose = verbose)
                 except GiveUp as e:
                     if (ignore_bad_patches):
                         print "Ignoring bad patch - eeek!"
                     else:
-                        print "Patch failed to apply correctly - %s. Stashing."%e
+                        print "Patch failed to apply correctly - %s in %s. Stashing."%(e,dest_repo)
                         with open(name, 'r') as g:
                             with open("%s.%s"%(bad_patches_file, s.name), 'a') as f:
                                 f.write(g.read())
