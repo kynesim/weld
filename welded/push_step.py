@@ -300,6 +300,8 @@ def step(spec, opts):
             ops.write_state_data(spec, state)
             break
 
+        commit_now = False
+
         # Now work out if anything has changed.
         if has_local_changes:
             continue_now = False
@@ -326,7 +328,7 @@ def step(spec, opts):
                 ops.sanitise(base_dir, state, opts, verbose  = verbose)
                 ops.write_state_data(spec, state)
                 # Commit and continue.
-                commit(spec, opts, allow_edit = False)
+                commit(spec, opts) #  allow_edit = False)
                 # .. and remember to resync our state.
                 state = ops.read_state_data(spec)
             elif (not continue_now) and (not opts.finish_stepping) and ((not opts.step_until_git_change) or (changed or no_further_commits)):
