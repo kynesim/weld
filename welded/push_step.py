@@ -88,10 +88,10 @@ def push_step(spec, base_name, opts):
             print 'Which was none, so using init'
         latest_sync = weld_init
 
-    if (opts.force_latest_sync is not None):
+    if (opts.force_latest_base_sync is not None):
         print ("DANGER! WHIRLING BLADES OF DEATH AHEAD!\n"
-               "You have supplied --force-latest-sync: latest_sync manually set to %s"%opts.force_latest_sync)
-        latest_sync = opts.force_latest_sync
+               "You have supplied --force-latest-weld-sync: latest_sync manually set to %s"%opts.force_latest_sync)
+        latest_sync = opts.force_latest_weld_sync
         
     # See push.py for why we use the last 'push' and not the last
     #  'push / pull'.

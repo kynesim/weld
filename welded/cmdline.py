@@ -81,16 +81,24 @@ main_parser.add_option('--pragmatic-stepping', action="store_true",
                        dest="pragmatic_stepping", default = False,
                        help=( "When in a stepped pull or push, just replicate commit messages for the rest of the pull/push in an attempt to create" + 
                               " some kind of sensible history.") )
-main_parser.add_option("--force-latest-sync", action="store", dest="force_latest_sync",
+main_parser.add_option("--force-latest-base-sync", action="store", dest="force_latest_base_sync",
                        default = None,
                        help=( "[a-bit-cross] "
-                              "This option forces push to consider the last commit shared by the base and weld to be "
-                              "the commit"
-                              " given by its argument. This allows you to recover from various rather horrid situations"
+                              "This option forces pull to consider the last point at which the base and weld were up to "
+                              "date to have occurred at the given base commit id. push always pushes to the head of the base"
+                              " branch."
+                              " This allows you to recover from various rather horrid situations"
                               " (in particular, the one where you have separated a seam into its own base) "
                               " but because it affects the history assumed by weld, this can result in some very nasty"
                               " side-effects - such as time going in the reverse direction to the commits you are"
-                              " attempting to apply. We mean it about your bicycle."))
+                              " attempting to apply. We mean it about your bicycle.\n" ) )
+main_parser.add_option("--force-latest-weld-sync", action="store", dest="force_latest_weld_sync",
+                       default = None,
+                       help=( "[a-bit-cross] "
+                              "This option forces push and pull to consider the last point at which the base and weld were up to "
+                              "date to have occurred at the given weld commit id."
+                              "This is used in conjunction with --force-latest-base-sync to recover from various horrid situations,"
+                              "and also to force pulls and pushes of specific commits." ) )
 main_parser.add_option("--step-until-git-change", action="store_true",
                        default = False,
                        dest = "step_until_git_change",

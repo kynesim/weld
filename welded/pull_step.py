@@ -42,7 +42,7 @@ def pull_step(spec, base_name, opts):
     
     if (ops.have_cmd(spec)):
         raise GiveUp('We are part way through a weld operation; finish it (or abort it) and try again')
-    
+   
     if (root_branch.startswith('weld-')):
         raise GiveUp("You are currently on a branch ('%s') used by weld - please " 
                      "get iff it and try again"%(root_branch))
@@ -50,6 +50,9 @@ def pull_step(spec, base_name, opts):
 
     root_head = git.query_current_commit_id(weld_root)
     (verb, last_weld_sync, last_base_sync, seams) = query_last_merge_or_push(weld_root, base_name)
+    if opts.ignore_history and opts.force_latest_sync is not None:
+        raise GiveUp("Cannot specify force-latest-sync with ignore-history")
+
     if opts.ignore_history or (last_weld_sync is None):
         # No previous merge
         last_weld_sync = git.query_init(weld_root)
@@ -59,7 +62,12 @@ def pull_step(spec, base_name, opts):
     else:
         if verbose:
             print 'Last weld sync with this base was %s at %s with last base sync %s'%(verb, last_weld_sync[:10], last_base_sync)
-    
+    if opts.force_latest_base_sync is not None:
+        print "--- Forcing latest sync to be at base %s"%opts.force_latest_base_sync
+        last_base_sync = opts.force_latest_base_sync
+    if opts.force_latest_weld_sync is not None:
+        print "--- Forcing latest sync to be at weld %s"%opts.force_latest_weld_sync
+        last_weld_sync = opts.force_latest_weld_sync
 
     # So, what we do now is to branch the weld at the point where the last
     # sync was. We then modify seams on that branch to what they should be.
